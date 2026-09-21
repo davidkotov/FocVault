@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FocVault — Deine Privacy Cloud</title>
+<style>
+:root{
+  --bg:#ffffff; --bg-soft:#f6f8fb; --surface:#ffffff; --border:#e7eaf0;
+  --text:#0f1420; --text-dim:#5b6474; --text-mute:#8892a0;
+  --accent:#0090ff; --accent-dark:#0074d1; --accent-soft:#e8f3ff;
+  --green:#1f9d63; --green-soft:#e9f7ef;
+  --amber:#b9770e; --amber-soft:#fff4e1;
+  --red:#d23c4f; --red-soft:#fdecee;
+  --radius:14px; --radius-sm:10px;
+  --shadow-sm:0 1px 2px rgba(16,24,40,.05);
+  --shadow-md:0 8px 24px rgba(16,24,40,.08);
+  --shadow-lg:0 24px 64px rgba(16,24,40,.14);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+img,svg{display:block}
+.wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+.icon{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* utility bar */
+.utilbar{background:var(--bg-soft);border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-dim)}
+.utilbar .wrap{display:flex;justify-content:space-between;align-items:center;height:34px}
+.utilbar a{margin-right:18px;color:var(--text-dim)}
+.utilbar a:hover{color:var(--text)}
+
+/* nav */
+nav.main{position:sticky;top:0;background:rgba(255,255,255,.9);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);z-index:50}
+nav.main .wrap{display:flex;align-items:center;height:68px;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;margin-right:auto}
+.brand .mark{width:30px;height:30px}
+.navlinks{display:flex;gap:26px;font-size:14.5px;font-weight:500;color:var(--text-dim)}
+.navlinks a:hover{color:var(--text)}
+.navcta{display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:10px 18px;font-size:14.5px;font-weight:600;border:1px solid transparent;cursor:pointer;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-dark)}
+.btn-ghost{background:transparent;color:var(--text);border-color:var(--border)}
+.btn-ghost:hover{background:var(--bg-soft)}
+.btn-lg{padding:14px 26px;font-size:15.5px;border-radius:12px}
+
+/* hero */
+.hero{padding:88px 0 48px;text-align:center;background:radial-gradient(900px 420px at 50% -120px,var(--accent-soft),transparent)}
+.pill{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent-dark);border:1px solid #cfe8ff;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600;margin-bottom:22px}
+.pill b{background:var(--accent);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px}
+.hero h1{font-size:56px;line-height:1.08;font-weight:800;letter-spacing:-1.5px;margin:0 0 20px;max-width:760px;margin-inline:auto}
+.hero h1 span{color:var(--accent)}
+.hero p.lead{font-size:18px;color:var(--text-dim);max-width:560px;margin:0 auto 32px;line-height:1.6}
+.herobtns{display:flex;gap:14px;justify-content:center;margin-bottom:20px}
+.trustline{font-size:13px;color:var(--text-mute);margin-bottom:56px}
+.trustline b{color:var(--text-dim)}
+
+/* product preview card */
+.preview{max-width:980px;margin:0 auto;border-radius:20px;border:1px solid var(--border);box-shadow:var(--shadow-lg);overflow:hidden;background:#fff}
+.preview .barfake{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-soft)}
+.preview .dot{width:10px;height:10px;border-radius:50%;background:#e2e5ea}
+.preview .urlfake{margin-left:10px;font-size:12px;color:var(--text-mute);background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 12px}
+.preview .body{display:flex;min-height:360px}
+.pv-side{width:200px;border-right:1px solid var(--border);padding:18px 14px;background:var(--bg-soft)}
+.pv-navitem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--text-dim);font-weight:600;margin-bottom:2px}
+.pv-navitem.active{background:var(--accent-soft);color:var(--accent-dark)}
+.pv-main{flex:1;padding:22px 26px}
+.pv-chip{display:inline-flex;font-size:12px;font-weight:600;color:var(--text-dim);border:1px solid var(--border);border-radius:999px;padding:6px 13px;margin-right:8px}
+.pv-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
+.pv-card{border:1px solid var(--border);border-radius:12px;padding:14px;text-align:left}
+.pv-tile{width:100%;height:64px;border-radius:8px;margin-bottom:10px}
+.pv-name{font-size:12.5px;font-weight:700}
+.pv-meta{font-size:11px;color:var(--text-mute);margin-top:2px}
+
+/* trust bar */
+.trustbar{padding:34px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--bg-soft)}
+.trustbar .wrap{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
+.trustbadge{font-size:13px;font-weight:600;color:var(--text-dim);display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:999px;padding:8px 16px}
+
+/* sections */
+section{padding:88px 0}
+.eyebrow{font-size:13px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;text-align:center}
+h2.sectitle{font-size:36px;font-weight:800;letter-spacing:-0.8px;text-align:center;margin:0 0 16px}
+p.subtitle{font-size:16px;color:var(--text-dim);text-align:center;max-width:560px;margin:0 auto 56px;line-height:1.6}
+
+/* features */
+.features{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.feature{border:1px solid var(--border);border-radius:var(--radius);padding:26px;background:#fff;box-shadow:var(--shadow-sm)}
+.feature .fi{width:42px;height:42px;border-radius:10px;background:var(--accent-soft);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.feature h3{font-size:16px;font-weight:700;margin:0 0 8px}
+.feature p{font-size:13.5px;color:var(--text-dim);line-height:1.55;margin:0}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:0;position:relative}
+.step{text-align:center;padding:0 20px;position:relative}
+.step .num{width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:16px}
+.step h4{font-size:15.5px;font-weight:700;margin:0 0 8px}
+.step p{font-size:13.5px;color:var(--text-dim);line-height:1.55;margin:0}
+.step::after{content:'';position:absolute;top:22px;left:100%;width:100%;height:2px;background:var(--border);z-index:-1}
+.step:last-child::after{display:none}
+
+/* comparison */
+.comptable{width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.comptable th,.comptable td{padding:14px 18px;text-align:center;border-bottom:1px solid var(--border)}
+.comptable th{background:var(--bg-soft);font-weight:700;font-size:13px}
+.comptable td:first-child,.comptable th:first-child{text-align:left;font-weight:600}
+.comptable tr:last-child td{border-bottom:none}
+.comptable .colhi{background:var(--accent-soft)}
+.ok{color:var(--green);font-weight:700}
+.no{color:var(--text-mute)}
+
+/* pricing */
+.pricing{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.plan{border:1px solid var(--border);border-radius:var(--radius);padding:30px;background:#fff;display:flex;flex-direction:column}
+.plan.highlight{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft),var(--shadow-md);position:relative}
+.plan.highlight .tag{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:11.5px;font-weight:700;padding:4px 14px;border-radius:999px}
+.plan h3{font-size:15px;font-weight:700;color:var(--text-dim);margin:0 0 6px;text-transform:uppercase;letter-spacing:.4px}
+.plan .price{font-size:34px;font-weight:800;margin:0 0 4px}
+.plan .price span{font-size:14px;font-weight:500;color:var(--text-mute)}
+.plan .desc{font-size:13px;color:var(--text-mute);margin-bottom:22px}
+.plan ul{list-style:none;padding:0;margin:0 0 26px;flex:1}
+.plan li{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;color:var(--text-dim);padding:7px 0}
+.plan li svg{flex-shrink:0;margin-top:2px;color:var(--green)}
+
+/* faq */
+.faq{max-width:720px;margin:0 auto}
+details{border-bottom:1px solid var(--border);padding:20px 0}
+summary{font-size:15.5px;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary::after{content:'+';font-size:22px;color:var(--text-mute);font-weight:400}
+details[open] summary::after{content:'–'}
+details p{font-size:14px;color:var(--text-dim);line-height:1.6;margin:14px 0 0}
+
+/* cta banner */
+.ctaband{background:linear-gradient(135deg,var(--accent),#0064b8);border-radius:24px;padding:64px 40px;text-align:center;color:#fff}
+.ctaband h2{font-size:32px;font-weight:800;margin:0 0 14px;letter-spacing:-.6px}
+.ctaband p{opacity:.9;margin:0 0 28px;font-size:15px}
+.ctaband .btn-primary{background:#fff;color:var(--accent-dark)}
+.ctaband .btn-primary:hover{background:#eef6ff}
+.ctaband .btn-ghost{border-color:rgba(255,255,255,.5);color:#fff}
+.ctaband .btn-ghost:hover{background:rgba(255,255,255,.12)}
+
+/* footer */
+footer{border-top:1px solid var(--border);padding:56px 0 30px;background:var(--bg-soft)}
+.footgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:32px;margin-bottom:40px}
+.footbrand{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.footbrand .mark{width:22px;height:22px}
+.foottag{font-size:13px;color:var(--text-mute);max-width:220px;line-height:1.6}
+.footcol h5{font-size:12.5px;font-weight:700;color:var(--text-mute);text-transform:uppercase;letter-spacing:.5px;margin:0 0 14px}
+.footcol a{display:block;font-size:13.5px;color:var(--text-dim);margin-bottom:11px}
+.footcol a:hover{color:var(--text)}
+.footbottom{border-top:1px solid var(--border);padding-top:22px;font-size:12.5px;color:var(--text-mute);display:flex;justify-content:space-between}
+
+@media(max-width:900px){
+  .features{grid-template-columns:repeat(2,1fr)}
+  .steps,.pricing{grid-template-columns:1fr}
+  .footgrid{grid-template-columns:1fr 1fr}
+  .pv-grid{grid-template-columns:repeat(2,1fr)}
+  .hero h1{font-size:38px}
+  .navlinks{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="utilbar"><div class="wrap">
+  <div><a href="#">Dokumentation</a><a href="#">Sicherheit</a><a href="#">Support</a></div>
+  <div><a href="#">Anmelden</a></div>
+</div></div>
+
+<nav class="main"><div class="wrap">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#0090ff"/><path d="M20 8a12 12 0 1 0 8.49 3.51" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><rect x="15" y="17" width="10" height="9" rx="2" fill="#fff"/><path d="M17 17v-2a3 3 0 0 1 6 0v2" stroke="#fff" stroke-width="2.4" fill="none"/></svg>
+    Foc<span style="color:#0090ff">Vault</span>
+  </div>
+  <div class="navlinks">
+    <a href="#produkt">Produkt</a>
+    <a href="#sicherheit">Sicherheit</a>
+    <a href="#preise">Preise</a>
+    <a href="#faq">FAQ</a>
+  </div>
+  <div class="navcta">
+    <a class="btn btn-ghost" href="#">Anmelden</a>
+    <a class="btn btn-primary" href="#">Kostenlos starten</a>
+  </div>
+</div></nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="pill"><b>NEU</b> Secure Send &amp; Mobile-Sync</span>
+    <h1>Deine Privacy Cloud für<br>Dateien, Fotos &amp; mehr</h1>
+    <p class="lead">Ende-zu-Ende-verschlüsselt in deinem Browser, dezentral gespeichert auf
+      Filecoin. Niemand außer dir sieht deine Daten — nicht einmal wir.</p>
+    <div class="herobtns">
+      <a class="btn btn-primary btn-lg" href="#">Kostenlos starten</a>
+      <a class="btn btn-ghost btn-lg" href="#">Live-Demo ansehen</a>
+    </div>
+    <div class="trustline"><b>20 MB kostenlos</b> · Kein Abo-Zwang · Keine Kreditkarte nötig</div>
+
+    <div class="preview">
+      <div class="barfake">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="urlfake">app.focvault.io/cloud</span>
+      </div>
+      <div class="body">
+        <div class="pv-side">
+          <div class="pv-navitem active">☁️ Meine Cloud</div>
+          <div class="pv-navitem">🔗 Secure Send</div>
+          <div class="pv-navitem">💳 Konto</div>
+          <div class="pv-navitem" style="opacity:.4">🔐 Passwörter</div>
+          <div class="pv-navitem" style="opacity:.4">📝 Notizen</div>
+        </div>
+        <div class="pv-main">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <strong style="font-size:15px">Meine Cloud</strong>
+            <span class="btn btn-primary" style="padding:7px 14px;font-size:12px">+ Hochladen</span>
+          </div>
+          <div style="margin-top:14px">
+            <span class="pv-chip active">Alle (12)</span>
+            <span class="pv-chip">📄 Dokumente</span>
+            <span class="pv-chip">🖼️ Fotos</span>
+            <span class="pv-chip">🎬 Videos</span>
+          </div>
+          <div class="pv-grid">
+            <div class="pv-card"><div class="pv-tile" style="background:#e8f3ff"></div><div class="pv-name">Vertrag.pdf</div><div class="pv-meta">1.2 MB · heute</div></div>
+            <div class="pv-card"><div class="pv-tile" style="background:#fdecee"></div><div class="pv-name">Urlaub_04.jpg</div><div class="pv-meta">4.8 MB · gestern</div></div>
+            <div class="pv-card"><div class="pv-tile" style="background:#e9f7ef"></div><div class="pv-name">Backup_2026.zip</div><div class="pv-meta">220 MB · 3 Tage</div></div>
+            <div class="pv-card"><div class="pv-tile" style="background:#fff4e1"></div><div class="pv-name">Notizen.txt</div><div class="pv-meta">4 KB · 1 Woche</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="trustbar"><div class="wrap">
+  <span class="trustbadge">⛓️ Filecoin Onchain Cloud</span>
+  <span class="trustbadge">✅ PDP-verifiziert</span>
+  <span class="trustbadge">🔒 Zero-Knowledge</span>
+  <span class="trustbadge">🧩 Open Source</span>
+</div></div>
+
+<section id="produkt">
+  <div class="wrap">
+    <div class="eyebrow">Produkt</div>
+    <h2 class="sectitle">Eine Cloud. Volle Kontrolle.</h2>
+    <p class="subtitle">Komfortable Oberfläche, dezentrale Infrastruktur darunter — du musst
+      nie wissen, was technisch dahinter passiert.</p>
+    <div class="features">
+      <div class="feature">
+        <div class="fi"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>Zero-Knowledge</h3>
+        <p>AES-256-GCM-Verschlüsselung direkt im Browser. Schlüssel verlassen dein Gerät nie.</p>
+      </div>
+      <div class="feature">
+        <div class="fi"><svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></div>
+        <h3>Dezentrale Speicherung</h3>
+        <p>Filecoin Onchain Cloud, 2 Kopien bei unabhängigen Providern, PDP-verifiziert.</p>
+      </div>
+      <div class="feature">
+        <div class="fi"><svg class="icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.6l6.8-3.2M8.6 13.4l6.8 3.2"/></svg></div>
+        <h3>Secure Send</h3>
+        <p>Dateien teilen ohne Empfänger-Konto — Schlüssel im Link, nie auf dem Server.</p>
+      </div>
+      <div class="feature">
+        <div class="fi"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg></div>
+        <h3>Faire Abrechnung</h3>
+        <p>Pay-per-Epoch: du zahlst nur, solange du speicherst. Kein Mindestbetrag.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--bg-soft)">
+  <div class="wrap">
+    <div class="eyebrow">So funktioniert's</div>
+    <h2 class="sectitle">In drei Schritten in deiner Cloud</h2>
+    <p class="subtitle">Keine Installation, kein Konto mit Passwort — deine Wallet ist deine Identität.</p>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><h4>Wallet verbinden</h4><p>MetaMask oder WalletConnect — dauert 10 Sekunden.</p></div>
+      <div class="step"><div class="num">2</div><h4>Automatisch verschlüsseln</h4><p>Jede Datei wird lokal in deinem Browser AES-256-verschlüsselt.</p></div>
+      <div class="step"><div class="num">3</div><h4>Speichern &amp; teilen</h4><p>Landet automatisch im richtigen Ordner, teilbar per Secure Send.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="sicherheit">
+  <div class="wrap">
+    <div class="eyebrow">Vergleich</div>
+    <h2 class="sectitle">Wie sich FocVault einordnet</h2>
+    <p class="subtitle">Wir sind keine S3-Pipeline für Teams — sondern die persönliche Privacy-Cloud darüber.</p>
+    <table class="comptable">
+      <tr><th>&nbsp;</th><th class="colhi">FocVault</th><th>Klassische Cloud</th><th>S3-Objektstorage</th></tr>
+      <tr><td>Zero-Knowledge-Verschlüsselung</td><td class="colhi"><span class="ok">✓ ja</span></td><td><span class="no">✗ nein</span></td><td><span class="no">✗ nein</span></td></tr>
+      <tr><td>Mindestgebühr</td><td class="colhi"><span class="ok">Keine</span></td><td>meist ja</td><td>z.B. $4.99/Monat</td></tr>
+      <tr><td>Account/Login nötig</td><td class="colhi"><span class="ok">Nur Wallet</span></td><td>E-Mail + Passwort</td><td>API-Keys</td></tr>
+      <tr><td>Zielgruppe</td><td class="colhi">Privatpersonen</td><td>Privatpersonen</td><td>Dev-Teams</td></tr>
+      <tr><td>Datenhoheit bei Anbieterwechsel</td><td class="colhi"><span class="ok">Export + eigene Keys</span></td><td>oft Lock-in</td><td>S3-kompatibel</td></tr>
+    </table>
+  </div>
+</section>
+
+<section id="preise" style="background:var(--bg-soft)">
+  <div class="wrap">
+    <div class="eyebrow">Preise</div>
+    <h2 class="sectitle">Fair, transparent, ohne Mindestbetrag</h2>
+    <p class="subtitle">Bezahlt wird on-chain in USDFC — pro Epoche, genau für das was du speicherst.</p>
+    <div class="pricing">
+      <div class="plan">
+        <h3>Free</h3>
+        <div class="price">0 €<span>/Monat</span></div>
+        <div class="desc">Für den Einstieg — Self-Pay, kostet uns nichts, kostet dich fast nichts.</div>
+        <ul>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>20 MB Speicher</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>Zero-Knowledge-Verschlüsselung</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>Secure Send</li>
+        </ul>
+        <a class="btn btn-ghost" href="#">Kostenlos starten</a>
+      </div>
+      <div class="plan highlight">
+        <span class="tag">Beliebt</span>
+        <h3>Pro</h3>
+        <div class="price">~5 USDFC<span>/Monat</span></div>
+        <div class="desc">Für alle, die mehr als ein paar Dokumente sichern wollen.</div>
+        <ul>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>2 GB Speicher</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>Chunking bis 2 GB pro Datei</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>Vault-Sync über alle Geräte</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>Priorisierter Support</li>
+        </ul>
+        <a class="btn btn-primary" href="#">Pro aktivieren</a>
+      </div>
+      <div class="plan">
+        <h3>Business</h3>
+        <div class="price">Individuell</div>
+        <div class="desc">Teams, Compliance-Anforderungen, dedizierte Kapazität.</div>
+        <ul>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>Individuelle Kapazität</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>Team-Vaults (geplant)</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>SLA &amp; dedizierter Support</li>
+        </ul>
+        <a class="btn btn-ghost" href="#">Kontakt</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="eyebrow">FAQ</div>
+    <h2 class="sectitle">Häufige Fragen</h2>
+    <div class="faq">
+      <details open>
+        <summary>Was bedeutet Zero-Knowledge genau?</summary>
+        <p>Deine Dateien werden vor dem Hochladen in deinem Browser verschlüsselt. Wir speichern
+          nur die verschlüsselten Bytes und eine Prüfsumme (CID) — den Schlüssel sehen wir nie.</p>
+      </details>
+      <details>
+        <summary>Brauche ich eine Kryptowährung?</summary>
+        <p>Ja, für die Storage-Zahlung wird USDFC benötigt (ein FIL-besicherter Stablecoin).
+          Für kleine Dateien reicht ein Bruchteil eines Euros pro Monat.</p>
+      </details>
+      <details>
+        <summary>Was passiert, wenn ich meine Wallet verliere?</summary>
+        <p>Deine Wallet ist deine Identität — wie bei einem Passwort-Manager solltest du deine
+          Wallet-Seed-Phrase sicher aufbewahren. Ein Recovery-Kit ist auf der Roadmap.</p>
+      </details>
+      <details>
+        <summary>Wie unterscheidet sich das von S3-Anbietern wie fil.one?</summary>
+        <p>S3-Anbieter richten sich an Entwickler-Teams (Buckets, API-Keys, kein Zero-Knowledge).
+          FocVault ist die persönliche Privacy-Cloud für Menschen — Identity-Layer,
+          Ende-zu-Ende-Verschlüsselung und eine Oberfläche ohne Code.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="ctaband">
+      <h2>Bereit für deine eigene Privacy Cloud?</h2>
+      <p>20 MB kostenlos. Keine Kreditkarte. In 2 Minuten startklar.</p>
+      <div class="herobtns" style="justify-content:center">
+        <a class="btn btn-primary btn-lg" href="#">Kostenlos starten</a>
+        <a class="btn btn-ghost btn-lg" href="#">Mit uns sprechen</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footgrid">
+      <div>
+        <div class="footbrand">
+          <svg class="mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#0090ff"/></svg>
+          FocVault
+        </div>
+        <div class="foottag">Deine Privacy Cloud auf Filecoin Onchain Cloud. Identity, Verschlüsselung, Storage — alles bei dir.</div>
+      </div>
+      <div class="footcol"><h5>Produkt</h5>
+        <a href="#">Meine Cloud</a><a href="#">Secure Send</a><a href="#">Preise</a><a href="#">Roadmap</a>
+      </div>
+      <div class="footcol"><h5>Unternehmen</h5>
+        <a href="#">Über uns</a><a href="#">Sicherheit</a><a href="#">Blog</a><a href="#">Kontakt</a>
+      </div>
+      <div class="footcol"><h5>Rechtliches</h5>
+        <a href="#">Datenschutz</a><a href="#">AGB</a><a href="#">Impressum</a><a href="#">Status</a>
+      </div>
+    </div>
+    <div class="footbottom">
+      <span>© 2026 FocVault. Gebaut auf Filecoin Onchain Cloud.</span>
+      <span>Made possible by Synapse SDK &amp; FOC</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "FocVault",
+  "short_name": "FocVault",
+  "description": "Zero-Knowledge File-Storage auf Filecoin Onchain Cloud",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101318",
+  "theme_color": "#101318",
+  "icons": [
+    { "src": "/icon192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
