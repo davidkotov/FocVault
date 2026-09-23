@@ -6,6 +6,51 @@ const MIN_PIECE_BYTES = 127
 
 export const CHUNK_SIZE = 256 * 1024 * 1024
 
+/** Klartext-Groesse eines Streaming-Subblocks (AES-GCM wird blockweise angewendet). */
+export const STREAM_BLOCK_SIZE = 16 * 1024 * 1024
+
+const GCM_TAG = 16
+const FRAME_HEADER = 4
+
+function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(a.byteLength + b.byteLength)
+  out.set(a, 0)
+  out.set(b, a.byteLength)
+  return out
+}
+
+/** Deterministische IV je Subblock: baseIv[0..7] (zufaellig) + 4-Byte-Zaehler (BE).
+ *  Verhindert IV-Wiederverwendung pro Chunk und braucht kein iv-Array im Meta. */
+function frameIv(baseIv: Uint8Array, counter: number): Uint8Array<ArrayBuffer> {
+  const iv = new Uint8Array(12)
+  iv.set(baseIv.subarray(0, 8), 0)
+  iv[8] = (counter >>> 24) & 0xff
+  iv[9] = (counter >>> 16) & 0xff
+  iv[10] = (counter >>> 8) & 0xff
+  iv[11] = counter & 0xff
+  return iv
+}
+
+export interface StreamPlan {
+  frames: number
+  cipherSize: number
+  paddedSize: number
+}
+
+/** Exakt berechnete Kapsel-Groesse eines verschlusselten Chunks:
+ *  pro Subblock 4B Laenge-Prefix + Block + 16B GCM-Tag, danach ggf. Pad auf MIN_PIECE_BYTES. */
+export function streamCipherPlan(clearSize: number): StreamPlan {
+  const frames = Math.max(1, Math.ceil(clearSize / STREAM_BLOCK_SIZE))
+  let cipherSize = 0
+  let rest = clearSize
+  for (let i = 0; i < frames; i++) {
+    const blockLen = Math.min(rest, STREAM_BLOCK_SIZE)
+    cipherSize += FRAME_HEADER + blockLen + GCM_TAG
+    rest -= blockLen
+  }
+  return { frames, cipherSize, paddedSize: Math.max(cipherSize, MIN_PIECE_BYTES) }
+}
+
 export interface ChunkCipher {
   cipher: Bytes
   iv: string
@@ -120,6 +165,122 @@ export async function wrapFileKey(rawKey: Bytes, master: CryptoKey): Promise<Wra
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const wrapped = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, master, rawKey))
   return { wrapped: toB64(wrapped), iv: toB64(iv) }
+}
+
+/** Verschluesselt einen Datei-Abschnitt [start, end) live als Stream.
+ *  Pro 16-MiB-Subblock entsteht ein Frame `[u32le cipherLen][cipher+tag]`,
+ *  IV deterministisch aus baseIv + Zaehler. Am Ende wird bis `padding` mit
+ *  NUL-Bytes aufgefuellt (MIN_PIECE_BYTES). RAM-frei: nie mehr als ~1 Block im Speicher. */
+export function encryptedPieceStream(
+  file: File,
+  start: number,
+  end: number,
+  fileKey: CryptoKey,
+  baseIv: Uint8Array<ArrayBuffer>,
+  padding: number,
+  signal?: AbortSignal
+): ReadableStream<Uint8Array<ArrayBuffer>> {
+  const source = file.slice(start, end).stream() as ReadableStream<Uint8Array>
+  const reader = source.getReader()
+  let buffer = new Uint8Array(0)
+  let eof = false
+  let counter = 0
+  let ended = false
+
+  const encryptBlock = async (block: Uint8Array, ctr: number): Promise<Uint8Array<ArrayBuffer>> => {
+    const iv = frameIv(baseIv, ctr)
+    const cipher = new Uint8Array(
+      await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, fileKey, block as Bytes)
+    )
+    const frame = new Uint8Array(FRAME_HEADER + cipher.byteLength)
+    new DataView(frame.buffer).setUint32(0, cipher.byteLength, true)
+    frame.set(cipher, FRAME_HEADER)
+    return frame
+  }
+
+  return new ReadableStream<Uint8Array<ArrayBuffer>>({
+    async pull(controller) {
+      if (ended) return
+      if (signal?.aborted) {
+        ended = true
+        await reader.cancel().catch(() => undefined)
+        controller.error(new DOMException('Upload abgebrochen', 'AbortError'))
+        return
+      }
+      while (buffer.byteLength < STREAM_BLOCK_SIZE && !eof) {
+        const { done, value } = await reader.read()
+        if (done) {
+          eof = true
+          break
+        }
+        buffer = concatBytes(buffer, value)
+      }
+      if (buffer.byteLength >= STREAM_BLOCK_SIZE) {
+        const block = buffer.subarray(0, STREAM_BLOCK_SIZE)
+        buffer = buffer.subarray(STREAM_BLOCK_SIZE)
+        controller.enqueue(await encryptBlock(block, counter++))
+        return
+      }
+      if (eof && buffer.byteLength > 0) {
+        const block = buffer
+        buffer = new Uint8Array(0)
+        controller.enqueue(await encryptBlock(block, counter++))
+      }
+      if (eof && buffer.byteLength === 0) {
+        ended = true
+        if (padding > 0) controller.enqueue(new Uint8Array(padding))
+        controller.close()
+      }
+    },
+    cancel(_reason) {
+      ended = true
+      void reader.cancel().catch(() => undefined)
+    }
+  })
+}
+
+/** Decryptiert einen Piece-Stream Frame fuer Frame und ruft onBlock serialisiert auf.
+ *  Liest exakt `frames` Frames (self-describing via Laengen-Prefix), Rest = Padding.
+ *  RAM-frei: nie mehr als ~1 Frame im Speicher. */
+export async function decryptPieceFrames(
+  stream: ReadableStream<Uint8Array>,
+  fileKey: CryptoKey,
+  baseIvB64: string,
+  frames: number,
+  onBlock: (plain: Uint8Array<ArrayBuffer>) => void | Promise<void>
+): Promise<void> {
+  const baseIv = fromB64(baseIvB64)
+  const reader = stream.getReader()
+  let buffer = new Uint8Array(0)
+  let counter = 0
+  try {
+    while (counter < frames) {
+      while (buffer.byteLength < FRAME_HEADER) {
+        const { done, value } = await reader.read()
+        if (done) throw new Error('Piece abgeschnitten – Frame-Header fehlt')
+        buffer = concatBytes(buffer, value)
+      }
+      const len = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength).getUint32(0, true)
+      while (buffer.byteLength < FRAME_HEADER + len) {
+        const { done, value } = await reader.read()
+        if (done) throw new Error('Piece abgeschnitten – Frame-Daten fehlen')
+        buffer = concatBytes(buffer, value)
+      }
+      const cipher = buffer.subarray(FRAME_HEADER, FRAME_HEADER + len)
+      buffer = buffer.subarray(FRAME_HEADER + len)
+      const plain = new Uint8Array(
+        await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: frameIv(baseIv, counter) },
+          fileKey,
+          cipher as Bytes
+        )
+      )
+      counter++
+      await onBlock(plain)
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined)
+  }
 }
 
 export async function unwrapFileKey(wrapped: WrappedKey, master: CryptoKey): Promise<CryptoKey> {

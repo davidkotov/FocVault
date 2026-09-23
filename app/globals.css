@@ -734,6 +734,39 @@ nav.mainnav .wrap {
   align-items: center;
 }
 
+.wicon {
+  margin-left: 8px;
+}
+
+.utilwallet {
+  font-weight: 700;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.connecterror {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--red);
+  padding: 4px 0 6px;
+}
+
+.navconnecterr {
+  position: fixed;
+  top: 78px;
+  right: 24px;
+  z-index: 60;
+  background: var(--red-soft);
+  border: 1px solid var(--red-border);
+  color: var(--red);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  max-width: 320px;
+}
+
 .hero {
   padding: 84px 0 46px;
   text-align: center;
@@ -1101,7 +1134,7 @@ p.subtitle {
 
 .pricing {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
 }
 
@@ -1350,4 +1383,419 @@ details p {
   line-height: 1.8;
   border-top: 1px solid var(--border-soft);
   padding-top: 16px;
+}
+
+/* ---------- Secret-Module (Passwörter / Notizen / 2FA) ---------- */
+
+input,
+textarea,
+select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 12px;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235b6474' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+  cursor: pointer;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.secfields label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.secfields label .req {
+  color: var(--red);
+}
+
+.secfields label input,
+.secfields label textarea,
+.secfields label select {
+  margin-top: 5px;
+  font-weight: 500;
+}
+
+.secsplit {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pwrow {
+  display: flex;
+  gap: 8px;
+}
+
+.pwrow input {
+  flex: 1;
+}
+
+.secform {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.secform h4 {
+  margin-bottom: 12px;
+}
+
+.seclist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.secrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  background: var(--card-soft);
+}
+
+.secmain {
+  flex: 1;
+  min-width: 0;
+}
+
+.sectitle {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.secmeta {
+  font-size: 12.5px;
+  color: var(--text-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.secpw {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.secactions {
+  display: flex;
+  gap: 6px;
+}
+
+.notesgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.notecard {
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  background: var(--card-soft);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notebody {
+  font-size: 13.5px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.notefoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.totpcode-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.totpcode {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.totpbar {
+  width: 150px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.totpbar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 1s linear;
+}
+
+.totpbar-fill.warn {
+  background: var(--red);
+}
+
+.upgradewall {
+  text-align: center;
+  padding: 44px 24px;
+}
+
+.upgradeicon {
+  font-size: 44px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 720px) {
+  .secsplit {
+    grid-template-columns: 1fr;
+  }
+  .secrow {
+    flex-wrap: wrap;
+  }
+  .totpcode-box {
+    align-items: flex-start;
+  }
+}
+
+/* ---------- Passwort-Suche / Ordner / Generator ---------- */
+
+.searchrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.searchinput {
+  flex: 1;
+  min-width: 200px;
+}
+
+.genpanel {
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 11px;
+  background: var(--accent-soft);
+}
+
+.gensplit {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.genchecks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.gencheck-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.gencheck {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 0 !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  color: var(--text) !important;
+  cursor: pointer;
+}
+
+.gencheck input {
+  width: auto;
+  margin-top: 0 !important;
+}
+
+/* ---------- QR-Scan-Modal ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 20, 32, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+
+.qrmodal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: min(440px, 100%);
+  box-shadow: 0 24px 60px rgba(15, 20, 32, 0.25);
+}
+
+.qrvideo {
+  position: relative;
+  border-radius: 11px;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qrvideo video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.qrerr {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  color: #fff;
+  font-size: 13.5px;
+  background: rgba(15, 20, 32, 0.65);
+}
+
+.scanbtn {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.orline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-mute);
+  font-size: 12px;
+  margin: 4px 0 12px;
+}
+
+.orline::before,
+.orline::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+@media (max-width: 720px) {
+  .gensplit {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Download-Fortschritt (Streaming) ---------- */
+
+.dlbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  font-size: 13.5px;
+}
+
+.dlbar-name {
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.dlbar-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(180, 190, 210, 0.25);
+  overflow: hidden;
+}
+
+.dlbar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2, var(--accent)));
+  transition: width 0.2s linear;
+}
+
+.dlbar-pct {
+  min-width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
 }

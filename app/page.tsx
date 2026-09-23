@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   useAccount,
   useChainId,
@@ -14,14 +14,17 @@ import { erc20Abi, subscriptionGateAbi } from '@/lib/abis'
 import {
   buildSignMessage,
   decryptChunk,
+  decryptPieceFrames,
   decryptVaultJsonBytes,
   deriveMasterKey,
   encryptVaultJsonBytes,
   getOrCreateSalt,
+  STREAM_BLOCK_SIZE,
   unwrapFileKey
 } from '@/lib/crypto'
-import { TIERS, loadVault, saveVault, tierFor, usedBytes, type VaultEntry } from '@/lib/vault'
-import { downloadPiece, getSynapse, prepareStorage, uploadPiecesBatched } from '@/lib/synapse'
+import { TIERS, EMPTY_CONTAINER, loadVaultContainer, saveVaultContainer, tierFor, usedBytes, parseVaultContainer, type VaultContainer, type VaultEntry, type SecretEntry } from '@/lib/vault'
+import { downloadPiece, getSynapse, getVaultContexts, openPieceStream, prepareStorage, uploadPiecesBatched } from '@/lib/synapse'
+import { clearParts, getPart, listPartKeys, savePart } from '@/lib/idb'
 import { createShareUrl } from '@/lib/share'
 import Landing from '@/components/Landing'
 import Sidebar, { type ViewId } from '@/components/Sidebar'
@@ -33,8 +36,22 @@ import ProPanel from '@/components/ProPanel'
 import AccountPanel from '@/components/AccountPanel'
 import TopUpPanel from '@/components/TopUpPanel'
 import ShareDialog from '@/components/ShareDialog'
+import PasswordsPanel from '@/components/PasswordsPanel'
+import NotesPanel from '@/components/NotesPanel'
+import TotpPanel from '@/components/TotpPanel'
+import UpgradeWall from '@/components/UpgradeWall'
 
 const AUTO_LOCK_MINUTES = 30
+
+function mergeContainer(remote: VaultContainer, local: VaultContainer): VaultContainer {
+  const fileIds = new Set(local.files.map(e => e.id))
+  const secretIds = new Set(local.secrets.map(e => e.id))
+  return {
+    v: 3,
+    files: [...remote.files.filter(e => !fileIds.has(e.id)), ...local.files],
+    secrets: [...remote.secrets.filter(e => !secretIds.has(e.id)), ...local.secrets]
+  }
+}
 
 export default function Home() {
   const { address, isConnected } = useAccount()
@@ -44,9 +61,11 @@ export default function Home() {
   const { writeContractAsync } = useWriteContract()
 
   const [masterKey, setMasterKey] = useState<CryptoKey | null>(null)
-  const [vault, setVault] = useState<VaultEntry[]>([])
+  const [vault, setVault] = useState<VaultContainer>(EMPTY_CONTAINER)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [dlJob, setDlJob] = useState<{ name: string; pct: number } | null>(null)
+  const dlAbortRef = useRef<AbortController | null>(null)
   const [unlocking, setUnlocking] = useState(false)
   const [syncing, setSyncing] = useState<string | null>(null)
   const [focRefresh, setFocRefresh] = useState(0)
@@ -55,6 +74,12 @@ export default function Home() {
   const [shareBusy, setShareBusy] = useState(false)
   const [view, setView] = useState<ViewId>('cloud')
   const [search, setSearch] = useState('')
+  const [devPro, setDevPro] = useState(false)
+
+  // Dev/Praesentations-Hilfe: ?pro=1 schaltet die Pro-Module ohne Abo frei.
+  useEffect(() => {
+    setDevPro(typeof window !== 'undefined' && window.location.search.includes('pro=1'))
+  }, [])
 
   const supported = isSupportedChain(chainId)
   const usdfc = usdfcFor(chainId)
@@ -62,9 +87,9 @@ export default function Home() {
 
   useEffect(() => {
     if (address) {
-      setVault(loadVault(address))
+      setVault(loadVaultContainer(address))
     } else {
-      setVault([])
+      setVault(EMPTY_CONTAINER)
       setMasterKey(null)
     }
   }, [address])
@@ -113,9 +138,9 @@ export default function Home() {
     query: { enabled: gateEnabled && !!address }
   })
 
-  const isPro = gateEnabled ? !!proActive : false
+  const isPro = devPro || (gateEnabled ? !!proActive : false)
   const tier = tierFor(isPro)
-  const used = usedBytes(vault)
+  const used = usedBytes(vault.files)
   const quota = TIERS[tier].maxBytes
   const quotaRemaining = Math.max(0, quota - used)
 
@@ -142,14 +167,15 @@ export default function Home() {
   }, [])
 
   const pushSyncQuiet = useCallback(
-    async (nextVault: VaultEntry[]) => {
+    async (nextVault: VaultContainer) => {
       if (!address || !masterKey || !walletClient || !gateEnabled) return
       try {
         const container = await encryptVaultJsonBytes(JSON.stringify(nextVault), masterKey)
         const synapse = await getSynapse(walletClient)
-        const prep = await prepareStorage(synapse, [container.byteLength])
+        const contexts = await getVaultContexts(synapse, address)
+        const prep = await prepareStorage(synapse, [container.byteLength], contexts)
         if (prep.transaction) await prep.transaction.execute()
-        const result = await uploadPiecesBatched(synapse, [container])
+        const result = await uploadPiecesBatched(synapse, [container], undefined, contexts)
         const cid = result.pieceCids[0]
         await writeContractAsync({
           abi: subscriptionGateAbi,
@@ -195,12 +221,10 @@ export default function Home() {
       const synapse = await getSynapse(walletClient)
       const bytes = await downloadPiece(synapse, cid)
       const json = await decryptVaultJsonBytes(bytes, masterKey)
-      const imported = JSON.parse(json) as VaultEntry[]
-      if (!Array.isArray(imported)) throw new Error('Keine Vault-Daten')
-      const ids = new Set(vault.map(e => e.id))
-      const merged = [...imported.filter(e => !ids.has(e.id)), ...vault]
+      const imported = parseVaultContainer(json)
+      const merged = mergeContainer(imported, vault)
       setVault(merged)
-      saveVault(address, merged)
+      saveVaultContainer(address, merged)
     } catch (e: any) {
       setError(e?.shortMessage ?? e?.message ?? 'Sync-Laden fehlgeschlagen (anderer Master-Schlüssel?)')
     } finally {
@@ -211,9 +235,9 @@ export default function Home() {
   const handleStored = useCallback(
     (entry: VaultEntry) => {
       if (!address) return
-      const next = [entry, ...vault]
+      const next: VaultContainer = { v: 3, files: [entry, ...vault.files], secrets: vault.secrets }
       setVault(next)
-      saveVault(address, next)
+      saveVaultContainer(address, next)
       void pushSyncQuiet(next)
     },
     [address, vault, pushSyncQuiet]
@@ -222,9 +246,48 @@ export default function Home() {
   const handleDelete = useCallback(
     (id: string) => {
       if (!address) return
-      const next = vault.filter(e => e.id !== id)
+      const next: VaultContainer = { v: 3, files: vault.files.filter(e => e.id !== id), secrets: vault.secrets }
       setVault(next)
-      saveVault(address, next)
+      saveVaultContainer(address, next)
+      void pushSyncQuiet(next)
+    },
+    [address, vault, pushSyncQuiet]
+  )
+
+  const upsertSecret = useCallback(
+    (secret: SecretEntry) => {
+      if (!address) return
+      const idx = vault.secrets.findIndex(s => s.id === secret.id)
+      const secrets =
+        idx >= 0 ? vault.secrets.map(s => (s.id === secret.id ? secret : s)) : [...vault.secrets, secret]
+      const next: VaultContainer = { v: 3, files: vault.files, secrets }
+      setVault(next)
+      saveVaultContainer(address, next)
+      void pushSyncQuiet(next)
+    },
+    [address, vault, pushSyncQuiet]
+  )
+
+  const upsertSecrets = useCallback(
+    (secretList: SecretEntry[]) => {
+      if (!address || secretList.length === 0) return
+      const map = new Map(vault.secrets.map(s => [s.id, s]))
+      for (const s of secretList) map.set(s.id, s)
+      const secrets = [...map.values()]
+      const next: VaultContainer = { v: 3, files: vault.files, secrets }
+      setVault(next)
+      saveVaultContainer(address, next)
+      void pushSyncQuiet(next)
+    },
+    [address, vault, pushSyncQuiet]
+  )
+
+  const deleteSecret = useCallback(
+    (id: string) => {
+      if (!address) return
+      const next: VaultContainer = { v: 3, files: vault.files, secrets: vault.secrets.filter(s => s.id !== id) }
+      setVault(next)
+      saveVaultContainer(address, next)
       void pushSyncQuiet(next)
     },
     [address, vault, pushSyncQuiet]
@@ -235,27 +298,107 @@ export default function Home() {
       if (!walletClient || !masterKey) return
       setBusyId(entry.id)
       setError(null)
+      const abort = new AbortController()
+      dlAbortRef.current = abort
+      setDlJob({ name: entry.name, pct: 0 })
+      const jobId = crypto.randomUUID()
       try {
         const synapse = await getSynapse(walletClient)
         const fileKey = await unwrapFileKey({ wrapped: entry.wrappedKey, iv: entry.wrapIv }, masterKey)
-        const parts: Uint8Array[] = []
-        for (const chunk of entry.chunks) {
-          const bytes = await downloadPiece(synapse, chunk.pieceCid)
-          parts.push(await decryptChunk(bytes, chunk.iv, chunk.padLen, fileKey))
+        const report = (loaded: number) => {
+          setDlJob(j => (j ? { ...j, pct: Math.min(100, Math.round((loaded / entry.size) * 100)) } : j))
         }
-        const blob = new Blob(parts.map(p => p.buffer as ArrayBuffer), {
-          type: entry.type || 'application/octet-stream'
-        })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = entry.name
-        a.click()
-        URL.revokeObjectURL(url)
+        const framesFor = (chunkIndex: number) => {
+          const clearSize =
+            chunkIndex === entry.chunks.length - 1
+              ? entry.size - chunkIndex * (256 * 1024 * 1024)
+              : 256 * 1024 * 1024
+          return Math.max(1, Math.ceil(clearSize / STREAM_BLOCK_SIZE))
+        }
+        const hasFSA =
+          typeof window !== 'undefined' && typeof (window as any).showSaveFilePicker === 'function'
+
+        if (hasFSA) {
+          // Chrome/Edge: direkt auf die Festplatte streamen – RAM-frei.
+          const handle = await (window as any).showSaveFilePicker({ suggestedName: entry.name })
+          const writable = await handle.createWritable()
+          let loaded = 0
+          try {
+            for (let i = 0; i < entry.chunks.length; i++) {
+              const chunk = entry.chunks[i]
+              if (abort.signal.aborted) throw new DOMException('Download abgebrochen', 'AbortError')
+              if (chunk.fmt === 'frame') {
+                const stream = await openPieceStream(synapse, chunk.pieceCid, abort.signal)
+                await decryptPieceFrames(stream, fileKey, chunk.iv, framesFor(i), async plain => {
+                  await writable.write(plain)
+                  loaded += plain.byteLength
+                  report(loaded)
+                })
+              } else {
+                const bytes = await downloadPiece(synapse, chunk.pieceCid)
+                const plain = await decryptChunk(bytes, chunk.iv, chunk.padLen, fileKey)
+                await writable.write(plain)
+                loaded += plain.byteLength
+                report(loaded)
+              }
+            }
+            await writable.close()
+          } catch (e: any) {
+            if (abort.signal.aborted) {
+              await writable.abort().catch(() => undefined)
+              setError('Download abgebrochen.')
+              return
+            }
+            throw e
+          }
+        } else {
+          // Fallback (Firefox/Safari): IndexedDB-Puffer statt RAM-Kumulation.
+          await clearParts(jobId)
+          let loaded = 0
+          let partIndex = 0
+          for (let i = 0; i < entry.chunks.length; i++) {
+            const chunk = entry.chunks[i]
+            if (abort.signal.aborted) throw new DOMException('Download abgebrochen', 'AbortError')
+            if (chunk.fmt === 'frame') {
+              const stream = await openPieceStream(synapse, chunk.pieceCid, abort.signal)
+              await decryptPieceFrames(stream, fileKey, chunk.iv, framesFor(i), async plain => {
+                await savePart(jobId, partIndex++, new Blob([plain.buffer as ArrayBuffer]))
+                loaded += plain.byteLength
+                report(loaded)
+              })
+            } else {
+              const bytes = await downloadPiece(synapse, chunk.pieceCid)
+              const plain = await decryptChunk(bytes, chunk.iv, chunk.padLen, fileKey)
+              await savePart(jobId, partIndex++, new Blob([plain.buffer as ArrayBuffer]))
+              loaded += plain.byteLength
+              report(loaded)
+            }
+          }
+          const keys = await listPartKeys(jobId)
+          const parts: Blob[] = []
+          for (const k of keys) {
+            const p = await getPart(jobId, k)
+            if (p) parts.push(p)
+          }
+          const blob = new Blob(parts, { type: entry.type || 'application/octet-stream' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = entry.name
+          a.click()
+          setTimeout(() => URL.revokeObjectURL(url), 10_000)
+          await clearParts(jobId)
+        }
       } catch (e: any) {
-        setError(e?.shortMessage ?? e?.message ?? 'Download oder Entschlüsselung fehlgeschlagen')
+        if (abort.signal.aborted) {
+          setError('Download abgebrochen.')
+        } else {
+          setError(e?.shortMessage ?? e?.message ?? 'Download oder Entschlüsselung fehlgeschlagen')
+        }
       } finally {
         setBusyId(null)
+        setDlJob(null)
+        dlAbortRef.current = null
       }
     },
     [walletClient, masterKey]
@@ -284,12 +427,10 @@ export default function Home() {
       try {
         const bytes = new Uint8Array(new Uint8Array(await file.arrayBuffer()))
         const json = await decryptVaultJsonBytes(bytes, masterKey)
-        const imported = JSON.parse(json) as VaultEntry[]
-        if (!Array.isArray(imported)) throw new Error('Keine Vault-Datei')
-        const ids = new Set(vault.map(e => e.id))
-        const merged = [...imported.filter(e => !ids.has(e.id)), ...vault]
+        const imported = parseVaultContainer(json)
+        const merged = mergeContainer(imported, vault)
         setVault(merged)
-        saveVault(address, merged)
+        saveVaultContainer(address, merged)
         void pushSyncQuiet(merged)
       } catch {
         setError('Import fehlgeschlagen – Datei gehört zu einem anderen Master-Schlüssel?')
@@ -324,7 +465,18 @@ export default function Home() {
     return <Landing />
   }
 
-  const viewTitle = view === 'cloud' ? 'Meine Cloud' : view === 'send' ? 'Secure Send' : 'Konto & Zahlungen'
+  const viewTitle =
+    view === 'cloud'
+      ? 'Meine Cloud'
+      : view === 'send'
+        ? 'Secure Send'
+        : view === 'passwords'
+          ? 'Passwörter'
+          : view === 'notes'
+            ? 'Notizen'
+            : view === '2fa'
+              ? '2FA-Authenticator'
+              : 'Konto & Zahlungen'
 
   const shareDialogNode = shareEntry && (
     <ShareDialog
@@ -356,7 +508,7 @@ export default function Home() {
 
   return (
     <div className="shell">
-      <Sidebar view={view} onNavigate={setView} usedBytes={used} quotaBytes={quota} tierLabel={TIERS[tier].label} />
+      <Sidebar view={view} onNavigate={setView} usedBytes={used} quotaBytes={quota} tierLabel={TIERS[tier].label} tier={tier} />
       <div className="main">
         <Topbar title={viewTitle} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} />
         <div className="content">
@@ -382,8 +534,26 @@ export default function Home() {
                     onStored={handleStored}
                     onError={msg => setError(msg)}
                   />
+                  {dlJob && (
+                    <div className="dlbar">
+                      <span className="dlbar-name" title={dlJob.name}>
+                        ⬇ {dlJob.name}
+                      </span>
+                      <div className="dlbar-track">
+                        <div className="dlbar-fill" style={{ width: `${dlJob.pct}%` }} />
+                      </div>
+                      <span className="dlbar-pct">{dlJob.pct}%</span>
+                      <button
+                        className="small"
+                        onClick={() => dlAbortRef.current?.abort()}
+                        disabled={!dlJob}
+                      >
+                        Abbrechen
+                      </button>
+                    </div>
+                  )}
                   <FileList
-                    entries={vault}
+                    entries={vault.files}
                     busyId={busyId}
                     canDecrypt={!!masterKey}
                     searchQuery={search}
@@ -432,7 +602,7 @@ export default function Home() {
                     </button>
                   </div>
                 </>
-              ) : vault.length === 0 ? (
+              ) : vault.files.length === 0 ? (
                 <p className="dim">Noch keine Dateien zum Teilen. Lade zuerst etwas in „Meine Cloud" hoch.</p>
               ) : (
                 <>
@@ -440,7 +610,7 @@ export default function Home() {
                     Wähle eine Datei — der Link enthält den Schlüssel im URL-Fragment (#), nie
                     serverseitig. Empfänger brauchen nur eine Wallet zum Abrufen, keine Kosten.
                   </p>
-                  {vault.map(e => (
+                  {vault.files.map(e => (
                     <div className="stat" key={e.id}>
                       <span className="k">{e.name}</span>
                       <button className="small" onClick={() => openShareDialog(e)}>
@@ -452,6 +622,45 @@ export default function Home() {
               )}
               {shareDialogNode && <div style={{ marginTop: 16 }}>{shareDialogNode}</div>}
             </div>
+          )}
+
+          {supported && (view === 'passwords' || view === 'notes' || view === '2fa') && (
+            <>
+              {!isPro ? (
+                <UpgradeWall
+                  title={view === 'passwords' ? 'Passwörter' : view === 'notes' ? 'Notizen' : '2FA-Authenticator'}
+                  description={
+                    view === 'passwords'
+                      ? 'Speichere Logins, Passwörter und Zugänge – Ende-zu-Ende-verschlüsselt in deinem Vault.'
+                      : view === 'notes'
+                        ? 'Verschlüsselte Notizen für PINs, Recovery-Hinweise, Ideen – niemand sonst liest mit.'
+                        : 'Verwende deine 2FA-Codes direkt hier: TOTP-Secrets sicher speichern und Codes im Browser generieren.'
+                  }
+                  onUpgrade={() => setView('account')}
+                />
+              ) : !masterKey ? (
+                unlockPrompt
+              ) : view === 'passwords' ? (
+                <PasswordsPanel
+                  entries={vault.secrets.filter(s => s.kind === 'password')}
+                  onSave={upsertSecret}
+                  onSaveMany={upsertSecrets}
+                  onDelete={deleteSecret}
+                />
+              ) : view === 'notes' ? (
+                <NotesPanel
+                  entries={vault.secrets.filter(s => s.kind === 'note')}
+                  onSave={upsertSecret}
+                  onDelete={deleteSecret}
+                />
+              ) : (
+                <TotpPanel
+                  entries={vault.secrets.filter(s => s.kind === 'totp')}
+                  onSave={upsertSecret}
+                  onDelete={deleteSecret}
+                />
+              )}
+            </>
           )}
 
           {supported && view === 'account' && (
@@ -467,7 +676,7 @@ export default function Home() {
                 onImport={f => void importVault(f)}
                 onPushSync={() => void pushSync()}
                 onPullSync={() => void pullSync()}
-                fileCount={vault.length}
+                fileCount={vault.files.length}
               />
               <div className="grid2">
                 <AccountPanel walletClient={walletClient} refreshSignal={focRefresh} onError={msg => setError(msg)} />
