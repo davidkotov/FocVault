@@ -1,8 +1,8 @@
 'use client'
 
-import { formatBytes } from '@/lib/vault'
+import { formatBytes, type TierName } from '@/lib/vault'
 
-export type ViewId = 'cloud' | 'send' | 'account'
+export type ViewId = 'cloud' | 'send' | 'account' | 'passwords' | 'notes' | '2fa'
 
 interface Props {
   view: ViewId
@@ -10,9 +10,10 @@ interface Props {
   usedBytes: number
   quotaBytes: number
   tierLabel: string
+  tier: TierName
 }
 
-export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel }: Props) {
+export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier }: Props) {
   const pct = Math.min(100, Math.round((usedBytes / quotaBytes) * 100))
 
   return (
@@ -51,26 +52,33 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
       </button>
 
       <div className="navsection">Weitere Module</div>
-      <div className="navitem disabled">
+      <button className={`navitem ${view === 'passwords' ? 'active' : ''}`} onClick={() => onNavigate('passwords')}>
         <svg className="icon" viewBox="0 0 24 24">
           <rect x="5" y="11" width="14" height="9" rx="2" />
           <path d="M8 11V8a4 4 0 0 1 8 0v3" />
         </svg>
-        Passwörter <span className="badge-soon">Bald</span>
-      </div>
+        Passwörter
+      </button>
+      <button className={`navitem ${view === 'notes' ? 'active' : ''}`} onClick={() => onNavigate('notes')}>
+        <svg className="icon" viewBox="0 0 24 24">
+          <path d="M4 4h16v16H4z" />
+          <path d="M8 8h8M8 12h8M8 16h5" />
+        </svg>
+        Notizen
+      </button>
+      <button className={`navitem ${view === '2fa' ? 'active' : ''}`} onClick={() => onNavigate('2fa')}>
+        <svg className="icon" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3.5 2" />
+        </svg>
+        2FA-Authenticator
+      </button>
       <div className="navitem disabled">
         <svg className="icon" viewBox="0 0 24 24">
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           <rect x="3" y="11" width="18" height="10" rx="2" />
         </svg>
         Passkeys <span className="badge-soon">Bald</span>
-      </div>
-      <div className="navitem disabled">
-        <svg className="icon" viewBox="0 0 24 24">
-          <path d="M4 4h16v16H4z" />
-          <path d="M8 8h8M8 12h8M8 16h5" />
-        </svg>
-        Notizen <span className="badge-soon">Bald</span>
       </div>
 
       <div className="spacer" />
@@ -85,12 +93,12 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
         <div className="quotabar">
           <div className={pct >= 100 ? 'full' : ''} style={{ width: `${pct}%` }} />
         </div>
-        {tierLabel !== 'Pro' && (
+        {tier === 'FREE' && (
           <button className="primary small" style={{ width: '100%' }} onClick={() => onNavigate('account')}>
             Auf Pro upgraden
           </button>
         )}
-        {tierLabel === 'Pro' && <span className="badge pro">Pro aktiv</span>}
+        {tier !== 'FREE' && <span className="badge pro">{tierLabel} aktiv</span>}
       </div>
     </aside>
   )

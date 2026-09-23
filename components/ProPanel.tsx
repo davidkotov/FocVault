@@ -5,6 +5,7 @@ import { useReadContract, useWriteContract } from 'wagmi'
 import { formatUnits } from 'viem'
 import { SUB_GATE_ADDRESS, USDFC_DECIMALS } from '@/lib/chains'
 import { erc20Abi, subscriptionGateAbi } from '@/lib/abis'
+import { TIERS } from '@/lib/vault'
 
 interface Props {
   usdfc: `0x${string}` | undefined
@@ -40,8 +41,12 @@ export default function ProPanel({ usdfc, address, isPro, onSubscribed, onError 
       <div className="card">
         <h3>Tier</h3>
         <p className="dim">
-          Pro-Tier (2 GB Quota) benötigt den SubscriptionGate-Contract.
+          Pro-Tier ({TIERS.PRO.quotaLabel} Quota) benötigt den SubscriptionGate-Contract.
           Deploy-Adresse als <code>NEXT_PUBLIC_SUB_GATE_ADDRESS</code> setzen – siehe README.
+        </p>
+        <p className="dim" style={{ marginTop: 8 }}>
+          Ab Release: {TIERS.PRO.priceChf} via Stripe (Family: {TIERS.FAMILY.priceChf}) – heute
+          Testnet-USDFC über den Gate-Contract.
         </p>
       </div>
     )
@@ -82,14 +87,18 @@ export default function ProPanel({ usdfc, address, isPro, onSubscribed, onError 
       </h3>
       <div className="stat">
         <span className="k">Quota</span>
-        <span className="v">{isPro ? '2 GB' : '20 MB'}</span>
+        <span className="v">{isPro ? TIERS.PRO.quotaLabel : TIERS.FREE.quotaLabel}</span>
       </div>
       {price !== undefined && (
         <div className="stat">
-          <span className="k">Pro Preis</span>
+          <span className="k">Pro Preis (on-chain)</span>
           <span className="v">{formatUnits(price, USDFC_DECIMALS)} USDFC / Monat</span>
         </div>
       )}
+      <div className="stat">
+        <span className="k">Preis ab Release</span>
+        <span className="v">{TIERS.PRO.priceChf} via Stripe</span>
+      </div>
       {expiryDate && isPro && (
         <div className="stat">
           <span className="k">Pro bis</span>

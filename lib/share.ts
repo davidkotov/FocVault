@@ -1,6 +1,6 @@
 import type { WalletClient } from 'viem'
 import type { ChunkMeta, VaultEntry } from './vault'
-import { downloadPiece, getSynapse, prepareStorage, uploadPiecesBatched } from './synapse'
+import { downloadPiece, getSynapse, getVaultContexts, prepareStorage, uploadPiecesBatched } from './synapse'
 import {
   encryptShareContainer,
   decryptShareContainer,
@@ -52,9 +52,11 @@ export async function createShareUrl(
   }
   const container = await encryptShareContainer(JSON.stringify(record), linkKey)
   const synapse = await getSynapse(walletClient)
-  const prep = await prepareStorage(synapse, [container.byteLength])
+  const address = walletClient.account?.address
+  const contexts = address ? await getVaultContexts(synapse, address) : undefined
+  const prep = await prepareStorage(synapse, [container.byteLength], contexts)
   if (prep.transaction) await prep.transaction.execute()
-  const result = await uploadPiecesBatched(synapse, [container])
+  const result = await uploadPiecesBatched(synapse, [container], undefined, contexts)
   const cid = result.pieceCids[0]
   return `${window.location.origin}/s/${cid}#${toB64Url(linkKey)}`
 }

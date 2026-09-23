@@ -96,15 +96,26 @@ components/     WalletBar, VaultUnlock, UploadZone, FileList, ProPanel
 contracts/      SubscriptionGate.sol
 ```
 
-## Quotas (MVP)
+## Quotas & Pricing (2026-09, mit Partner abgestimmt)
 
-| Tier | Quota | Freischaltung |
-|---|---|---|
-| Free | 20 MB | automatisch |
-| Pro | 2 GB | SubscriptionGate (5 USDFC/Monat, konfigurierbar) |
+| Tier | Quota | Preis | Freischaltung |
+|---|---|---|---|
+| Free | 5 GB | 0 CHF | automatisch; danach Pay-as-you-go (Self-Pay, echte Filecoin-Kosten) |
+| Pro | 2 TB | 13.90 CHF/Monat (Stripe ab Release) | Gate-Contract heute (USDFC), Stripe später |
+| Family | 2 TB geteilt (2–6 Mitglieder) | 19.90 CHF/Monat | Roadmap (Stripe) |
+| Business | individuell | individuell | Custom |
 
-On-Chain-Realität: `prepare()` zeigt vor jedem Upload die echte USDFC-Einzahlung
-und Monatsrate – die App-Marge kann später über den Gate-Preis laufen.
+**Storage-Strategie / Kosten-Realität (FOC offiziell):**
+- Storage: $2.50/TiB/Monat pro Kopie (≈ 0,5 Rp/GB/Monat bei 2 Kopien), plus
+  $0.12/Dataset/Monat flat + ~$0.50 USDFC Lifecycle-Reserve + $0.025 einmalig.
+- **Dataset-Reuse:** ein persistenter Datensatz pro Konto & Chain
+  (`getVaultContexts()` in `lib/synapse.ts`, IDs in localStorage) statt neuer
+  Datasets pro Upload/Session → spart die $0.12/Dataset/Monat-Gebühren.
+- Übergang: Heute Self-Pay (Kunde finanziert sein Storage-Guthaben selbst, 0 %
+  Aufschlag). Die 5-GB-Free-Usage wird später über das **Admin-/Backend-Konto**
+  bezahlt; Abos laufen dann über **Stripe** (CZ/Stripe-Integration = Step 3 mit
+  Partner). Die App-Marge kommt aus den Abos, nicht aus den Storage-Bytes.
+- `prepare()` zeigt weiter vor jedem Upload die echte USDFC-Einzahlung/Monatsrate.
 
 ## Sicherheit & Recht
 

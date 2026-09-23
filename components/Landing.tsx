@@ -4,7 +4,7 @@ import { useConnect } from 'wagmi'
 import { filecoinCalibration } from '@/lib/chains'
 
 export default function Landing() {
-  const { connect, connectors, isPending } = useConnect()
+  const { connect, connectors, isPending, error } = useConnect()
   const injected = connectors.find(c => c.id === 'injected')
   const walletConnectC = connectors.find(c => c.id === 'walletConnect')
 
@@ -28,8 +28,16 @@ export default function Landing() {
             <a href="#" onClick={e => { e.preventDefault(); handleConnect() }}>
               Anmelden
             </a>
+            <a href="#" onClick={e => { e.preventDefault(); handleConnect() }}>
+              Registrieren
+            </a>
+            <a className="utilwallet" href="#" onClick={e => { e.preventDefault(); handleConnect() }}>
+              <WalletIcon />
+              Wallet verbinden
+            </a>
           </div>
         </div>
+        {error && <div className="connecterror">{(error as Error).message}</div>}
       </div>
 
       <nav className="mainnav">
@@ -53,10 +61,15 @@ export default function Landing() {
             <button disabled={isPending} onClick={handleConnect}>
               Anmelden
             </button>
+            <button disabled={isPending} onClick={handleConnect}>
+              Registrieren
+            </button>
             <button className="primary" disabled={isPending} onClick={handleConnect}>
-              {isPending ? 'Verbinde…' : 'Kostenlos starten'}
+              {isPending ? 'Verbinde…' : 'Wallet verbinden'}
+              {!isPending && <WalletIcon />}
             </button>
           </div>
+          {error && <span className="navconnecterr">{(error as Error).message}</span>}
         </div>
       </nav>
 
@@ -83,7 +96,7 @@ export default function Landing() {
             </a>
           </div>
           <div className="trustline">
-            <b>20 MB kostenlos</b> · Kein Abo-Zwang · Keine Kreditkarte nötig
+            <b>5 GB kostenlos</b> · Pay-as-you-go ohne Aufschlag · Keine Kreditkarte nötig
           </div>
 
           <div className="preview">
@@ -209,7 +222,7 @@ export default function Landing() {
                 </svg>
               </div>
               <h3>Faire Abrechnung</h3>
-              <p>Pay-per-Epoch: du zahlst nur, solange du speicherst. Kein Mindestbetrag.</p>
+              <p>Pay-as-you-go: über den Free-Tier hinaus zahlst du nur die echte Filecoin-Infrastruktur (≈ 0,5 Rp/GB/Monat). Abos via Stripe in CHF.</p>
             </div>
           </div>
         </div>
@@ -300,40 +313,58 @@ export default function Landing() {
         <div className="wrap">
           <div className="eyebrow">Preise</div>
           <h2 className="sectitle">Fair, transparent, ohne Mindestbetrag</h2>
-          <p className="subtitle">Bezahlt wird on-chain in USDFC — pro Epoche, genau für das was du speicherst.</p>
+          <p className="subtitle">
+            5 GB free. Danach zahlst du nur die bare Filecoin-Infrastruktur – oder holst dir
+            ein Abo in CHF mit allen Privacy-Modulen.
+          </p>
           <div className="pricing">
             <div className="plan">
               <h3>Free</h3>
-              <div className="price">0 €<span>/Monat</span></div>
-              <div className="desc">Für den Einstieg — Self-Pay, kostet uns nichts, kostet dich fast nichts.</div>
+              <div className="price">0 CHF<span>/Monat</span></div>
+              <div className="desc">Inklusive 5 GB, danach Pay-as-you-go mit echten Filecoin-Kosten.</div>
               <ul>
-                <li><CheckIcon />20 MB Speicher</li>
+                <li><CheckIcon />5 GB Speicher inklusive</li>
                 <li><CheckIcon />Zero-Knowledge-Verschlüsselung</li>
                 <li><CheckIcon />Secure Send</li>
+                <li><CheckIcon />Modul-Quota ohne Cloud-Speicher</li>
               </ul>
               <button onClick={handleConnect}>Kostenlos starten</button>
             </div>
             <div className="plan highlight">
               <span className="tag">Beliebt</span>
               <h3>Pro</h3>
-              <div className="price">~5 USDFC<span>/Monat</span></div>
-              <div className="desc">Für alle, die mehr als ein paar Dokumente sichern wollen.</div>
+              <div className="price">13.90 CHF<span>/Monat</span></div>
+              <div className="desc">Deine komplette persönliche Privacy-Cloud – inkl. aller Module.</div>
               <ul>
-                <li><CheckIcon />2 GB Speicher</li>
-                <li><CheckIcon />Chunking bis 2 GB pro Datei</li>
+                <li><CheckIcon />2 TB Speicher</li>
+                <li><CheckIcon />Passwörter, Notizen &amp; 2FA-Authenticator</li>
+                <li><CheckIcon />Passkeys &amp; Device-Backup (bald)</li>
                 <li><CheckIcon />Vault-Sync über alle Geräte</li>
                 <li><CheckIcon />Priorisierter Support</li>
               </ul>
               <button className="primary" onClick={handleConnect}>Pro aktivieren</button>
             </div>
             <div className="plan">
-              <h3>Business</h3>
+              <h3>Family</h3>
+              <div className="price">19.90 CHF<span>/Monat</span></div>
+              <div className="desc">Geteilter Speicher für 2–6 Personen – jede*r mit eigenem Vault &amp; Schlüssel.</div>
+              <ul>
+                <li><CheckIcon />2 TB geteilt</li>
+                <li><CheckIcon />2–6 Mitglieder, je eigener Vault &amp; Key</li>
+                <li><CheckIcon />Alle Module für jedes Mitglied</li>
+                <li><CheckIcon />Echtes Privacy-Versprechen für die ganze Familie</li>
+              </ul>
+              <button onClick={handleConnect}>Family starten</button>
+            </div>
+            <div className="plan">
+              <h3>Business / Custom</h3>
               <div className="price">Individuell</div>
               <div className="desc">Teams, Compliance-Anforderungen, dedizierte Kapazität.</div>
               <ul>
-                <li><CheckIcon />Individuelle Kapazität</li>
-                <li><CheckIcon />Team-Vaults (geplant)</li>
-                <li><CheckIcon />SLA &amp; dedizierter Support</li>
+                <li><CheckIcon />Datenresidenz CH/EU</li>
+                <li><CheckIcon />S3-/Fil-One-Migration</li>
+                <li><CheckIcon />API &amp; SLA &amp; Audit-Logs</li>
+                <li><CheckIcon />Managed Keys</li>
               </ul>
               <button onClick={handleConnect}>Kontakt</button>
             </div>
@@ -357,8 +388,19 @@ export default function Landing() {
             <details>
               <summary>Brauche ich eine Kryptowährung?</summary>
               <p>
-                Ja, für die Storage-Zahlung wird USDFC benötigt (ein FIL-besicherter
-                Stablecoin). Für kleine Dateien reicht ein Bruchteil eines Euros pro Monat.
+                Im Free-Tier sind 5 GB Speicher enthalten. Was darüber hinausgeht, zahlst du
+                als transparentes Pay-as-you-go mit USDFC (FIL-besicherter Stablecoin) –
+                nur deine echten Filecoin-Kosten, rund 0,5 Rappen pro GB und Monat.
+                Die Abos (Pro, Family) laufen ab Release über Stripe in CHF.
+              </p>
+            </details>
+            <details>
+              <summary>Was kostet das Abo, und warum darf Privacy etwas mehr kosten?</summary>
+              <p>
+                Pro kostet 13.90 CHF/Monat (2 TB), Family 19.90 CHF/Monat (2 TB für 2–6
+                Personen, jede*r mit eigenem Vault und Schlüssel). Die Abos bezahlen Features,
+                Schweizer Datenschutz-Versprechen und Support – der Speicher selbst ist bei
+                Filecoin so günstig, dass er als Pay-as-you-go quasi nichts kostet.
               </p>
             </details>
             <details>
@@ -385,7 +427,7 @@ export default function Landing() {
         <div className="wrap">
           <div className="ctaband">
             <h2>Bereit für deine eigene Privacy Cloud?</h2>
-            <p>20 MB kostenlos. Keine Kreditkarte. In 2 Minuten startklar.</p>
+            <p>5 GB kostenlos. Keine Kreditkarte. In 2 Minuten startklar.</p>
             <div className="herobtns" style={{ justifyContent: 'center' }}>
               <button className="primary lg" onClick={handleConnect}>
                 {isPending ? 'Verbinde…' : 'Kostenlos starten'}
@@ -443,6 +485,16 @@ function CheckIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24">
       <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" fill="none" />
+    </svg>
+  )
+}
+
+function WalletIcon() {
+  return (
+    <svg className="wicon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="6" width="18" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M16.5 12h.01" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M3 9.5h18" stroke="currentColor" strokeWidth="1.4" />
     </svg>
   )
 }
