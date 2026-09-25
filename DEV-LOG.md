@@ -41,6 +41,71 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### [noch nicht gepusht] Sprint A — CDN, Secure Send v2, Tests + CI
+
+**T1 – CDN-Umschaltung**
+- `lib/synapse.ts`: `withCDN: true` für schnelle Piece-Downloads.
+- `DATASET_STORE_VERSION` auf `'3'` gehoben, Persistenz auf versioniertes Format
+  `{v: 3, ids: [...]}` umgestellt.
+- **Bewusste Folge:** Der Versions-Bump invalidiert alte, Nicht-CDN-fähige Datasets.
+  Deshalb **kein** Resume alter Datensätze – nach dem Update wird ein frisches,
+  CDN-fähiges Dataset angelegt. Im Code dokumentiert.
+
+**T2 – Secure Send v2**
+- `lib/crypto.ts`: Fragment-Format als Union `ShareFragment`
+  (`bare` | `key` | `password`) plus `encodeShareFragment` / `decodeShareFragment`,
+  `deriveSharePasswordKey` (PBKDF2-SHA256, 310k Runden), `wrapLinkKeyWithPassword`
+  (erzeugt die IV intern) und `unwrapLinkKeyWithPassword`. `Bytes` ist jetzt exportiert.
+- `lib/share.ts`: `ShareOptions {expiryMs, password?, burnAfterUse?, maxUses?}`,
+  `EXPIRY_OPTIONS` (1 h / 24 h / 7 d / 30 d) und `createShareUrl(...)` mit Optionen;
+  `ShareRecord` um `burnAfterUse?` / `maxUses?` erweitert. Signatur von
+  `openShare(walletClient, pieceCid, linkKey)` bleibt unverändert.
+- `components/ShareDialog.tsx`: Passwortfeld, Einmal-Link-Checkbox, max.-Downloads-Feld,
+  Ablauf-Auswahl; `onCreate(options: ShareOptions)`.
+- `app/s/[cid]/page.tsx`: Empfängerseite auf v2 – `decodeShareFragment` verarbeitet
+  alle drei Formate, Passwort-Phase mit Prompt → PBKDF2 → Key-Unwrap, danach Wallet +
+  `openShare`. Einmal-/Limit-Durchsetzung über `localStorage`
+  (`focvault:share:uses:<cid>`) mit **ehrlichem** Hinweis, dass dies pro Gerät und
+  best effort gilt (globale Durchsetzung folgt mit T7/T13).
+- **Backward-Kompatibilität:** Legacy-Links mit nacktem `#<b64url>` bleiben lesbar
+  (`decodeShareFragment` fällt auf `bare` zurück); `s.<key>` ist der explizite
+  Key-Fragment ohne Passwort.
+
+**T3 – Tests + CI**
+- Vitest (`^5.0.1` + `vite` als Peer) mit `vitest.config.ts` (Node-Env, `lib/**/*.test.ts`).
+- `lib/share.test.ts`: Fragment-Roundtrip (bare/key/password), Passwort-Wrap/Unwrap,
+  Ablehnung falscher Passwörter, Container-Roundtrip.
+- `lib/totp.test.ts`: RFC-6238-Appendix-B-Vektoren (SHA1, 8 Stellen).
+- `lib/csv.test.ts`: Roundtrip inkl. Quoting (Komma, Anführungszeichen, Zeilenumbruch).
+- `.github/workflows/ci.yml`: `npm ci --legacy-peer-deps` → `tsc --noEmit` → `npm test`.
+  **Bewusst ohne `next build`**, da die Client-Wallet-Pfade (wagmi/`window`) nicht
+  headless bauen.
+
+**Beim Verifizieren gefunden und behoben**
+- `Bytes` war in `lib/crypto.ts` nicht exportiert, wurde aber von `share.ts` und den
+  Tests importiert.
+- `wrapLinkKeyWithPassword` erzeugt die IV intern – Aufrufer in `share.ts` und den Tests
+  übergaben zusätzlich eine eigene IV (3 statt 2 Argumente).
+- `lib/totp.ts`: `counter` war `const`, wurde aber mutiert; `base32Decode` war als
+  `Uint8Array` (`ArrayBufferLike`) deklariert und damit nicht als WebCrypto-`BufferSource`
+  nutzbar.
+- **Testvektor-Fehler in `lib/totp.test.ts`:** RFC 6238 Appendix B gibt `Time` in
+  **Sekunden** an. Der Test rechnete `at = T * 30 * 1000` und erzeugte damit den Counter
+  `T` statt `floor(T / 30)` (z. B. `T=59` → Counter 59 statt 1). Korrekt ist `at = T * 1000`.
+  Die Implementierung in `lib/totp.ts` war und ist korrekt – nur der Test war falsch.
+
+**Verifikation**
+
+| Prüfung | Ergebnis |
+|---|---|
+| `npx tsc --noEmit` | ✅ grün, keine Fehler |
+| `npx vitest run` | ✅ 3 Testdateien, 11/11 Tests grün |
+| `curl /` (Dev-Server) | ✅ HTTP 200 |
+| `curl /s/test` (Empfängerseite) | ✅ HTTP 200 |
+
+Noch offen (braucht Wallet/Partner): Live-Upload-Test mit Dataset-Reuse auf Calibration,
+End-to-End-Test eines Passwort-/Einmal-Links, CDN-Download messbar schneller messen.
+
 ### [noch nicht gepusht] Pricing- & Storage-Strategie: Free 5 GB, Pro/Family 2 TB, Pay-as-you-go + Dataset-Reuse
 
 **Beratung & Entscheidung (mit Partner, Basis: echte FOC-Kosten aus SDK + Docs):**

@@ -2,18 +2,28 @@ import type { WalletClient } from 'viem'
 import type { ChunkMeta, VaultEntry } from './vault'
 import { downloadPiece, getSynapse, getVaultContexts, prepareStorage, uploadPiecesBatched } from './synapse'
 import {
-  encryptShareContainer,
   decryptShareContainer,
+  deriveSharePasswordKey,
+  encodeShareFragment,
+  encryptShareContainer,
+  fromB64,
+  fromB64Url,
+  importFileKey,
   randomLinkKey,
   toB64,
   toB64Url,
-  fromB64Url,
-  fromB64,
   unwrapFileKeyRaw,
-  importFileKey
+  unwrapLinkKeyWithPassword,
+  wrapLinkKeyWithPassword,
+  type Bytes
 } from './crypto'
 
-type Bytes = Uint8Array<ArrayBuffer>
+export interface ShareOptions {
+  expiryMs: number
+  password?: string
+  burnAfterUse?: boolean
+  maxUses?: number
+}
 
 export interface ShareRecord {
   v: 1
@@ -24,19 +34,30 @@ export interface ShareRecord {
   chunks: ChunkMeta[]
   createdAt: number
   expiresAt: number
+  /** Secure Send v2 – Einmal-Link (nur 1 Download, gerätebasiert). */
+  burnAfterUse?: boolean
+  /** Secure Send v2 – maximale Anzahl Downloads (gerätebasiert). */
+  maxUses?: number
 }
 
 export const EXPIRY_OPTIONS = [
-  { label: '1 Tag', days: 1 },
-  { label: '7 Tage', days: 7 },
-  { label: '30 Tage', days: 30 }
+  { label: '1 Stunde', ms: 60 * 60 * 1000 },
+  { label: '24 Stunden', ms: 24 * 60 * 60 * 1000 },
+  { label: '7 Tage', ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: '30 Tage', ms: 30 * 24 * 60 * 60 * 1000 }
 ]
 
+/**
+ * Erstellt einen Secure-Send-v2-Link (Client-seitig, Zero-Knowledge).
+ * Formate des URL-Fragments (#):
+ *   - ohne Passwort  → nackter b64url-Key (legacy-kompatibel, alte Links bleiben lesbar)
+ *   - mit Passwort   → `p.<salt>.<iv>.<cipher>` (PBKDF2 → AES-GCM-Key-Wrap)
+ */
 export async function createShareUrl(
   walletClient: WalletClient,
   masterKey: CryptoKey,
   entry: VaultEntry,
-  expiryDays: number
+  options: ShareOptions
 ): Promise<string> {
   const rawKey = await unwrapFileKeyRaw({ wrapped: entry.wrappedKey, iv: entry.wrapIv }, masterKey)
   const linkKey = randomLinkKey()
@@ -48,7 +69,9 @@ export async function createShareUrl(
     fileKey: toB64(rawKey),
     chunks: entry.chunks,
     createdAt: Date.now(),
-    expiresAt: Date.now() + expiryDays * 24 * 60 * 60 * 1000
+    expiresAt: Date.now() + options.expiryMs,
+    ...(options.burnAfterUse ? { burnAfterUse: true } : {}),
+    ...(options.maxUses ? { maxUses: options.maxUses } : {})
   }
   const container = await encryptShareContainer(JSON.stringify(record), linkKey)
   const synapse = await getSynapse(walletClient)
@@ -58,7 +81,18 @@ export async function createShareUrl(
   if (prep.transaction) await prep.transaction.execute()
   const result = await uploadPiecesBatched(synapse, [container], undefined, contexts)
   const cid = result.pieceCids[0]
-  return `${window.location.origin}/s/${cid}#${toB64Url(linkKey)}`
+
+  let fragment: string
+  if (options.password) {
+    const salt = crypto.getRandomValues(new Uint8Array(16)) as Bytes
+    const pwdKey = await deriveSharePasswordKey(options.password, salt)
+    const { iv, cipher } = await wrapLinkKeyWithPassword(pwdKey, linkKey)
+    fragment = encodeShareFragment({ kind: 'password', salt, iv, cipher })
+  } else {
+    fragment = encodeShareFragment({ kind: 'bare', linkKey })
+  }
+
+  return `${window.location.origin}/s/${cid}#${fragment}`
 }
 
 export async function openShare(
@@ -73,7 +107,7 @@ export async function openShare(
   try {
     record = JSON.parse(await decryptShareContainer(container, linkKey)) as ShareRecord
   } catch {
-    throw new Error('Share konnte nicht entschlüsselt werden – Link unvollständig oder falscher Schlüssel.')
+    throw new Error('Share konnte nicht entschlüsselt werden – Link unvollständig oder falsches Passwort.')
   }
   if (!record || record.v !== 1 || !Array.isArray(record.chunks) || !record.fileKey) {
     throw new Error('Ungültiger Share-Datensatz.')
@@ -90,19 +124,16 @@ export async function downloadSharedFile(
   record: ShareRecord
 ): Promise<void> {
   const synapse = await getSynapse(walletClient)
-  const fileKey = await importFileKey(fromB64(record.fileKey))
+  const fileKey = await importFileKey(fromB64(record.fileKey) as Bytes)
   const parts: Uint8Array[] = []
   for (const chunk of record.chunks) {
-    const bytes = await downloadPiece(synapse, chunk.pieceCid)
-    const unpadded = bytes.subarray(0, bytes.byteLength - chunk.padLen)
+    const piece = await downloadPiece(synapse, chunk.pieceCid)
     const plain = new Uint8Array(
-      await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(chunk.iv) }, fileKey, unpadded)
+      await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(chunk.iv) }, fileKey, piece)
     )
     parts.push(plain)
   }
-  const blob = new Blob(parts.map(p => p.buffer as ArrayBuffer), {
-    type: record.type || 'application/octet-stream'
-  })
+  const blob = new Blob(parts.map(p => p.buffer as ArrayBuffer), { type: record.type })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

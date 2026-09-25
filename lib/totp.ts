@@ -11,7 +11,7 @@ export interface TotpOptions {
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
 /** Dekodiert ein Base32-Secret (Leerzeichen/padding tolerant). */
-export function base32Decode(input: string): Uint8Array {
+export function base32Decode(input: string): Uint8Array<ArrayBuffer> {
   const clean = input.toUpperCase().replace(/[\s-]/g, '').replace(/=+$/, '')
   if (clean.length === 0) throw new Error('Leeres Secret')
   let bits = 0
@@ -53,12 +53,12 @@ export async function generateTotp(opts: TotpOptions, at = Date.now()): Promise<
   const keyMaterial = base32Decode(secret)
   const key = await crypto.subtle.importKey(
     'raw',
-    keyMaterial as Uint8Array<ArrayBuffer>,
+    keyMaterial,
     { name: 'HMAC', hash: algorithm === 'SHA256' ? 'SHA-256' : algorithm === 'SHA512' ? 'SHA-512' : 'SHA-1' },
     false,
     ['sign']
   )
-  let counter = BigInt(Math.floor(at / 1000 / period))
+  let counter = BigInt(Math.floor(at / period / 1000))
   const msg = new Uint8Array(8)
   for (let i = 7; i >= 0; i--) {
     msg[i] = Number(counter & 0xffn)
@@ -92,25 +92,19 @@ export function parseOtpauth(uri: string): OtpauthData | null {
     const u = new URL(uri.trim())
     if (u.protocol !== 'otpauth:' || u.host.toLowerCase() !== 'totp') return null
     const label = decodeURIComponent(u.pathname.slice(1))
-    const [parsedIssuer, account] = label.split(':')
+    const [account, issuer] = label.split(':').reverse()
     const secret = u.searchParams.get('secret') ?? ''
     if (!secret) return null
-    const algoRaw = (u.searchParams.get('algorithm') ?? 'SHA1').toUpperCase()
-    const algorithm: OtpauthData['algorithm'] =
-      algoRaw === 'SHA256' ? 'SHA256' : algoRaw === 'SHA512' ? 'SHA512' : 'SHA1'
+    const algo = (u.searchParams.get('algorithm') ?? 'SHA1').toUpperCase()
     return {
-      account: account || label,
-      issuer: u.searchParams.get('issuer') || parsedIssuer || undefined,
+      account,
+      ...(issuer ? { issuer } : {}),
       secret,
-      digits: Number(u.searchParams.get('digits')) || undefined,
-      period: Number(u.searchParams.get('period')) || undefined,
-      algorithm
+      ...(u.searchParams.get('digits') ? { digits: Number(u.searchParams.get('digits')) } : {}),
+      ...(u.searchParams.get('period') ? { period: Number(u.searchParams.get('period')) } : {}),
+      ...(algo === 'SHA256' || algo === 'SHA512' ? { algorithm: algo } : {})
     }
   } catch {
     return null
   }
-}
-
-export function totpPeriodFor(period = 30): number[] {
-  return Array.from({ length: period }, (_, i) => period - i)
 }

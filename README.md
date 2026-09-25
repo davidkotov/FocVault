@@ -129,16 +129,41 @@ contracts/      SubscriptionGate.sol
 
 - **Auto-Lock:** Master-Key wird nach 30 Min Inaktivität aus dem RAM entfernt
   (Interaktion = Klick/Tastatur/Scroll/Touch). „Sofort sperren" im Vault-Panel.
-- **Secure Send:** Datei teilen ohne Empfänger-Konto:
+- **Secure Send (v2):** Datei teilen ohne Empfänger-Konto:
   - File-Key wird entschlüsselt und mit einem Zufalls-**Link-Key** neu verschlüsselt
-  - Share-Datensatz (Metadaten + gewrappter Key, Ablaufdatum 1/7/30 Tage) wird als
+  - Share-Datensatz (Metadaten + gewrappter Key, Ablaufdatum) wird als
     eigener verschlüsselter Piece on-chain gespeichert
-  - Link: `/s/<pieceCid>#<linkKey>` – der Key steckt im URL-Fragment (#) und wird
+  - **Ablauf wählbar:** 1 Stunde / 24 Stunden / 7 Tage / 30 Tage
+  - **Optionaler Passwort-Schutz:** PBKDF2-SHA256 (310k Runden) leitet einen AES-GCM-Key
+    ab, mit dem der Link-Key im Fragment eingeschlossen wird
+  - **Optionaler Einmal-Link** und **maximale Download-Anzahl**
+  - Link-Formate im URL-Fragment (`#`):
+    - `<b64url>` – ohne Passwort (kompatibel zu älteren Links)
+    - `s.<b64url>` – expliziter Key-Fragment ohne Passwort
+    - `p.<salt>.<iv>.<cipher>` – Link-Key passwortverschlüsselt
+  - Link: `/s/<pieceCid>#<fragment>` – der Key steckt im URL-Fragment und wird
     **nie** an einen Server übertragen
   - Empfänger: beliebige Wallet (nur zum Piece-Abruf, keine Tx, keine Kosten),
     Entschlüsselung lokal im Browser, Ablauf wird clientseitig geprüft
+  - Ehrlich: Einmal-/Limit-Durchsetzung läuft bisher **clientseitig pro Gerät**
+    (best effort, `localStorage`). Die globale Durchsetzung folgt mit dem Backend.
   - Ehrlich: der Cipher-Piece bleibt bis zum Rail-Ablauf on-chain – ohne Link-Key
     ist er nutzlos (Zero-Knowledge)
+
+## Entwicklung & Tests
+
+```bash
+npm install --legacy-peer-deps   # Pflicht: Next 14 / wagmi / vitest-Auflösung
+npm run dev                      # http://localhost:3000
+npx tsc --noEmit                 # Typecheck
+npm test                         # Vitest (einmal)
+```
+
+- **Tests:** `lib/share.test.ts` (Share-Fragmente, Passwort-Wrap, falsches Passwort),
+  `lib/totp.test.ts` (RFC-6238-Vektoren), `lib/csv.test.ts` (Roundtrip/Quoting)
+- **CI:** `.github/workflows/ci.yml` – `npm ci --legacy-peer-deps` → `tsc --noEmit` → `npm test`
+- Bewusst **kein** `next build` in CI: die Client-Wallet-Pfade (wagmi/`window`) bauen
+  nicht headless.
 
 ## Mobile & Zahlungen: 3 kostenlose Registrierungen schalten alles frei
 
