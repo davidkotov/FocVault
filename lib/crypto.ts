@@ -1,6 +1,6 @@
 const enc = new TextEncoder()
 
-type Bytes = Uint8Array<ArrayBuffer>
+export type Bytes = Uint8Array<ArrayBuffer>
 
 const MIN_PIECE_BYTES = 127
 
@@ -364,4 +364,70 @@ export async function decryptShareContainer(container: Bytes, linkKey: Bytes): P
   const cipher = container.subarray(12)
   const plain = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher))
   return new TextDecoder().decode(plain)
+}
+
+/* ------------------------------------------------------------------ */
+/* Share-Fragment (Secure Send v2)                                     */
+/* ------------------------------------------------------------------ */
+
+export type ShareFragment =
+  | { kind: 'bare'; linkKey: Bytes }
+  | { kind: 'key'; linkKey: Bytes }
+  | { kind: 'password'; salt: Bytes; iv: Bytes; cipher: Bytes }
+
+/**
+ * Fragment-Teil eines Share-Links (nach dem `#`).
+ *   - legacy:           <b64url(linkKey)>                     (Secure Send v1)
+ *   - s.<b64url(key)>   Link mit nacktem Link-Key             (v2, ohne Passwort)
+ *   - p.<salt>.<iv>.<cipher>  Link-Key passwort-verschluesselt (v2, mit Passwort)
+ * Der Fragment-Inhalt ist immer URL-safe base64url, deshalb kollidiert `.`
+ * als Feldtrenner nie mit den Zeichen `-`/`_`.
+ */
+export function encodeShareFragment(f: ShareFragment): string {
+  if (f.kind === 'bare') return toB64Url(f.linkKey)
+  if (f.kind === 'key') return 's.' + toB64Url(f.linkKey)
+  return ['p', toB64Url(f.salt), toB64Url(f.iv), toB64Url(f.cipher)].join('.')
+}
+
+export function decodeShareFragment(fragment: string): ShareFragment {
+  const clean = fragment.replace(/^#/, '').trim()
+  if (clean.startsWith('p.')) {
+    const [, salt, iv, cipher] = clean.split('.')
+    if (!salt || !iv || !cipher) throw new Error('Passwortgeschützter Link unvollständig.')
+    return { kind: 'password', salt: fromB64Url(salt), iv: fromB64Url(iv), cipher: fromB64Url(cipher) }
+  }
+  if (clean.startsWith('s.')) {
+    const key = clean.slice(2)
+    if (!key) throw new Error('Link unvollständig.')
+    return { kind: 'key', linkKey: fromB64Url(key) }
+  }
+  // legacy: nackter b64url-Key
+  return { kind: 'bare', linkKey: fromB64Url(clean) }
+}
+
+/** PBKDF2 → AES-GCM-Key für den Passwort-Schutz eines Secure-Send-Links. */
+export async function deriveSharePasswordKey(password: string, salt: Bytes): Promise<CryptoKey> {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey'])
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 310_000 },
+    base,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  )
+}
+
+export async function wrapLinkKeyWithPassword(
+  pwdKey: CryptoKey,
+  linkKey: Bytes
+): Promise<{ iv: Bytes; cipher: Bytes }> {
+  const iv = crypto.getRandomValues(new Uint8Array(12)) as Bytes
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, pwdKey, linkKey)
+  ) as Bytes
+  return { iv, cipher }
+}
+
+export async function unwrapLinkKeyWithPassword(pwdKey: CryptoKey, iv: Bytes, cipher: Bytes): Promise<Bytes> {
+  return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, pwdKey, cipher)) as Bytes
 }

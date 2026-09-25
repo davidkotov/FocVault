@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # --legacy-peer-deps ist projektweit Pflicht (Next 14 / wagmi / vitest-Auflösung).
+      - name: Install
+        run: npm ci --legacy-peer-deps
+
+      # Bewusst KEIN `next build`: die Client-Wallet-Pfade (wagmi/window) bauen
+      # nicht headless. Verifiziert wird TypeScript + die reinen Krypto-/Utility-Tests.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test

@@ -37,7 +37,7 @@ export async function getSynapse(walletClient: WalletClient): Promise<AnySynapse
     client: signingClient,
     readClient,
     source: 'focvault',
-    withCDN: false
+    withCDN: true
   })
 
   try {
@@ -108,7 +108,15 @@ export interface BatchUploadOptions {
  * Enden/Verfallen Datasets, fällt der Resume fehl → sauberer Fallback auf
  * frische Contexts (alte Datasets verfallen automatisch, keine Doppel-Last).
  */
-const CONTEXT_METADATA = { Application: 'focvault', Version: '2' }
+const CONTEXT_METADATA = { Application: 'focvault', Version: '3' }
+
+/**
+ * Version der Dataset-Persistenz. Wird erhöht, wenn sich das Storage-Modell
+ * ändert (z. B. CDN-Umschaltung): alte, nicht mehr passende Dataset-IDs werden
+ * dann ignoriert und frische Datasets angelegt, statt inkompatible Contexts
+ * fortzusetzen. Alte Datasets bleiben on-chain bestehen und verfallen regulär.
+ */
+const DATASET_STORE_VERSION = 3
 
 function datasetKey(chainId: number | string, address: string): string {
   return `focvault:datasets:${chainId}:${address.toLowerCase()}`
@@ -120,12 +128,13 @@ function loadPersistedDatasetIds(chainId: number | string, address: string): str
     const raw = window.localStorage.getItem(datasetKey(chainId, address))
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    if (
-      Array.isArray(parsed) &&
-      parsed.length === 2 &&
-      parsed.every((x: unknown) => typeof x === 'string' && /^\d+$/.test(x))
-    ) {
-      return parsed
+    const ids = Array.isArray(parsed)
+      ? null // ≤ v2: unversionierte Arrays nicht mehr fortsetzen
+      : parsed && parsed.v === DATASET_STORE_VERSION && Array.isArray(parsed.ids)
+        ? parsed.ids
+        : null
+    if (ids && ids.length === 2 && ids.every((x: unknown) => typeof x === 'string' && /^\d+$/.test(x))) {
+      return ids
     }
   } catch {
     // unlesbar → frisch anlegen
@@ -146,7 +155,10 @@ function persistDatasetIds(
   if (typeof window === 'undefined') return
   const clean = ids.filter((id): id is bigint | number | string => id != null).map(id => id.toString())
   if (clean.length < 2) return
-  window.localStorage.setItem(datasetKey(chainId, address), JSON.stringify(clean))
+  window.localStorage.setItem(
+    datasetKey(chainId, address),
+    JSON.stringify({ v: DATASET_STORE_VERSION, ids: clean })
+  )
 }
 
 /** Contexts für Uploads holen: fortsetzen falls IDs vorhanden, sonst frisch anlegen. */

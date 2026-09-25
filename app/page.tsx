@@ -25,7 +25,7 @@ import {
 import { TIERS, EMPTY_CONTAINER, loadVaultContainer, saveVaultContainer, tierFor, usedBytes, parseVaultContainer, type VaultContainer, type VaultEntry, type SecretEntry } from '@/lib/vault'
 import { downloadPiece, getSynapse, getVaultContexts, openPieceStream, prepareStorage, uploadPiecesBatched } from '@/lib/synapse'
 import { clearParts, getPart, listPartKeys, savePart } from '@/lib/idb'
-import { createShareUrl } from '@/lib/share'
+import { createShareUrl, type ShareOptions } from '@/lib/share'
 import Landing from '@/components/Landing'
 import Sidebar, { type ViewId } from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
@@ -445,12 +445,12 @@ export default function Home() {
   }, [])
 
   const handleShareCreate = useCallback(
-    async (days: number) => {
+    async (options: ShareOptions) => {
       if (!walletClient || !masterKey || !shareEntry) return
       setShareBusy(true)
       setError(null)
       try {
-        const url = await createShareUrl(walletClient, masterKey, shareEntry, days)
+        const url = await createShareUrl(walletClient, masterKey, shareEntry, options)
         setShareUrl(url)
       } catch (e: any) {
         setError(e?.shortMessage ?? e?.message ?? 'Share-Link konnte nicht erstellt werden')
@@ -483,7 +483,7 @@ export default function Home() {
       entry={shareEntry}
       busy={shareBusy}
       url={shareUrl}
-      onCreate={days => void handleShareCreate(days)}
+      onCreate={options => void handleShareCreate(options)}
       onClose={() => {
         setShareEntry(null)
         setShareUrl(null)
