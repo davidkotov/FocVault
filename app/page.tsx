@@ -19,7 +19,7 @@ import {
   deriveMasterKey,
   encryptVaultJsonBytes,
   getOrCreateSalt,
-  STREAM_BLOCK_SIZE,
+  framesForChunk,
   unwrapFileKey
 } from '@/lib/crypto'
 import { TIERS, EMPTY_CONTAINER, loadVaultContainer, saveVaultContainer, tierFor, usedBytes, parseVaultContainer, type VaultContainer, type VaultEntry, type SecretEntry } from '@/lib/vault'
@@ -78,7 +78,12 @@ export default function Home() {
 
   // Dev/Praesentations-Hilfe: ?pro=1 schaltet die Pro-Module ohne Abo frei.
   useEffect(() => {
-    setDevPro(typeof window !== 'undefined' && window.location.search.includes('pro=1'))
+    // Nur ausserhalb von Production – sonst waere Pro per URL frei schaltbar (Audit M13).
+    setDevPro(
+      process.env.NODE_ENV !== 'production' &&
+        typeof window !== 'undefined' &&
+        new URLSearchParams(window.location.search).get('pro') === '1'
+    )
   }, [])
 
   const supported = isSupportedChain(chainId)
@@ -308,13 +313,8 @@ export default function Home() {
         const report = (loaded: number) => {
           setDlJob(j => (j ? { ...j, pct: Math.min(100, Math.round((loaded / entry.size) * 100)) } : j))
         }
-        const framesFor = (chunkIndex: number) => {
-          const clearSize =
-            chunkIndex === entry.chunks.length - 1
-              ? entry.size - chunkIndex * (256 * 1024 * 1024)
-              : 256 * 1024 * 1024
-          return Math.max(1, Math.ceil(clearSize / STREAM_BLOCK_SIZE))
-        }
+        const framesFor = (chunkIndex: number) =>
+          framesForChunk(entry.size, chunkIndex, entry.chunks.length)
         const hasFSA =
           typeof window !== 'undefined' && typeof (window as any).showSaveFilePicker === 'function'
 

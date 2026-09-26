@@ -1,6 +1,7 @@
 import type { WalletClient } from 'viem'
 import type { ChunkMeta, VaultEntry } from './vault'
-import { downloadPiece, getSynapse, getVaultContexts, prepareStorage, uploadPiecesBatched } from './synapse'
+import { downloadPiece, getSynapse, getVaultContexts, openPieceStream, prepareStorage, uploadPiecesBatched } from './synapse'
+import { decryptSharedChunks } from './pieces'
 import {
   decryptShareContainer,
   deriveSharePasswordKey,
@@ -125,19 +126,15 @@ export async function downloadSharedFile(
 ): Promise<void> {
   const synapse = await getSynapse(walletClient)
   const fileKey = await importFileKey(fromB64(record.fileKey) as Bytes)
-  const parts: Uint8Array[] = []
-  for (const chunk of record.chunks) {
-    const piece = await downloadPiece(synapse, chunk.pieceCid)
-    const plain = new Uint8Array(
-      await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(chunk.iv) }, fileKey, piece)
-    )
-    parts.push(plain)
-  }
+  const parts = await decryptSharedChunks(record, fileKey, {
+    openStream: cid => openPieceStream(synapse, cid),
+    download: cid => downloadPiece(synapse, cid)
+  })
   const blob = new Blob(parts.map(p => p.buffer as ArrayBuffer), { type: record.type })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = record.name
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }

@@ -41,6 +41,39 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Phase 0 – Hotfix D1 + Härtung (ARCHITECTURE §15)
+
+**D1 behoben – Secure Send für neue Uploads**
+- `lib/share.ts downloadSharedFile` entschlüsselte jeden Chunk mit einem einzigen
+  `crypto.subtle.decrypt` und ignorierte `fmt:'frame'` und `padLen`. Seit dem Streaming-Umbau
+  erzeugt `UploadZone` nur Frame-Chunks → jeder Share-Download scheiterte an der GCM-Auth.
+- Neu `lib/pieces.ts decryptSharedChunks(file, fileKey, source)`: Frame-Chunks über
+  `decryptPieceFrames`, Legacy-Chunks über `decryptChunk` (mit Padding). Rein, ohne SDK-Import
+  → in Node testbar. `downloadSharedFile` nutzt es; Object-URL wird verzögert freigegeben (Audit L3).
+- Neu `lib/crypto.ts framesForChunk(fileSize, chunkIndex, chunkCount)`; ersetzt die in
+  `app/page.tsx` hart kodierte `256 * 1024 * 1024`.
+
+**Stream-Pufferung O(n) statt O(n²)**
+- `encryptedPieceStream` und `decryptPieceFrames` hängten jedes Netzwerk-Stück per
+  `concatBytes` an einen wachsenden Puffer (Vollkopie pro Stück). Neu `ByteQueue` (sammelt ohne
+  Kopie, entnimmt genau n Bytes). Formatgleich, nur effizienter.
+
+**Härtung**
+- `next.config.mjs`: CSP, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `nosniff`,
+  COOP, `Permissions-Policy` (Kamera nur für QR), HSTS in Production (Audit H6).
+  `connect-src` bleibt `https:`/`wss:`, solange das Synapse SDK dynamische Provider-Hosts nutzt.
+- `?pro=1` schaltet Pro nur noch außerhalb von Production frei (Audit M13).
+- `app/s/[cid]`: Share-Schlüssel wird nach dem Lesen per `history.replaceState` aus URL/History
+  entfernt (Audit M11); Ref schützt vor dem StrictMode-Doppellauf in Dev.
+
+**Tests:** `lib/pieces.test.ts` – ByteQueue, `framesForChunk`, Frame-Roundtrips (10 B, 1 MiB,
+16 MiB + 5 B mit unregelmäßigen Stream-Stücken), Nachweis dass der alte Pfad scheitert,
+Legacy-Chunks. Hinweis: große Arrays per `Buffer.compare` vergleichen – Vitests `toEqual`
+legt pro Byte einen String-Key an und lief bei 16 MiB in einen 4-GB-OOM.
+
+**Verifikation:** `tsc` grün · Vitest 20/20 · Headless-Chromium (Playwright, neu als devDependency):
+`/` und `/s/<cid>` rendern ohne Konsolenfehler oder CSP-Verstöße.
+
 ### [noch nicht gepusht] Sprint A — CDN, Secure Send v2, Tests + CI
 
 **T1 – CDN-Umschaltung**

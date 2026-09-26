@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useAccount, useChainId, useWalletClient } from 'wagmi'
 import { isSupportedChain } from '@/lib/chains'
@@ -70,10 +70,20 @@ export default function SharePage() {
   const [error, setError] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [unlocking, setUnlocking] = useState(false)
+  const hashRef = useRef<string | null>(null)
 
   // 1) Fragment aus dem URL-Hash dekodieren (legacy-bare / s. / p.)
   useEffect(() => {
-    const raw = window.location.hash.replace(/^#/, '').trim()
+    // Schlüssel sofort aus Adressleiste und History entfernen (Audit M11): er soll nicht in
+    // Screenshots, Browser-Verlauf-Sync oder beim Kopieren der URL weitergegeben werden.
+    // Der Ref hält den Wert, weil StrictMode diesen Effekt in Dev zweimal ausführt.
+    if (hashRef.current === null) {
+      hashRef.current = window.location.hash.replace(/^#/, '').trim()
+      if (hashRef.current) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      }
+    }
+    const raw = hashRef.current
     if (!raw) {
       setError('Kein Schlüssel im Link – der Link ist unvollständig.')
       setPhase('error')

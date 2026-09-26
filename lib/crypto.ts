@@ -12,11 +12,57 @@ export const STREAM_BLOCK_SIZE = 16 * 1024 * 1024
 const GCM_TAG = 16
 const FRAME_HEADER = 4
 
-function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array<ArrayBuffer> {
-  const out = new Uint8Array(a.byteLength + b.byteLength)
-  out.set(a, 0)
-  out.set(b, a.byteLength)
-  return out
+/**
+ * FIFO-Puffer für Stream-Stücke. Sammelt ohne Umkopieren und kopiert erst beim Entnehmen
+ * genau die angeforderten Bytes – O(n) statt O(n²) bei vielen kleinen Netzwerk-Stücken.
+ */
+export class ByteQueue {
+  private chunks: Uint8Array[] = []
+  private head = 0
+  length = 0
+
+  push(b: Uint8Array): void {
+    if (b.byteLength === 0) return
+    this.chunks.push(b)
+    this.length += b.byteLength
+  }
+
+  /** Entnimmt genau `n` Bytes (n ≤ length) als zusammenhängendes Array. */
+  take(n: number): Uint8Array<ArrayBuffer> {
+    if (n > this.length) throw new RangeError('ByteQueue: zu wenig Daten')
+    const out = new Uint8Array(n)
+    let off = 0
+    while (off < n) {
+      const c = this.chunks[0]
+      const k = Math.min(c.byteLength - this.head, n - off)
+      out.set(c.subarray(this.head, this.head + k), off)
+      off += k
+      this.head += k
+      if (this.head === c.byteLength) {
+        this.chunks.shift()
+        this.head = 0
+      }
+    }
+    this.length -= n
+    return out
+  }
+
+  /** Liest ein u32 little-endian am Anfang, ohne es zu entnehmen (length ≥ 4). */
+  peekU32le(): number {
+    if (this.length < 4) throw new RangeError('ByteQueue: zu wenig Daten')
+    const b: number[] = []
+    let ci = 0
+    let pos = this.head
+    while (b.length < 4) {
+      const c = this.chunks[ci]
+      if (pos < c.byteLength) b.push(c[pos++])
+      else {
+        ci++
+        pos = 0
+      }
+    }
+    return (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)) >>> 0
+  }
 }
 
 /** Deterministische IV je Subblock: baseIv[0..7] (zufaellig) + 4-Byte-Zaehler (BE).
@@ -35,6 +81,15 @@ export interface StreamPlan {
   frames: number
   cipherSize: number
   paddedSize: number
+}
+
+/**
+ * Anzahl der 16-MiB-Frames im Piece `chunkIndex` einer Datei mit `fileSize` Klartext-Bytes.
+ * Pieces sind CHUNK_SIZE groß, nur das letzte ist kürzer.
+ */
+export function framesForChunk(fileSize: number, chunkIndex: number, chunkCount: number): number {
+  const clearSize = chunkIndex === chunkCount - 1 ? fileSize - chunkIndex * CHUNK_SIZE : CHUNK_SIZE
+  return Math.max(1, Math.ceil(clearSize / STREAM_BLOCK_SIZE))
 }
 
 /** Exakt berechnete Kapsel-Groesse eines verschlusselten Chunks:
@@ -182,7 +237,7 @@ export function encryptedPieceStream(
 ): ReadableStream<Uint8Array<ArrayBuffer>> {
   const source = file.slice(start, end).stream() as ReadableStream<Uint8Array>
   const reader = source.getReader()
-  let buffer = new Uint8Array(0)
+  const queue = new ByteQueue()
   let eof = false
   let counter = 0
   let ended = false
@@ -207,26 +262,22 @@ export function encryptedPieceStream(
         controller.error(new DOMException('Upload abgebrochen', 'AbortError'))
         return
       }
-      while (buffer.byteLength < STREAM_BLOCK_SIZE && !eof) {
+      while (queue.length < STREAM_BLOCK_SIZE && !eof) {
         const { done, value } = await reader.read()
         if (done) {
           eof = true
           break
         }
-        buffer = concatBytes(buffer, value)
+        queue.push(value)
       }
-      if (buffer.byteLength >= STREAM_BLOCK_SIZE) {
-        const block = buffer.subarray(0, STREAM_BLOCK_SIZE)
-        buffer = buffer.subarray(STREAM_BLOCK_SIZE)
-        controller.enqueue(await encryptBlock(block, counter++))
+      if (queue.length >= STREAM_BLOCK_SIZE) {
+        controller.enqueue(await encryptBlock(queue.take(STREAM_BLOCK_SIZE), counter++))
         return
       }
-      if (eof && buffer.byteLength > 0) {
-        const block = buffer
-        buffer = new Uint8Array(0)
-        controller.enqueue(await encryptBlock(block, counter++))
+      if (eof && queue.length > 0) {
+        controller.enqueue(await encryptBlock(queue.take(queue.length), counter++))
       }
-      if (eof && buffer.byteLength === 0) {
+      if (eof && queue.length === 0) {
         ended = true
         if (padding > 0) controller.enqueue(new Uint8Array(padding))
         controller.close()
@@ -251,23 +302,23 @@ export async function decryptPieceFrames(
 ): Promise<void> {
   const baseIv = fromB64(baseIvB64)
   const reader = stream.getReader()
-  let buffer = new Uint8Array(0)
+  const queue = new ByteQueue()
   let counter = 0
   try {
     while (counter < frames) {
-      while (buffer.byteLength < FRAME_HEADER) {
+      while (queue.length < FRAME_HEADER) {
         const { done, value } = await reader.read()
         if (done) throw new Error('Piece abgeschnitten – Frame-Header fehlt')
-        buffer = concatBytes(buffer, value)
+        queue.push(value)
       }
-      const len = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength).getUint32(0, true)
-      while (buffer.byteLength < FRAME_HEADER + len) {
+      const len = queue.peekU32le()
+      while (queue.length < FRAME_HEADER + len) {
         const { done, value } = await reader.read()
         if (done) throw new Error('Piece abgeschnitten – Frame-Daten fehlen')
-        buffer = concatBytes(buffer, value)
+        queue.push(value)
       }
-      const cipher = buffer.subarray(FRAME_HEADER, FRAME_HEADER + len)
-      buffer = buffer.subarray(FRAME_HEADER + len)
+      queue.take(FRAME_HEADER)
+      const cipher = queue.take(len)
       const plain = new Uint8Array(
         await crypto.subtle.decrypt(
           { name: 'AES-GCM', iv: frameIv(baseIv, counter) },
