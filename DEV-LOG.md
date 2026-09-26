@@ -74,6 +74,38 @@ legt pro Byte einen String-Key an und lief bei 16 MiB in einen 4-GB-OOM.
 **Verifikation:** `tsc` grün · Vitest 20/20 · Headless-Chromium (Playwright, neu als devDependency):
 `/` und `/s/<cid>` rendern ohne Konsolenfehler oder CSP-Verstöße.
 
+### [PR #4] ARCHITECTURE.md – Zielarchitektur mit Fil One als Storage-Lieferant
+
+**Kontext:** Klärung mit Partner: **Fil One (fil.one) ist unser Storage-Lieferant**, nicht
+Wettbewerber. Fil One = S3-kompatibler Object Storage auf Filecoin, $4.99/TB/Monat,
+keine Egress-Gebühren, EU-Region (Frankreich). Der MVP kauft Storage dagegen direkt
+über Synapse/FOC mit Wallet + USDFC – für B2C nicht tragfähig.
+
+**Neu: `ARCHITECTURE.md`** (Umsetzungsauftrag, 17 Abschnitte)
+- Ist-Zustand verifiziert gegen `main` (`3ece43c`) inkl. Befund-Tabelle (Audit C1/H1–H6/M4/M8/M11/M13 + neue A1/A2/**D1**)
+- Zielarchitektur: Client (Zero-Knowledge unverändert) · Backend EU (Auth, Presigned URLs,
+  Quota, Shares, Billing, Family, Audit) · Fil One S3 · Stripe
+- Schlüsselhierarchie neu: zufälliger Master-Key, gewrappt durch Passphrase-KEK (Argon2id),
+  Passkey-PRF, **Recovery-Kit** (Pflicht), optional Wallet-KEK mit deterministischem Salt ⇒ C1 strukturell behoben
+- Fil-One-Fakten (docs.fil.one, 27.09.): SigV4 + Path-Style, EU-Buckets nur per Dashboard,
+  Object Lock 1 Tag–100 Jahre, Multipart 5 MB–5 GB/Part, **keine** Policies/ACLs/Lifecycle/Events ⇒ alles via Presign, Lifecycle selbst bauen
+- Datenmodell (Postgres), REST-API `/api/v1`, Kernabläufe, Secure Send v3 (global atomare Einmal-Links, Widerruf, Empfänger ohne Wallet)
+- Billing/Quota serverseitig auf Ciphertext-Bytes, Kostenmodell, Threat-Model, CSP, DSA/DSGVO
+- Phasen 0–4 mit Abnahmekriterien, Teststrategie, 10 offene Entscheidungen (E1–E10)
+
+**Befund D1 (neu, kritisch für Secure Send):** `lib/share.ts:122-143 downloadSharedFile`
+entschlüsselt jeden Chunk mit einem einzelnen `crypto.subtle.decrypt` und ignoriert
+`fmt:'frame'`/`padLen`. `UploadZone` erzeugt seit dem Streaming-Umbau nur Frame-Chunks
+⇒ Secure Send scheitert für alle neu hochgeladenen Dateien an der GCM-Authentifizierung.
+Fix = Frame-Pfad wie `app/page.tsx handleDownload` (`openPieceStream` + `decryptPieceFrames`).
+**Separater Hotfix-PR (Phase 0), nicht in diesem Doku-PR.**
+
+**Weitere Änderungen:** `ROADMAP.md` (PR #2/#3 als gemergt, Verweis auf ARCHITECTURE,
+Fil-One-Formulierungen), `README.md` (Fil One als Lieferant statt „Abgrenzung“).
+
+**Repo-Stand:** PR #2 gemergt 23.09. (`8c51b6a`), PR #3 gemergt 25.09. (`9dcfd10`),
+`main` = `3ece43c` (`.npmrc` mit `legacy-peer-deps=true`). CI auf `main` grün.
+
 ### [noch nicht gepusht] Sprint A — CDN, Secure Send v2, Tests + CI
 
 **T1 – CDN-Umschaltung**
