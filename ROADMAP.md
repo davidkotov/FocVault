@@ -7,6 +7,10 @@
 > **Legende:** ✅ vorhanden · 🟡 Basis vorhanden (ausbaubar) · ❌ fehlt (neu).
 > **Priorität:** P0 = Fundament/Security · P1 = Produkt-Kern · P2 = Backend/Monetarisierung
 > · P3 = Filecoin-Services · P4 = Erweiterungen (Konzept).
+>
+> **Das „Wie“** (Zielarchitektur, Fil One als Storage-Lieferant, Backend, Datenmodell, API,
+> Phasenplan mit Abnahmekriterien) steht in **`ARCHITECTURE.md`**. Bei Abweichungen in der
+> Reihenfolge gilt ARCHITECTURE §15.
 
 ---
 
@@ -81,7 +85,7 @@ Die 45+ Ideen aus der Beratung, abgehakt gegen den realen Code (nicht nur Konzep
 | Pay-per-GB Storage | ✅ | Quota-Modell steht; **fehlt:** echtes Billing (CHF) → P2 |
 | Pay-per-Download CDN | 🟡 | **CDN jetzt aktiv** (T5, mitCDN:true). **Fehlt:** Abrechnung pro Egress → P2 |
 | Stripe-Abos (Pro/Family) | ❌ | Vorgemerkt (Backend, Step 3/4) → P2 |
-| S3 → Filecoin Gateway | ❌ | Konzept: **Stärke = E2E über S3-API** (Differenzierung zu FilOne) → P3 |
+| S3 → Filecoin Gateway | ❌ | Konzept: **Stärke = E2E über S3-API** – Fil One ist unser Storage-Lieferant (ARCHITECTURE §5), das Gateway ist die E2E-Schicht darüber → P3 |
 | Backup-as-a-Service | ❌ | Agent + Retention → P2 |
 | White-Label / Enterprise | ❌ | Backend + SLA → P2/P4 |
 
@@ -159,7 +163,7 @@ Passwort/Einmal-Link end-to-end (Live-Test, braucht Wallet).
   Zeitstempel, PDP-Status), Watchdog-Alarme, „Immutable/Archive"-Tarif.
 - **T10 – Dataset-Marktplatz / Open-Data-Hosting** (Katalog, Lizenz, Pay-per-Dataset).
 - **T11 – S3 → Filecoin Gateway (E2E):** S3-kompatibler Endpoint mit clientseitiger
-  Verschlüsselung (Differenzierung zu FilOne), Rclone-Migration, Public Data API.
+  Verschlüsselung vor Fil One (E2E-Schicht über dem Lieferanten), Rclone-Migration, Public Data API.
 
 ### P4 – Konzept & später
 
@@ -187,7 +191,9 @@ Passwort/Einmal-Link end-to-end (Live-Test, braucht Wallet).
 
 ## 6. Offene Punkte (Tracking)
 
-- [ ] **PR #2** – MVP + Sprint A (T1–T3) – offen, wartet auf Merge/Review durch davidkotov
-- [ ] **Upload-Live-Test** Dataset-Reuse auf Calibration (braucht Wallet) – nach Merge
-- [ ] **Sprint B/C/D** Termine mit Partner (T4–T10) – Vorschlag: T4/T5 in Sprint B direkt
-- [ ] Token nach Abschluss rotieren
+- [x] **PR #2** – MVP (gemergt 23.09.2026, `8c51b6a`)
+- [x] **PR #3** – Sprint A (T1–T3) (gemergt 25.09.2026, `9dcfd10`; `main` = `3ece43c`)
+- [ ] **ARCHITECTURE.md** (PR #4) – Zielarchitektur mit **Fil One als Storage-Lieferant**; Entscheidungen E1–E10 mit Partner festlegen
+- [ ] **Hotfix D1** – `downloadSharedFile` entschlüsselt keine `fmt:'frame'`-Chunks ⇒ Secure Send für neue Uploads defekt (ARCHITECTURE §2.4, Phase 0)
+- [ ] **Sprint B/C/D** Termine mit Partner – Phasenplan in ARCHITECTURE §15 ersetzt die T4–T11-Reihenfolge, wo sie abweicht
+- [ ] Alle im Chat genutzten GitHub-Tokens rotieren
