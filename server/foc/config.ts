@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:
 import { z } from 'zod'
 import type { Db } from '../db'
 import { serverSecret } from '../shared/env'
+import { ApiError } from '../shared/errors'
 
 /**
  * Filecoin Onchain Cloud (FOC) – Betriebseinstellungen.
@@ -83,6 +84,23 @@ export async function getFocSettings(db: Db): Promise<FocSettings> {
 export async function setFocSettings(db: Db, value: FocSettings, by: string): Promise<void> {
   const v = focSettingsSchema.parse(value)
   if (v.packMinMb > v.packMaxMb) throw new Error('packMinMb > packMaxMb')
+  const prev = await getFocSettings(db)
+  if (prev.network !== v.network) {
+    // Netzwechsel (z. B. Test → Mainnet): alles im neuen Netz neu sichern. Nur möglich, solange
+    // keine schnelle Kopie entfernt wurde – sonst lägen Dateien ausschließlich im alten Netz.
+    const evicted = await db.query<{ n: number }>(
+      `SELECT count(*)::float8 AS n FROM foc_members m JOIN foc_packs p ON p.id = m.pack_id
+        WHERE p.network <> $1 AND m.evicted_at IS NOT NULL AND m.deleted_at IS NULL`,
+      [v.network]
+    )
+    if (Number(evicted[0]?.n ?? 0) > 0) {
+      throw new ApiError('BAD_REQUEST', 'Netzwechsel nicht möglich: Einige Dateien liegen nur noch im bisherigen Netz (schnelle Kopie entfernt).')
+    }
+    await db.tx(async tx => {
+      await tx.query('DELETE FROM foc_members WHERE pack_id IN (SELECT id FROM foc_packs WHERE network <> $1)', [v.network])
+      await tx.query(`UPDATE foc_packs SET state = 'removed' WHERE network <> $1 AND state <> 'removed'`, [v.network])
+    })
+  }
   await write(db, 'foc', v, by)
 }
 

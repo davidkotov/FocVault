@@ -144,4 +144,20 @@ describe('Filecoin Onchain Cloud', () => {
     expect(r.ran).toBe(false)
     expect(fake.uploads()).toBe(0)
   })
+
+  it('Netzwechsel Test → Mainnet: alles wird im neuen Netz neu gesichert', async () => {
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'netz@example.com')
+    const c = await createObject(deps, session, { fmt: 'frame2', pieces: [{ index: 0, cipherBytes: 500 }] })
+    await deps.storage.writeStream(objectPieceKey(session.accountId, c.objectId, 0), stream(pattern(500, 3)), 500)
+    await completeObject(deps, session, c.objectId)
+    const fake = fakeBackend()
+    const base = { ...DEFAULT_FOC, enabled: true, payer: '0x' + '3'.repeat(40) }
+    await setFocSettings(deps.db, { ...base, network: 'calibration' }, session.accountId)
+    expect((await runFocSync(deps.db, deps.storage, { backend: fake.backend, force: true })).packed?.keys).toBe(1)
+    await setFocSettings(deps.db, { ...base, network: 'mainnet' }, session.accountId)
+    const r = await runFocSync(deps.db, deps.storage, { backend: fake.backend, force: true })
+    expect(r.packed?.keys).toBe(1)
+    expect((await deps.db.query(`SELECT network, state FROM foc_packs ORDER BY created_at`)).map(p => `${p.network}:${p.state}`)).toEqual(['calibration:removed', 'mainnet:stored'])
+  })
 })
