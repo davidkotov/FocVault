@@ -53,7 +53,8 @@ export async function adminStats(deps: Deps): Promise<AdminStats> {
       storage: deps.storage.kind,
       storageDirect: deps.storage.direct,
       database: deps.db.driver,
-      production: isProd
+      production: isProd,
+      payments: !process.env.STRIPE_SECRET_KEY ? 'off' : process.env.STRIPE_SECRET_KEY.startsWith('sk_live') ? 'live' : 'test'
     },
     totals: {
       accounts: Number(counts[0]?.n ?? 0),

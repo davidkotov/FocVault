@@ -79,6 +79,16 @@ export interface AccountBilling {
   }
   /** Summe auf einen Monat umgelegt (Jahresabo / 12) */
   monthlyTotal: number
+  /** Abo über Stripe (sonst manuell/Admin bzw. Entwicklung) */
+  subscription: {
+    provider: 'stripe' | 'manual'
+    status: string | null
+    periodEnd: string | null
+    cancelAtPeriodEnd: boolean
+    hasPaymentAccount: boolean
+  }
+  /** Zahlungen laufen über Stripe */
+  stripe: boolean
 }
 
 export interface RegisterInput {
@@ -122,7 +132,7 @@ export interface AdminAccountRow {
 }
 
 export interface AdminStats {
-  environment: { storage: string; storageDirect: boolean; database: string; production: boolean }
+  environment: { storage: string; storageDirect: boolean; database: string; production: boolean; payments: 'off' | 'test' | 'live' }
   totals: {
     accounts: number
     accountsByPlan: Record<Plan, number>

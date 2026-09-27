@@ -2140,3 +2140,12 @@ button.filetile:disabled { opacity: 1; cursor: default; }
 }
 [data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translateY(0); }
 .backbtn { margin-bottom: 14px; }
+.substatus { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.substatus .errorbox { margin-bottom: 8px; }
+.navlock { margin-left: auto; display: inline-flex; position: relative; color: var(--text-mute); }
+.navlock svg { stroke: currentColor; fill: none; stroke-width: 2; }
+.navitem.locked { color: var(--text-mute); }
+.navlock[data-tip]::after { right: auto; left: 50%; top: auto; bottom: calc(100% + 8px); transform: translate(-50%, 4px); }
+.navlock[data-tip]:hover::after { transform: translate(-50%, 0); }
+.navitem.disabled .navlock { pointer-events: auto; }
+.navitem.locked:hover .navlock::after, .navitem.disabled:hover .navlock::after { opacity: 1; transform: translate(-50%, 0); }

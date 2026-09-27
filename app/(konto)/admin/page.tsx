@@ -50,7 +50,19 @@ const EVENT_LABEL: Record<string, string> = {
   'admin.treasury_changed': 'Reserve geändert',
   'admin.foc_changed': 'FOC-Einstellungen geändert',
   'admin.foc_session_key': 'FOC-Server-Schlüssel erzeugt',
-  'foc.pack_stored': 'Paket auf Filecoin gesichert'
+  'foc.pack_stored': 'Paket auf Filecoin gesichert',
+  'object.trashed': 'Datei in den Papierkorb',
+  'object.restored': 'Datei wiederhergestellt',
+  'object.purged': 'Papierkorb endgültig geleert',
+  'share.created': 'Freigabe-Link erstellt',
+  'share.revoked': 'Freigabe-Link widerrufen',
+  'share.downloaded': 'Freigabe heruntergeladen',
+  'billing.subscribed': 'Abo abgeschlossen (Stripe)',
+  'billing.subscription_ended': 'Abo beendet',
+  'billing.cancel_scheduled': 'Kündigung vorgemerkt',
+  'billing.cancel_revoked': 'Kündigung zurückgenommen',
+  'billing.invoice_paid': 'Rechnung bezahlt',
+  'billing.payment_failed': 'Zahlung fehlgeschlagen'
 }
 
 /** Admin: nur Aggregate und Metadaten – keine Inhalte, keine Dateinamen (Zero-Knowledge). */
@@ -109,6 +121,9 @@ export default function AdminPage() {
                 <span className="badge">DB: {stats.environment.database === 'pglite' ? 'PGlite (lokal)' : 'Postgres'}</span>
                 <span className={`badge ${stats.environment.storage === 'filone' ? 'ok' : ''}`}>
                   Storage: {stats.environment.storage === 'filone' ? 'Fil One' : stats.environment.storage === 'local' ? 'lokal (Dev)' : stats.environment.storage}
+                </span>
+                <span className={`badge ${stats.environment.payments === 'live' ? 'ok' : ''}`}>
+                  Stripe: {stats.environment.payments === 'off' ? 'aus' : stats.environment.payments === 'live' ? 'Live' : 'Testmodus'}
                 </span>
                 {!stats.environment.production && <span className="badge err">Entwicklung</span>}
               </span>

@@ -78,7 +78,24 @@ const de = {
   devNote: 'Entwicklungsmodus: Änderungen werden ohne Zahlung aktiviert.',
   stripeSoon: 'Online-Zahlung (Stripe) folgt in Kürze – bis dahin schaltet der Support frei.',
   vatNote: 'Preise inkl. MWST.',
-  confirmDowngrade: 'Zu Free wechseln? Zusatzspeicher endet, es bleiben {gb} GB.'
+  confirmDowngrade: 'Zu Free wechseln? Zusatzspeicher endet, es bleiben {gb} GB.',
+  stripe: {
+    secure: 'Sichere Zahlung über Stripe – Karte, TWINT, Apple Pay, Google Pay, SEPA je nach Land. Wir sehen deine Kartendaten nie.',
+    redirecting: 'Weiter zur sicheren Zahlung …',
+    manage: 'Zahlung & Rechnungen',
+    manageHint: 'Zahlungsmittel ändern, Rechnungen herunterladen, kündigen',
+    renews: 'Verlängert sich am {date}',
+    ends: 'Endet am {date} – danach Free',
+    resume: 'Abo fortsetzen',
+    resumed: 'Abo läuft weiter.',
+    pastDue: 'Die letzte Zahlung ist fehlgeschlagen. Bitte das Zahlungsmittel aktualisieren, sonst endet das Abo.',
+    success: 'Danke! Dein Abo ist aktiv – es kann einige Sekunden dauern, bis alles freigeschaltet ist.',
+    cancelled: 'Zahlung abgebrochen – es wurde nichts berechnet.',
+    paygReady: 'Karte hinterlegt – Pay-as-you-go ist aktiv.',
+    cancelScheduled: 'Kündigung vorgemerkt. Du behältst alles bis zum Laufzeitende.',
+    confirmCancel: 'Abo kündigen? Es läuft bis zum Ende der bezahlten Laufzeit weiter.',
+    manual: 'Dieses Abo wird manuell verwaltet (Support).'
+  }
 }
 
 const en: typeof de = {
@@ -161,7 +178,24 @@ const en: typeof de = {
   devNote: 'Development mode: changes are activated without payment.',
   stripeSoon: 'Online payment (Stripe) is coming soon – until then, support activates plans.',
   vatNote: 'Prices include VAT.',
-  confirmDowngrade: 'Switch to Free? Extra storage ends and you keep {gb} GB.'
+  confirmDowngrade: 'Switch to Free? Extra storage ends and you keep {gb} GB.',
+  stripe: {
+    secure: 'Secure payment via Stripe – card, TWINT, Apple Pay, Google Pay, SEPA depending on your country. We never see your card details.',
+    redirecting: 'Continuing to secure payment …',
+    manage: 'Payment & invoices',
+    manageHint: 'Change payment method, download invoices, cancel',
+    renews: 'Renews on {date}',
+    ends: 'Ends on {date} – then Free',
+    resume: 'Keep subscription',
+    resumed: 'Your subscription continues.',
+    pastDue: 'The last payment failed. Please update your payment method, otherwise the subscription will end.',
+    success: 'Thank you! Your subscription is active – it may take a few seconds until everything is unlocked.',
+    cancelled: 'Payment cancelled – nothing was charged.',
+    paygReady: 'Card saved – pay-as-you-go is active.',
+    cancelScheduled: 'Cancellation scheduled. You keep everything until the end of the paid period.',
+    confirmCancel: 'Cancel your subscription? It keeps running until the end of the paid period.',
+    manual: 'This subscription is managed manually (support).'
+  }
 }
 
 export const billingMessages = { de, en }

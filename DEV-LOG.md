@@ -41,6 +41,33 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Stripe: Abos, Zusatzspeicher, Pay-as-you-go (bereit, sobald die Schlüssel eingetragen sind)
+
+**Architektur (`server/stripe/*`, Migration v8):** eine schmale `StripeGateway`-Schnittstelle (einzige
+Stelle mit dem Stripe-SDK 22), Geschäftslogik separat und mit einer Attrappe getestet. Preise kommen
+immer aus unserem Preisbuch (`price_data`, `tax_behavior: inclusive`); Stripe kennt nur vier Produkte,
+die FocVault beim ersten Kauf selbst anlegt. Ohne `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` bleibt
+alles wie bisher (lokal Käufe ohne Zahlung).
+
+- **Abo:** Stripe Checkout (Monat/Jahr, CHF/EUR/USD, Promo-Codes, optional Stripe Tax); Freischaltung
+  ausschließlich per signiertem Webhook, jedes Ereignis genau einmal (`stripe_events`), Abo-Stand wird
+  bei jedem Ereignis frisch geholt (Reihenfolge egal). Paketwechsel in derselben Währung direkt am Abo
+  (anteilig), Kündigung zum Laufzeitende mit „Abo fortsetzen“; nach Ablauf automatisch Free (Daten bleiben).
+- **Zusatzspeicher:** weitere Position im selben Abo; im Kundenportal entfernte Positionen enden bei uns.
+- **Pay-as-you-go:** Karte einmal per Checkout (Setup) hinterlegen, Tagesstand je Konto (`usage_daily`),
+  Monatsabschluss nach Durchschnitt über alle Tage, unter dem Minimum Übertrag (`payg_invoices`),
+  sonst Rechnung mit sofortiger Abbuchung. Läuft in der Wartung, idempotent je Konto und Monat.
+- **Kundenportal:** „Zahlung & Rechnungen“ (Zahlungsmittel, Rechnungen, Kündigen); Hinweis bei
+  fehlgeschlagener Zahlung. Admin zeigt „Stripe: aus/Testmodus/Live“ und die neuen Ereignisse.
+- Anleitung für das Stripe-Konto: `STRIPE.md`.
+
+**Pro-Module:** Passwörter, Notizen, 2FA und (kommende) Passkeys zeigen für Free ein Schloss mit
+Hinweis „Upgrade nötig – ab Pro“.
+
+**Tests:** Vitest 84/84 (neu: Checkout → Webhook → Pro, doppelte Zustellung, Wechsel, Kündigung,
+Zusatzspeicher-Positionen, PAYG mit Übertrag und Abbuchung, Webhook-Signatur mit echtem SDK),
+Playwright 5/5.
+
 ### Papierkorb (Pro/Family) und Vorschau im Browser
 
 **Papierkorb (Migration v7):** Löschen verschiebt bei Pro/Family in den Papierkorb (`state = trashed`,

@@ -21,6 +21,15 @@ import type { FilecoinFileStatus } from '@/server/foc/proofs'
 
 export type { FilecoinFileStatus, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
+/** Weiterleitung zu Stripe (Checkout, Kundenportal) */
+export interface Redirect {
+  redirectUrl: string
+}
+
+export function isRedirect(v: unknown): v is Redirect {
+  return !!v && typeof (v as Redirect).redirectUrl === 'string'
+}
+
 export class ApiClientError extends Error {
   constructor(
     readonly code: string,
@@ -161,9 +170,11 @@ export const api = {
   offer: () => call<PublicOffer>('GET', '/billing/offer'),
   buyAddon: (packId: string) => call<AccountView>('POST', '/billing/addons', { packId }),
   cancelAddon: (id: string) => call<AccountView>('DELETE', `/billing/addons/${encodeURIComponent(id)}`),
-  setPayg: (enabled: boolean, capGb?: number) => call<AccountView>('PUT', '/billing/payg', { enabled, capGb }),
+  setPayg: (enabled: boolean, capGb?: number) => call<AccountView | Redirect>('PUT', '/billing/payg', { enabled, capGb }),
   changePlan: (plan: 'free' | 'pro' | 'family', interval: BillingInterval, currency: BillingCurrency) =>
-    call<AccountView>('PUT', '/billing/plan', { plan, interval, currency }),
+    call<AccountView | Redirect>('PUT', '/billing/plan', { plan, interval, currency }),
+  billingPortal: () => call<Redirect>('POST', '/billing/portal'),
+  resumeSubscription: () => call<AccountView>('POST', '/billing/resume'),
   setCurrency: (currency: BillingCurrency) => call<AccountView>('PUT', '/billing/currency', { currency })
 }
 

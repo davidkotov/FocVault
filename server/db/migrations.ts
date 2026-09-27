@@ -256,6 +256,47 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       ALTER TABLE objects ADD COLUMN purge_after timestamptz;
       CREATE INDEX objects_purge ON objects (purge_after) WHERE state = 'trashed';
     `
+  },
+  {
+    version: 8,
+    name: 'stripe_billing',
+    sql: `
+      -- Stripe: Kunde, Abo-Status und Laufzeit am Konto; Zusatzspeicher als Abo-Position.
+      ALTER TABLE accounts ADD COLUMN stripe_customer_id text UNIQUE;
+      ALTER TABLE accounts ADD COLUMN stripe_subscription_id text UNIQUE;
+      ALTER TABLE accounts ADD COLUMN subscription_status text;
+      ALTER TABLE accounts ADD COLUMN current_period_end timestamptz;
+      ALTER TABLE accounts ADD COLUMN cancel_at_period_end boolean NOT NULL DEFAULT false;
+      ALTER TABLE account_addons ADD COLUMN stripe_item_id text UNIQUE;
+
+      -- Webhooks genau einmal verarbeiten (Stripe liefert mindestens einmal).
+      CREATE TABLE stripe_events (
+        id text PRIMARY KEY,
+        type text NOT NULL,
+        received_at timestamptz NOT NULL DEFAULT now()
+      );
+
+      -- Pay-as-you-go: täglicher Stand je Konto → Monatsdurchschnitt; Monatsabschluss mit Übertrag.
+      CREATE TABLE usage_daily (
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        day date NOT NULL,
+        bytes bigint NOT NULL CHECK (bytes >= 0),
+        PRIMARY KEY (account_id, day)
+      );
+      CREATE TABLE payg_invoices (
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        period text NOT NULL,
+        billable_gb double precision NOT NULL,
+        amount numeric(12, 2) NOT NULL,
+        carried_in numeric(12, 2) NOT NULL DEFAULT 0,
+        carried_out numeric(12, 2) NOT NULL DEFAULT 0,
+        currency text NOT NULL CHECK (currency IN ('CHF', 'EUR', 'USD')),
+        status text NOT NULL CHECK (status IN ('carried', 'charged', 'failed', 'recorded')),
+        stripe_invoice_id text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (account_id, period)
+      );
+    `
   }
 ]
 

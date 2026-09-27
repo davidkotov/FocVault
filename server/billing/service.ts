@@ -24,10 +24,25 @@ import type { SessionInfo } from '../auth/sessions'
 import { usedBytes } from '../accounts/plans'
 import { getPricing, getTreasury } from './settings'
 import { quotaFor } from './quota'
+import { stripeGateway } from '../stripe/gateway'
+import {
+  stripeBuyAddon,
+  stripeChangePlan,
+  stripePaygSetupUrl,
+  stripeRemoveAddonItem,
+  type StripeContext
+} from '../stripe/service'
 
-/** Käufe ohne Zahlungsanbieter nur lokal bzw. mit BILLING_DEV_PURCHASES=1 (Staging). */
+/** Ergebnis eines Kaufvorgangs: entweder sofort erledigt oder Weiterleitung zu Stripe. */
+export interface BillingResult {
+  redirectUrl?: string
+}
+
+const DEV_CONTEXT: StripeContext = { origin: 'http://localhost:3000', locale: 'de' }
+
+/** Mit Stripe immer; ohne Zahlungsanbieter nur lokal bzw. mit BILLING_DEV_PURCHASES=1 (Staging). */
 export function purchasesEnabled(): boolean {
-  return !isProd || process.env.BILLING_DEV_PURCHASES === '1'
+  return !!stripeGateway() || !isProd || process.env.BILLING_DEV_PURCHASES === '1'
 }
 
 function assertPurchasesAllowed(): void {
@@ -85,8 +100,14 @@ export async function setCurrency(deps: Deps, session: SessionInfo, currency: Cu
 export async function changePlan(
   deps: Deps,
   session: SessionInfo,
-  input: { plan: 'free' | 'pro' | 'family'; interval: Interval; currency: Currency }
-): Promise<void> {
+  input: { plan: 'free' | 'pro' | 'family'; interval: Interval; currency: Currency },
+  ctx: StripeContext = DEV_CONTEXT
+): Promise<BillingResult> {
+  const gw = stripeGateway()
+  if (gw) {
+    const url = await stripeChangePlan(deps, gw, session, input, ctx)
+    return url ? { redirectUrl: url } : {}
+  }
   assertPurchasesAllowed()
   const account = await loadAccount(deps, session.accountId)
   const pricing = await getPricing(deps.db)
@@ -134,9 +155,10 @@ export async function changePlan(
     })
   }
   await audit(deps.db, account.id, 'user', 'billing.plan_changed', { ...input })
+  return {}
 }
 
-export async function buyAddon(deps: Deps, session: SessionInfo, packId: string): Promise<void> {
+export async function buyAddon(deps: Deps, session: SessionInfo, packId: string): Promise<BillingResult> {
   const account = await loadAccount(deps, session.accountId)
   if (account.plan !== 'pro' && account.plan !== 'family') {
     throw new ApiError('PLAN_REQUIRED', 'Zusatzspeicher gibt es für Pro- und Family-Abos.')
@@ -144,6 +166,14 @@ export async function buyAddon(deps: Deps, session: SessionInfo, packId: string)
   const pricing = await getPricing(deps.db)
   const pack = pricing.addons.find(a => a.id === packId)
   if (!pack) throw new ApiError('NOT_FOUND', 'Paket nicht gefunden.')
+  const gw = stripeGateway()
+  if (gw) {
+    const sub = await deps.db.query<{ s: string | null }>('SELECT stripe_subscription_id AS s FROM accounts WHERE id = $1', [account.id])
+    if (sub[0]?.s || isProd) {
+      await stripeBuyAddon(deps, gw, session, packId)
+      return {}
+    }
+  }
   assertPurchasesAllowed()
   const price = priceOf(pack, account.billing_interval, account.currency)
   await deps.db.query(
@@ -152,13 +182,14 @@ export async function buyAddon(deps: Deps, session: SessionInfo, packId: string)
     [uuidv7(), account.id, pack.id, pack.gb * GB, price, account.currency, account.billing_interval]
   )
   await audit(deps.db, account.id, 'user', 'billing.addon_added', { pack: pack.id, gb: pack.gb, price, currency: account.currency })
+  return {}
 }
 
 /** Kündigen nur, wenn die Daten danach noch in die Quota passen. */
 export async function cancelAddon(deps: Deps, session: SessionInfo, addonId: string, actor: 'user' | 'admin' = 'user'): Promise<void> {
   if (!isUuid(addonId)) throw new ApiError('NOT_FOUND', 'Paket nicht gefunden.')
-  const rows = await deps.db.query<{ account_id: string; bytes: number }>(
-    `SELECT account_id, bytes::float8 AS bytes FROM account_addons WHERE id = $1 AND status = 'active'`,
+  const rows = await deps.db.query<{ account_id: string; bytes: number; stripe_item_id: string | null }>(
+    `SELECT account_id, bytes::float8 AS bytes, stripe_item_id FROM account_addons WHERE id = $1 AND status = 'active'`,
     [addonId]
   )
   const addon = rows[0]
@@ -173,11 +204,19 @@ export async function cancelAddon(deps: Deps, session: SessionInfo, addonId: str
       `Bitte zuerst ${formatBytes(used - (quotaBytes - Number(addon.bytes)))} freigeben – sonst passen deine Daten nicht mehr.`
     )
   }
+  const gw = stripeGateway()
+  if (gw) await stripeRemoveAddonItem(gw, addon.stripe_item_id)
   await deps.db.query(`UPDATE account_addons SET status = 'cancelled', cancelled_at = now() WHERE id = $1`, [addonId])
   await audit(deps.db, account.id, actor, 'billing.addon_cancelled', { gb: Number(addon.bytes) / GB })
 }
 
-export async function setPayg(deps: Deps, session: SessionInfo, enabled: boolean, capGb?: number): Promise<void> {
+export async function setPayg(
+  deps: Deps,
+  session: SessionInfo,
+  enabled: boolean,
+  capGb?: number,
+  ctx: StripeContext = DEV_CONTEXT
+): Promise<BillingResult> {
   const account = await loadAccount(deps, session.accountId)
   if (account.plan !== 'free') {
     throw new ApiError('BAD_REQUEST', 'Pay-as-you-go gibt es für das Free-Konto. Abos erweitern mit Zusatzspeicher.')
@@ -185,6 +224,12 @@ export async function setPayg(deps: Deps, session: SessionInfo, enabled: boolean
   const pricing = await getPricing(deps.db)
   const cap = Math.min(Math.max(1, Math.round(capGb ?? pricing.payg.defaultCapGb)), pricing.payg.maxCapGb)
   if (enabled) assertPurchasesAllowed()
+  // Mit Stripe: beim ersten Einschalten Karte hinterlegen lassen (Webhook schaltet dann ein).
+  const gw = stripeGateway()
+  if (gw && enabled && !account.payg_enabled) {
+    const url = await stripePaygSetupUrl(deps, gw, session, cap, ctx)
+    if (url) return { redirectUrl: url }
+  }
   if (!enabled) {
     const used = await usedBytes(deps.db, account.id)
     if (used > pricing.free.quotaGb * GB) {
@@ -198,6 +243,7 @@ export async function setPayg(deps: Deps, session: SessionInfo, enabled: boolean
   }
   await deps.db.query('UPDATE accounts SET payg_enabled = $2, payg_cap_gb = $3 WHERE id = $1', [account.id, enabled, cap])
   await audit(deps.db, account.id, 'user', enabled ? 'billing.payg_enabled' : 'billing.payg_disabled', { capGb: cap })
+  return {}
 }
 
 export async function adminGrantAddon(
@@ -274,6 +320,16 @@ export async function accountBilling(deps: Deps, accountId: string, stored: numb
   const addonsMonthly = addons.reduce((n, a) => n + Number(a.price) / (a.billing_interval === 'year' ? 12 : 1), 0)
   const est = paygEstimate(pricing, stored, cur)
   const paygMonthly = account.plan === 'free' && account.payg_enabled ? est.amount : 0
+  const sub = await deps.db.query<{
+    stripe_customer_id: string | null
+    stripe_subscription_id: string | null
+    subscription_status: string | null
+    current_period_end: string | null
+    cancel_at_period_end: boolean
+  }>(
+    'SELECT stripe_customer_id, stripe_subscription_id, subscription_status, current_period_end, cancel_at_period_end FROM accounts WHERE id = $1',
+    [accountId]
+  )
   return {
     quotaBytes: q.quotaBytes,
     baseBytes: q.baseBytes,
@@ -302,7 +358,15 @@ export async function accountBilling(deps: Deps, accountId: string, stored: numb
       charged: est.charged,
       proBreakEvenGb: est.proBreakEvenGb
     },
-    monthlyTotal: round2(planMonthly + (account.plan === 'free' ? 0 : addonsMonthly) + paygMonthly)
+    monthlyTotal: round2(planMonthly + (account.plan === 'free' ? 0 : addonsMonthly) + paygMonthly),
+    subscription: {
+      provider: sub[0]?.stripe_subscription_id ? 'stripe' : 'manual',
+      status: sub[0]?.subscription_status ?? null,
+      periodEnd: sub[0]?.current_period_end ? new Date(sub[0].current_period_end).toISOString() : null,
+      cancelAtPeriodEnd: !!sub[0]?.cancel_at_period_end,
+      hasPaymentAccount: !!sub[0]?.stripe_customer_id
+    },
+    stripe: !!stripeGateway()
   }
 }
 

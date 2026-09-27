@@ -367,6 +367,7 @@ export default function AppPage() {
         tierLabel={PLAN_LABEL[account.plan]}
         tier={tier}
         showPlans
+        pro={isPro}
       />
       <div className="main">
         <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />

@@ -1,10 +1,17 @@
 import type { Deps } from './deps'
 import { runFocSync, type FocSyncResult } from './foc/sync'
 import { purgeExpiredTrash } from './objects/service'
+import { stripeGateway } from './stripe/gateway'
+import { closePaygMonth, snapshotPaygUsage } from './stripe/service'
 
-/** Regelmäßige Aufgaben: abgelaufenen Papierkorb leeren, dann mit Filecoin abgleichen. */
-export async function runMaintenance(d: Deps): Promise<{ purged: number; foc: FocSyncResult }> {
+/**
+ * Regelmäßige Aufgaben: Pay-as-you-go-Tagesstand und Monatsabschluss (beides idempotent),
+ * abgelaufenen Papierkorb leeren, dann mit Filecoin abgleichen.
+ */
+export async function runMaintenance(d: Deps): Promise<{ purged: number; payg: { snapshots: number; charged: number; carried: number }; foc: FocSyncResult }> {
+  const snapshots = await snapshotPaygUsage(d.db)
+  const close = await closePaygMonth(d, stripeGateway())
   const purged = await purgeExpiredTrash(d)
   const foc = await runFocSync(d.db, d.storage)
-  return { purged, foc }
+  return { purged, payg: { snapshots, ...close }, foc }
 }

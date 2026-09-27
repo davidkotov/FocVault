@@ -14,7 +14,8 @@ const de = {
     upgrade: 'Mehr Speicher',
     active: '{plan} aktiv',
     menu: 'Menü',
-    trash: 'Papierkorb'
+    trash: 'Papierkorb',
+    proOnly: 'Upgrade nötig – ab Pro'
   },
   folders: { all: 'Alle', documents: 'Dokumente', photos: 'Fotos', videos: 'Videos', backups: 'Backups & Mehr' },
   search: 'Dateien durchsuchen…',
@@ -162,7 +163,8 @@ const en: typeof de = {
     upgrade: 'More storage',
     active: '{plan} active',
     menu: 'Menu',
-    trash: 'Trash'
+    trash: 'Trash',
+    proOnly: 'Upgrade required – from Pro'
   },
   folders: { all: 'All', documents: 'Documents', photos: 'Photos', videos: 'Videos', backups: 'Backups & more' },
   search: 'Search files…',

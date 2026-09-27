@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useAccount } from '@/features/account/AccountProvider'
-import { api, type PublicOffer } from '@/features/api/client'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import { api, isRedirect, type PublicOffer } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { useErrorText } from '@/features/i18n/errors'
 import { billingMessages } from '@/lib/i18n/messages/billing'
+import { commonMessages } from '@/lib/i18n/messages/common'
 import { CURRENCIES, yearlySavingsPct, type Currency, type Interval } from '@/lib/pricing'
 import { formatBytes } from '@/lib/vault'
 
@@ -14,8 +16,9 @@ type PaidPlan = 'pro' | 'family'
 /** Pakete, Pay-as-you-go und Zusatzspeicher – verständlich erklärt, in der Kontowährung. */
 export default function PlansView() {
   const { account, refreshAccount } = useAccount()
-  const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber } = useI18n()
+  const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber, fmtDate } = useI18n()
   const m = useMessages(billingMessages)
+  const c = useMessages(commonMessages)
   const errText = useErrorText()
   const [offer, setOffer] = useState<PublicOffer | null>(null)
   const [interval, setIntervalState] = useState<Interval>(account?.billing.interval ?? 'year')
@@ -26,6 +29,20 @@ export default function PlansView() {
   const [capGb, setCapGb] = useState(100)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [confirmFree, setConfirmFree] = useState(false)
+
+  // Rückkehr von Stripe: Hinweis zeigen und Konto neu laden (der Webhook kann ein paar Sekunden brauchen).
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const text =
+      q.get('checkout') === 'success' ? m.stripe.success : q.get('checkout') === 'cancelled' ? m.stripe.cancelled : q.get('payg') === 'ready' ? m.stripe.paygReady : null
+    if (!text) return
+    setMsg({ ok: q.get('checkout') !== 'cancelled', text })
+    const timers = [1500, 4000, 9000].map(ms => setTimeout(() => void refreshAccount(), ms))
+    window.history.replaceState(null, '', window.location.pathname + '?view=plans')
+    return () => timers.forEach(clearTimeout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     api.offer().then(o => {
@@ -49,7 +66,12 @@ export default function PlansView() {
     setBusy(id)
     setMsg(null)
     try {
-      await fn()
+      const result = await fn()
+      if (isRedirect(result)) {
+        setMsg({ ok: true, text: m.stripe.redirecting })
+        window.location.assign(result.redirectUrl)
+        return
+      }
       await refreshAccount()
       setMsg({ ok: true, text: ok })
     } catch (e) {
@@ -121,7 +143,7 @@ export default function PlansView() {
           className={isCurrent ? '' : plan === 'free' ? '' : 'primary'}
           disabled={isCurrent || !!busy || !offer.purchasesEnabled}
           onClick={() => {
-            if (plan === 'free' && !window.confirm(fmt(m.confirmDowngrade, { gb: offer.free.quotaGb }))) return
+            if (plan === 'free') return setConfirmFree(true)
             void run(plan, () => api.changePlan(plan, interval, cur), fmt(m.planChanged, { plan: text.name }))
           }}
         >
@@ -159,6 +181,30 @@ export default function PlansView() {
         </div>
       </div>
 
+      {b.stripe && (b.subscription.provider === 'stripe' || b.subscription.hasPaymentAccount) && (
+        <div className={`card substatus ${b.subscription.status === 'past_due' ? 'warn' : ''}`}>
+          <div>
+            {b.subscription.status === 'past_due' && <div className="errorbox">{m.stripe.pastDue}</div>}
+            {b.subscription.provider === 'stripe' && b.subscription.periodEnd && (
+              <strong>
+                {fmt(b.subscription.cancelAtPeriodEnd ? m.stripe.ends : m.stripe.renews, { date: fmtDate(b.subscription.periodEnd) })}
+              </strong>
+            )}
+            <div className="hint">{m.stripe.manageHint}</div>
+          </div>
+          <div className="row">
+            {b.subscription.cancelAtPeriodEnd && (
+              <button className="primary small" disabled={!!busy} onClick={() => void run('resume', () => api.resumeSubscription(), m.stripe.resumed)}>
+                {m.stripe.resume}
+              </button>
+            )}
+            <button className="small" disabled={!!busy} onClick={() => void run('portal', () => api.billingPortal(), '')}>
+              {m.stripe.manage}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="plancontrols">
         <div className="segmented" role="group" aria-label={m.yearly}>
           {(['month', 'year'] as const).map(i => (
@@ -191,8 +237,22 @@ export default function PlansView() {
         <PlanCard plan="family" />
       </div>
       <p className="hint" style={{ marginBottom: 18 }}>
-        {m.vatNote} {offer.purchasesEnabled ? m.devNote : m.stripeSoon}
+        {m.vatNote} {!offer.purchasesEnabled ? m.stripeSoon : b.stripe ? m.stripe.secure : m.devNote}
       </p>
+
+      {confirmFree && (
+        <ConfirmDialog
+          title={m.downgrade}
+          body={b.subscription.provider === 'stripe' ? m.stripe.confirmCancel : fmt(m.confirmDowngrade, { gb: offer.free.quotaGb })}
+          confirmLabel={m.downgrade}
+          cancelLabel={c.cancel}
+          onCancel={() => setConfirmFree(false)}
+          onConfirm={() => {
+            setConfirmFree(false)
+            void run('free', () => api.changePlan('free', interval, cur), b.subscription.provider === 'stripe' ? m.stripe.cancelScheduled : fmt(m.planChanged, { plan: m.free.name }))
+          }}
+        />
+      )}
 
       {isFree && (
         <div className="card">

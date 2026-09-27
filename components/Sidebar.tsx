@@ -16,6 +16,8 @@ interface Props {
   tier: TierName
   /** Menüpunkt „Pakete & Speicher" (Konto-Modus) */
   showPlans?: boolean
+  /** Pro-Module freigeschaltet (sonst Schloss + Hinweis) */
+  pro?: boolean
 }
 
 const ICONS: Record<ViewId, JSX.Element> = {
@@ -67,7 +69,7 @@ const ICONS: Record<ViewId, JSX.Element> = {
 }
 
 /** Seitenleiste; auf dem Handy als ausklappbares Menü (Burger-Button in der Topbar-Zeile). */
-export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false }: Props) {
+export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true }: Props) {
   const m = useMessages(appMessages).nav
   const [open, setOpen] = useState(false)
   const pct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0
@@ -75,12 +77,21 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
     onNavigate(v)
     setOpen(false)
   }
-  const Item = ({ id, label }: { id: ViewId; label: string }) => (
-    <button className={`navitem ${view === id ? 'active' : ''}`} onClick={() => go(id)}>
+  const Lock = () => (
+    <span className="navlock" data-tip={m.proOnly} aria-label={m.proOnly}>
+      <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+        <rect x="5" y="11" width="14" height="9" rx="2" />
+        <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+      </svg>
+    </span>
+  )
+  const Item = ({ id, label, locked }: { id: ViewId; label: string; locked?: boolean }) => (
+    <button className={`navitem ${view === id ? 'active' : ''} ${locked ? 'locked' : ''}`} onClick={() => go(id)}>
       <svg className="icon" viewBox="0 0 24 24">
         {ICONS[id]}
       </svg>
       {label}
+      {locked && <Lock />}
     </button>
   )
 
@@ -108,15 +119,15 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
         <Item id="account" label={m.account} />
 
         <div className="navsection">{m.more}</div>
-        <Item id="passwords" label={m.passwords} />
-        <Item id="notes" label={m.notes} />
-        <Item id="2fa" label={m.totp} />
+        <Item id="passwords" label={m.passwords} locked={!pro} />
+        <Item id="notes" label={m.notes} locked={!pro} />
+        <Item id="2fa" label={m.totp} locked={!pro} />
         <div className="navitem disabled">
           <svg className="icon" viewBox="0 0 24 24">
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             <rect x="3" y="11" width="18" height="10" rx="2" />
           </svg>
-          {m.passkeys} <span className="badge-soon">{m.soon}</span>
+          {m.passkeys} {pro ? <span className="badge-soon">{m.soon}</span> : <Lock />}
         </div>
 
         <div className="spacer" />
