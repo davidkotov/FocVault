@@ -41,6 +41,22 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Geteilte Tresore mit Rechten (Business, Migration v18)
+
+Neues Modul „Geteilte Tresore“ (Seitenleiste → Weitere Module; ohne Business Schloss „ab Business Starter“).
+Ein Tresor enthält Passwörter, Notizen und 2FA für ausgewählte Teammitglieder. **Kryptografie:** eigener
+Tresor-Schlüssel (AES-256-GCM) je Generation, pro Mitglied per ECDH-ES verpackt (wie Teamordner, Kontext
+`vault:<id>`); Name und Einträge nur im verschlüsselten Index (eigene AAD). **Rollen:** Ansehen (lesen/kopieren),
+Bearbeiten (hinzufügen/ändern), Verwalten (Personen, Rechte, Löschen); serverseitig durchgesetzt, mind. ein
+Verwalter. **Entfernen:** Server liefert sofort nichts mehr; der Verwalter-Client legt automatisch eine neue
+Generation an und verschlüsselt neu, Schreiben mit altem Schlüssel wird abgelehnt. Wer das Team verlässt,
+verliert alle Tresore des Teams. **Protokoll** (Verwalter): erstellt, geändert, hinzugefügt/entfernt,
+Rechte geändert, Schlüssel erneuert – mit Personen. „Aus meinem Tresor übernehmen“ kopiert private Einträge.
+Passwörter/Notizen/2FA-Module haben dafür einen Nur-Lesen-Modus.
+
+**Tests:** Vitest 110/110 (neu `server/vaults`), Playwright 9/9 (neu `e2e/vaults.spec.ts`: zwei Konten im
+Business-Team, Ansehen → Bearbeiten → Entfernen, Protokoll).
+
 ### Notizen v2: Formatierung, Vorlagen, Anhänge, Teilen per Secure Send
 
 **Notizen:** Formatierung (# Überschriften, Listen, anklickbare Checklisten `- [ ]`, **fett**, *kursiv*,

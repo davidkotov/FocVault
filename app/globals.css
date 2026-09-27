@@ -2249,3 +2249,28 @@ input.mono { font-family: var(--mono); }
 .notefield:last-child { border-bottom: 0; }
 .notefield dd > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; letter-spacing: 0.02em; }
 .sharenote .notefield { grid-template-columns: minmax(120px, 35%) 1fr; gap: 8px; }
+
+/* ---------- Geteilte Tresore ---------- */
+.vaultcreate { margin: 12px 0; gap: 8px; flex-wrap: nowrap; }
+.vaultcreate input { flex: 1; }
+.vaultlist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.vaultrow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border-soft); border-radius: 11px; background: var(--card-soft); text-align: left; width: 100%; font: inherit; cursor: pointer; }
+.vaultrow:hover { border-color: var(--accent); background: var(--card); }
+.vaulticon { font-size: 20px; }
+.vaultmain { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.vaulthead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.vaulttitle { display: flex; align-items: center; gap: 12px; justify-content: flex-start !important; }
+.small-link { font-size: 12.5px; color: var(--accent-dark); font-weight: 500; }
+.badge.role-manage { background: var(--accent-soft); color: var(--accent-dark); }
+.badge.role-edit { background: var(--green-soft); color: var(--green); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-soft); margin: 14px 0 12px; flex-wrap: wrap; }
+.tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 12px; font-weight: 500; color: var(--text-dim); }
+.tab.active { color: var(--accent-dark); border-bottom-color: var(--accent); }
+.tab:hover:not(:disabled) { background: none; color: var(--text); }
+.vaultcopy { gap: 8px; align-items: center; margin-bottom: 8px; }
+.vaultcopy select, .vaultadd select, .vaultpeople select { width: auto; min-width: 140px; }
+.vaultpeople .sharerow { gap: 10px; }
+.rolehelp { margin: 14px 0 6px; padding-left: 18px; font-size: 13px; color: var(--text-dim); }
+.vaultaudit ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.vaultaudit li { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--border-soft); }
+.vaultfoot { margin-top: 16px; gap: 8px; justify-content: flex-end; }

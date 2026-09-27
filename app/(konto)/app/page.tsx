@@ -15,6 +15,8 @@ import AccountMenu from '@/components/account/AccountMenu'
 import AccountUpload from '@/components/account/AccountUpload'
 import PlansView from '@/components/account/PlansView'
 import ShareDialog from '@/components/account/ShareDialog'
+import SharedVaultsView from '@/components/account/SharedVaultsView'
+import { vaultsMessages } from '@/lib/i18n/messages/vaults'
 import SendView from '@/components/account/SendView'
 import TrashView from '@/components/account/TrashView'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -190,6 +192,7 @@ export default function AppPage() {
   const errText = useErrorText()
   const { status, account, masterKey, vault, mutate, refreshAccount, syncError, bootError } = useAccount()
   const sApi = useMessages(storageApiMessages)
+  const vm = useMessages(vaultsMessages)
   const [view, setView] = useState<ViewId>('cloud')
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -630,7 +633,8 @@ export default function AppPage() {
     '2fa': t.nav.totp,
     passkeys: t.nav.passkeys,
     familyFolder: account?.plan === 'business' ? t.team.folder : t.nav.familyFolder,
-    storageApi: sApi.nav
+    storageApi: sApi.nav,
+    sharedVaults: vm.nav
   }
 
   return (
@@ -651,6 +655,7 @@ export default function AppPage() {
         storageApiLabel={sApi.nav}
         apiSection={sApi.section}
         apiLockTip={sApi.lockTip}
+        sharedVaultsLabel={vm.nav}
       />
       <div className="main">
         <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
@@ -875,6 +880,22 @@ export default function AppPage() {
           )}
 
           {view === 'plans' && <PlansView key={planSegment ?? 'auto'} initialSegment={planSegment} />}
+
+          {view === 'sharedVaults' &&
+            (account.plan === 'business' ? (
+              <SharedVaultsView />
+            ) : (
+              <UpgradeWall
+                title={vm.title}
+                description={vm.upgradeLead}
+                body={vm.upgradeBody}
+                cta={vm.upgradeCta}
+                onUpgrade={() => {
+                  setPlanSegment('business')
+                  setView('plans')
+                }}
+              />
+            ))}
 
           {view === 'storageApi' &&
             (account.plan === 'business' ? (

@@ -488,6 +488,42 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       ALTER TABLE shares ADD CONSTRAINT shares_object_id_fkey FOREIGN KEY (object_id) REFERENCES objects(id) ON DELETE SET NULL;
       ALTER TABLE shares ADD COLUMN payload bytea;
     `
+  },
+  {
+    version: 18,
+    name: 'shared_vaults',
+    sql: `
+      -- Geteilte Tresore (Business): Passwörter, Notizen und 2FA für ausgewählte Teammitglieder.
+      -- Der Server kennt nur IDs, Rollen, verpackte Schlüssel und einen verschlüsselten Index.
+      CREATE TABLE shared_vaults (
+        id uuid PRIMARY KEY,
+        team_owner uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        created_by uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        version bigint NOT NULL DEFAULT 1,
+        body bytea NOT NULL,
+        rotate_needed boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX shared_vaults_team ON shared_vaults (team_owner);
+      CREATE TABLE shared_vault_members (
+        vault_id uuid NOT NULL REFERENCES shared_vaults(id) ON DELETE CASCADE,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        role text NOT NULL CHECK (role IN ('view', 'edit', 'manage')),
+        added_by uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        added_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (vault_id, account_id)
+      );
+      CREATE INDEX shared_vault_members_account ON shared_vault_members (account_id);
+      CREATE TABLE shared_vault_keys (
+        vault_id uuid NOT NULL REFERENCES shared_vaults(id) ON DELETE CASCADE,
+        generation integer NOT NULL CHECK (generation >= 1),
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        wrapped jsonb NOT NULL,
+        PRIMARY KEY (vault_id, generation, account_id)
+      );
+      CREATE INDEX audit_events_vault ON audit_events ((meta->>'vaultId')) WHERE meta ? 'vaultId';
+    `
   }
 ]
 

@@ -11,6 +11,10 @@ interface Props {
   onSave: (s: SecretEntry) => void
   onSaveMany: (secrets: SecretEntry[]) => void
   onDelete: (id: string) => void
+  /** nur ansehen (geteilter Tresor mit Recht „Ansehen“) */
+  readOnly?: boolean
+  /** eigene Überschrift (z. B. im geteilten Tresor) */
+  heading?: string
 }
 
 interface FormState {
@@ -56,7 +60,7 @@ async function copyText(text: string): Promise<void> {
   }
 }
 
-export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }: Props) {
+export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, readOnly = false, heading }: Props) {
   const { common: c, passwords: m } = useMessages(secretsMessages)
   const [form, setForm] = useState<FormState | null>(null)
   const [showPwForm, setShowPwForm] = useState(false)
@@ -178,7 +182,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
   return (
     <div className="card">
       <h3>
-        {m.heading}
+        {heading ?? m.heading}
         <span>{fmt(m.subtitle, { n: entries.length })}</span>
       </h3>
 
@@ -191,7 +195,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
             placeholder={m.searchPlaceholder}
           />
           <button className="small" onClick={exportCsv}>{m.exportCsv}</button>
-          <button className="small" onClick={() => importRef.current?.click()}>{m.importCsv}</button>
+          {!readOnly && <button className="small" onClick={() => importRef.current?.click()}>{m.importCsv}</button>}
           <input
             ref={importRef}
             type="file"
@@ -249,7 +253,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
                   </button>
                 )}
               </div>
-              <div className="secactions">
+              {!readOnly && <div className="secactions">
                 <button className="iconbtn" title={c.edit} onClick={() => startEdit(s)}>
                   <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
                     <path d="M12 20h9" />
@@ -261,7 +265,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
                     <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                   </svg>
                 </button>
-              </div>
+              </div>}
             </div>
           ))}
           {filtered.length === 0 && <p className="dim">{m.noMatches}</p>}
@@ -351,9 +355,11 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
           </div>
         </form>
       ) : (
-        <div className="row" style={{ marginTop: 14 }}>
-          <button className="primary" onClick={startNew}>{m.newButton}</button>
-        </div>
+        !readOnly && (
+          <div className="row" style={{ marginTop: 14 }}>
+            <button className="primary" onClick={startNew}>{m.newButton}</button>
+          </div>
+        )
       )}
     </div>
   )

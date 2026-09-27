@@ -54,8 +54,10 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   await g.getByRole('button', { name: 'Beitreten' }).click()
   await expect(g.getByText(`Willkommen in der Family von ${owner}!`)).toBeVisible()
   // Pro-Module frei (kein Schloss mehr)
-  await expect(g.locator('.navitem.locked')).toHaveCount(1)
-  await expect(g.locator('.navitem.locked')).toContainText('Speicher-API') // nur das Business-Modul bleibt gesperrt
+  // nur die Business-Module bleiben gesperrt
+  await expect(g.locator('.navitem.locked')).toHaveCount(2)
+  await expect(g.locator('.navitem.locked', { hasText: 'Speicher-API' })).toHaveCount(1)
+  await expect(g.locator('.navitem.locked', { hasText: 'Geteilte Tresore' })).toHaveCount(1)
   await g.getByRole('button', { name: /Konto & Sicherheit/ }).click()
   await expect(g.getByText(`Du nutzt den Family-Speicher von ${owner}.`, { exact: false })).toBeVisible()
 

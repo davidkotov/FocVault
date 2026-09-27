@@ -47,7 +47,7 @@ async function requireSpace(db: Db, accountId: string): Promise<string> {
   return owner
 }
 
-async function memberIds(db: Db, owner: string): Promise<string[]> {
+export async function memberIds(db: Db, owner: string): Promise<string[]> {
   const rows = await db.query<{ account_id: string }>('SELECT account_id FROM family_members WHERE owner_account_id = $1', [owner])
   return [owner, ...rows.map(r => r.account_id)]
 }
@@ -60,6 +60,7 @@ export async function setPublicKey(deps: Deps, session: SessionInfo, publicKey: 
   )
   // Alte Hüllen passen nicht mehr zum neuen Schlüssel → andere Mitglieder verteilen neu
   await deps.db.query('DELETE FROM family_space_keys WHERE account_id = $1', [session.accountId])
+  await deps.db.query('DELETE FROM shared_vault_keys WHERE account_id = $1', [session.accountId])
 }
 
 export interface SpaceState {
@@ -188,4 +189,11 @@ export async function detachFromSpace(db: Db, memberId: string, owner: string): 
   await db.query(`UPDATE objects SET owner_account_id = $2 WHERE owner_account_id = $1 AND space_owner = $2`, [memberId, owner])
   await db.query('DELETE FROM family_space_keys WHERE owner_account_id = $1 AND account_id = $2', [owner, memberId])
   await db.query('UPDATE family_space_index SET rotate_needed = true WHERE owner_account_id = $1', [owner])
+  // geteilte Tresore des Teams: Zugriff entziehen, neue Schlüssel-Generation vormerken
+  await db.query(
+    `UPDATE shared_vaults SET rotate_needed = true WHERE team_owner = $2 AND id IN (SELECT vault_id FROM shared_vault_members WHERE account_id = $1)`,
+    [memberId, owner]
+  )
+  await db.query('DELETE FROM shared_vault_keys WHERE account_id = $1 AND vault_id IN (SELECT id FROM shared_vaults WHERE team_owner = $2)', [memberId, owner])
+  await db.query('DELETE FROM shared_vault_members WHERE account_id = $1 AND vault_id IN (SELECT id FROM shared_vaults WHERE team_owner = $2)', [memberId, owner])
 }

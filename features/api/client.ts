@@ -20,8 +20,10 @@ import type { PublicShare, ShareSummary } from '@/server/shares/service'
 import type { FilecoinFileStatus, ProofCertificate } from '@/server/foc/proofs'
 import type { FamilyView } from '@/server/family/service'
 import type { SpaceState } from '@/server/family/space'
+import type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview } from '@/server/vaults/service'
 import type { RetentionRule, S3Overview } from '@/server/s3/service'
 
+export type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview }
 export type { RetentionRule, S3Overview, SpaceState, FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
 /** Weiterleitung zu Stripe (Checkout, Kundenportal) */
@@ -134,6 +136,20 @@ export const api = {
 
   setPublicKey: (publicKey: JsonWebKey) => call<{ ok: true }>('PUT', '/account/pubkey', { publicKey }),
   familySpace: () => call<SpaceState>('GET', '/family/space'),
+  vaults: () => call<VaultsOverview>('GET', '/vaults'),
+  createVault: (input: { id: string; wrapped: unknown; body: string }) => call<{ ok: true }>('POST', '/vaults', input),
+  deleteVault: (id: string) => call<{ ok: true }>('DELETE', `/vaults/${encodeURIComponent(id)}`),
+  grantVaultKeys: (id: string, generation: number, grants: Array<{ accountId: string; wrapped: unknown }>) =>
+    call<{ ok: true }>('POST', `/vaults/${encodeURIComponent(id)}/keys`, { generation, grants }),
+  putVaultIndex: (id: string, baseVersion: number, body: string) =>
+    call<{ version: number }>('PUT', `/vaults/${encodeURIComponent(id)}/index`, { baseVersion, body }),
+  addVaultMember: (id: string, accountId: string, role: VaultRole) =>
+    call<{ ok: true }>('POST', `/vaults/${encodeURIComponent(id)}/members`, { accountId, role }),
+  setVaultRole: (id: string, accountId: string, role: VaultRole) =>
+    call<{ ok: true }>('PATCH', `/vaults/${encodeURIComponent(id)}/members/${encodeURIComponent(accountId)}`, { role }),
+  removeVaultMember: (id: string, accountId: string) =>
+    call<{ ok: true }>('DELETE', `/vaults/${encodeURIComponent(id)}/members/${encodeURIComponent(accountId)}`),
+  vaultAudit: (id: string) => call<{ events: VaultAuditEvent[] }>('GET', `/vaults/${encodeURIComponent(id)}/audit`),
   familySpaceGrant: (generation: number, grants: Array<{ accountId: string; wrapped: unknown }>) =>
     call<{ ok: true }>('POST', '/family/space/keys', { generation, grants }),
   async getSpaceIndex(): Promise<{ version: number; body: Uint8Array<ArrayBuffer> } | null> {

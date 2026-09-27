@@ -21,6 +21,8 @@ interface Props {
   onShare?: (s: SecretEntry) => void
   /** Speicherverbrauch hat sich geändert (Anhang hoch-/gelöscht) */
   onStorageChanged?: () => void
+  readOnly?: boolean
+  heading?: string
 }
 
 interface Form {
@@ -44,7 +46,7 @@ const TRASH = 'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-
 const SHARE = 'M22 2 11 13M22 2l-7 20-4-9-9-4z'
 const CLIP = 'M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'
 
-export default function NotesPanel({ entries, onSave, onDelete, masterKey, onShare, onStorageChanged }: Props) {
+export default function NotesPanel({ entries, onSave, onDelete, masterKey, onShare, onStorageChanged, readOnly = false, heading }: Props) {
   const { common: c, notes: m } = useMessages(secretsMessages)
   const { fmtDate } = useI18n()
   const errText = useErrorText()
@@ -173,7 +175,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
   return (
     <div className="card">
       <h3>
-        {m.heading}
+        {heading ?? m.heading}
         <span>{fmt(m.subtitle, { n: entries.length })}</span>
       </h3>
       {error && <div className="errorbox">{error}</div>}
@@ -209,17 +211,17 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
                     {s.title}
                   </div>
                   <div className="row" style={{ gap: 2, flexWrap: 'nowrap' }}>
-                    <button className={`iconbtn${s.pinned ? ' on' : ''}`} title={s.pinned ? m.unpin : m.pin} aria-pressed={!!s.pinned} onClick={() => onSave({ ...s, pinned: !s.pinned || undefined, updatedAt: s.updatedAt })}>
+                    {!readOnly && <button className={`iconbtn${s.pinned ? ' on' : ''}`} title={s.pinned ? m.unpin : m.pin} aria-pressed={!!s.pinned} onClick={() => onSave({ ...s, pinned: !s.pinned || undefined, updatedAt: s.updatedAt })}>
                       <Icon d={PIN} />
-                    </button>
+                    </button>}
                     {onShare && (
                       <button className="iconbtn" title={m.share} onClick={() => onShare(s)}>
                         <Icon d={SHARE} />
                       </button>
                     )}
-                    <button className="iconbtn danger" title={c.delete} onClick={() => setConfirm(s)}>
+                    {!readOnly && <button className="iconbtn danger" title={c.delete} onClick={() => setConfirm(s)}>
                       <Icon d={TRASH} />
-                    </button>
+                    </button>}
                   </div>
                 </div>
                 {(expiryBadge(s) || (s.tags?.length ?? 0) > 0 || progress.total > 0) && (
@@ -237,7 +239,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
                 {(s.body || !s.fields?.length) && (
                   <div className="notebody">
                     {s.body ? (
-                      <NoteBody body={s.body} limit={14} onToggle={line => onSave({ ...s, body: toggleCheckLine(s.body!, line), updatedAt: Date.now() })} />
+                      <NoteBody body={s.body} limit={14} onToggle={readOnly ? undefined : line => onSave({ ...s, body: toggleCheckLine(s.body!, line), updatedAt: Date.now() })} />
                     ) : (
                       <span className="dim">{m.emptyNote}</span>
                     )}
@@ -258,9 +260,9 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
                 ) : null}
                 <div className="notefoot">
                   <span className="dim">{fmtDate(s.updatedAt)}</span>
-                  <button className="small" onClick={() => startEdit(s)}>
+                  {!readOnly && <button className="small" onClick={() => startEdit(s)}>
                     {c.edit}
-                  </button>
+                  </button>}
                 </div>
               </div>
             )
@@ -369,7 +371,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
             </button>
           </div>
         </form>
-      ) : (
+      ) : readOnly ? null : (
         <div className="notenew">
           <button className="primary" onClick={() => startNew()}>
             {m.newButton}

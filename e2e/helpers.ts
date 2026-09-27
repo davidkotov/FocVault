@@ -10,8 +10,8 @@ export async function unlockVault(page: Page, passphrase: string) {
 }
 
 /** Neues E-Mail-Konto registrieren (inkl. Recovery-Kit-Bestätigung); liefert die 24 Wörter. */
-export async function registerAccount(page: Page, email: string, passphrase: string): Promise<string[]> {
-  await page.goto('/registrieren')
+export async function registerAccount(page: Page, email: string, passphrase: string, opts: { navigate?: boolean } = {}): Promise<string[]> {
+  if (opts.navigate !== false) await page.goto('/registrieren')
   await page.getByLabel('E-Mail').fill(email)
   await page.getByLabel('Passphrase', { exact: true }).fill(passphrase)
   await page.getByLabel('Passphrase wiederholen').fill(passphrase)
