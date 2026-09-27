@@ -11,7 +11,7 @@ import {
 } from '@/lib/crypto'
 import { decryptChunksTo, type PieceSource } from '@/lib/pieces'
 import { folderFor, type ChunkMeta, type VaultEntry } from '@/lib/vault'
-import { api } from '@/features/api/client'
+import { absoluteUrl, api } from '@/features/api/client'
 
 export interface TransferProgress {
   done: number
@@ -40,6 +40,19 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 /** PUT mit Upload-Fortschritt (fetch kann keinen Upload-Fortschritt melden). */
 function putBlob(req: PresignedPiece, body: Blob, signal: AbortSignal | undefined, onProgress: (loaded: number) => void) {
+  if (typeof XMLHttpRequest === 'undefined') {
+    // Node (Backup-Programm): fetch, Fortschritt pro Teil
+    return fetch(absoluteUrl(req.url), { method: 'PUT', body, headers: req.headers, signal }).then(
+      res => {
+        if (!res.ok) throw new HttpStatusError(res.status)
+        onProgress(body.size)
+      },
+      e => {
+        if (signal?.aborted) throw new DOMException('Upload abgebrochen', 'AbortError')
+        throw e instanceof HttpStatusError ? e : new HttpStatusError(0)
+      }
+    )
+  }
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('PUT', req.url)
@@ -171,7 +184,7 @@ export async function uploadFile(
 /** Große Dateien (Chrome/Edge) streamend auf die Platte, sonst im Speicher sammeln. */
 const STREAM_TO_DISK_FROM = 512 * 1024 * 1024
 
-async function pieceSource(entry: VaultEntry, signal?: AbortSignal): Promise<PieceSource> {
+export async function pieceSource(entry: VaultEntry, signal?: AbortSignal): Promise<PieceSource> {
   const { pieces } = await api.download(entry.objectId!)
   const byIndex = new Map(pieces.map(p => [p.index, p]))
   return {
@@ -179,7 +192,7 @@ async function pieceSource(entry: VaultEntry, signal?: AbortSignal): Promise<Pie
       const index = Number(ref.split('/').pop())
       const piece = byIndex.get(index)
       if (!piece) throw new Error(`Teil ${index + 1} fehlt auf dem Server.`)
-      const res = await fetch(piece.url, { signal, headers: piece.headers })
+      const res = await fetch(absoluteUrl(piece.url), { signal, headers: piece.headers })
       if (!res.ok || !res.body) throw new Error(`Download von Teil ${index + 1} fehlgeschlagen (HTTP ${res.status}).`)
       return res.body
     },

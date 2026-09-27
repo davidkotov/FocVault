@@ -41,6 +41,25 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Backup-Programm (CLI) und S3-Gateway
+
+**`cli/`** (gebündelt mit esbuild zu `bin/focvault.mjs`, Node ≥ 20): nutzt dieselben Module wie der Browser
+(Schlüsselableitung, Upload `frame2`, Tresor-Index mit Merge). `features/api/client.ts` bekam
+`configureApi()` (Server-Adresse, Cookie) und `absoluteUrl()`, `transfer.ts` lädt ohne `XMLHttpRequest`
+per `fetch` hoch. Befehle: `login`, `status`, `ls`, `backup <Ordner>` (inkrementell nach Größe/Änderungszeit,
+geänderte Dateien → Versionen bei Pro/Family, Index in Etappen), `restore` (atomar, pfadsicher), `s3`, `logout`.
+Live geprüft gegen localhost: 40 MB + Unterordner, zweiter Lauf „unverändert“, Änderung → neue Version,
+Wiederherstellen byte-identisch.
+
+**S3-Gateway (`cli/s3.ts`, `cli/sigv4.ts`, `cli/s3-store.ts`):** eigener S3-Server auf 127.0.0.1 mit
+SigV4-Prüfung (Header und signierte Links), `aws-chunked`-Uploads der AWS-SDKs, ListObjects v1/v2 mit
+Präfix/Trennzeichen/Seiten, Range-Downloads, Multipart, Copy, Mehrfach-Löschen. Speicher ist der
+Tresor: jedes Objekt wird auf dem Gerät verschlüsselt, Index gebündelt gespeichert (beim Beenden
+garantiert). Tests mit dem offiziellen `@aws-sdk/client-s3` als Client; live gegen den echten Tresor
+geprüft (3 MB hoch/runter identisch, Liste, Löschen, Datei danach im Tresor). Anleitung: `BACKUP.md`.
+
+**Tests:** Vitest 90/90, Playwright 6/6.
+
 ### Nachweis auf Filecoin (Proof-Zertifikat) und Explorer-Links
 
 Klick auf „Filecoin ✓“ an einer Datei öffnet den Nachweis: Netz, gesichert seit, Anzahl verschlüsselter

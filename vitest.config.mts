@@ -7,7 +7,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'server/**/*.test.ts', 'features/**/*.test.ts'],
+    include: ['lib/**/*.test.ts', 'server/**/*.test.ts', 'features/**/*.test.ts', 'cli/**/*.test.ts'],
     // PGlite (Postgres als WASM) braucht beim ersten Start einen Moment.
     testTimeout: 30_000,
     hookTimeout: 60_000,

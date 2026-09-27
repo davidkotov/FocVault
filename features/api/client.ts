@@ -53,17 +53,35 @@ async function toError(res: Response): Promise<ApiClientError> {
   return new ApiClientError(`HTTP_${res.status}`, `Serverfehler (${res.status}).`, res.status)
 }
 
+/**
+ * Außerhalb des Browsers (Backup-Programm, S3-Gateway): Server-Adresse, Session-Cookie und ein
+ * Rückruf für Antworten (Set-Cookie). Im Browser bleibt alles relativ und same-origin.
+ */
+const apiConfig: { baseUrl: string; headers: Record<string, string>; onResponse?: (res: Response) => void } = { baseUrl: '', headers: {} }
+
+export function configureApi(opts: { baseUrl?: string; headers?: Record<string, string>; onResponse?: (res: Response) => void }): void {
+  if (opts.baseUrl !== undefined) apiConfig.baseUrl = opts.baseUrl.replace(/\/$/, '')
+  if (opts.headers) apiConfig.headers = opts.headers
+  if (opts.onResponse) apiConfig.onResponse = opts.onResponse
+}
+
+/** Relative Speicher-URLs (lokaler Proxy) gegen die konfigurierte Server-Adresse auflösen. */
+export function absoluteUrl(url: string): string {
+  return url.startsWith('/') ? `${apiConfig.baseUrl}${url}` : url
+}
+
 async function send(path: string, init: RequestInit): Promise<Response> {
   let res: Response
   try {
-    res = await fetch(`/api/v1${path}`, {
+    res = await fetch(`${apiConfig.baseUrl}/api/v1${path}`, {
       ...init,
       credentials: 'same-origin',
-      headers: { 'x-fv-client': 'web', ...(init.headers ?? {}) }
+      headers: { 'x-fv-client': 'web', ...apiConfig.headers, ...(init.headers ?? {}) }
     })
   } catch {
     throw new ApiClientError('NETWORK', 'Keine Verbindung zum Server.', 0)
   }
+  apiConfig.onResponse?.(res)
   if (!res.ok) throw await toError(res)
   return res
 }

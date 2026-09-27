@@ -187,7 +187,7 @@ async function packAndUpload(db: Db, storage: StorageProvider, s: FocSettings, b
   const candidates = await db.query<{ storage_key: string; bytes: number }>(
     `SELECT storage_key, bytes FROM (${LIVE_KEYS}) l
       WHERE NOT EXISTS (SELECT 1 FROM foc_members m WHERE m.storage_key = l.storage_key)
-      ORDER BY since LIMIT 2000`
+      ORDER BY since, storage_key LIMIT 2000`
   )
   // Auswahl nach den in der DB bekannten Größen, dann direkt in einen Puffer lesen (kein Doppel-RAM).
   const max = s.packMaxMb * MB

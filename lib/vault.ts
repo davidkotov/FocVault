@@ -51,6 +51,10 @@ export interface VaultEntry {
   pieceSize?: number
   /** Ältere Fassungen (Pro/Family), neueste zuerst */
   versions?: FileVersion[]
+  /** S3-Gateway: ETag (MD5) wie vom Client erwartet */
+  etag?: string
+  /** Vom Backup-Programm gesichert: Quelle auf dem Gerät (für inkrementelle Backups) */
+  source?: { device: string; root: string; path: string; mtimeMs: number }
   v: 2
 }
 

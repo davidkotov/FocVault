@@ -59,7 +59,11 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   // Einladungslink ist verbraucht
   const g2 = await guest.newPage()
   await g2.goto(link)
-  await g2.getByLabel('Passphrase').fill(PASS)
+  // Eingabe erst nach der Hydrierung zuverlässig (sonst setzt React das Feld zurück)
+  await expect(async () => {
+    await g2.getByLabel('Passphrase').fill(PASS)
+    await expect(g2.getByRole('button', { name: 'Entsperren' })).toBeEnabled({ timeout: 1000 })
+  }).toPass({ timeout: 30_000 })
   await g2.getByRole('button', { name: 'Entsperren' }).click()
   await expect(g2.getByText(/abgelaufen/)).toBeVisible()
   await guest.close()

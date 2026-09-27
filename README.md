@@ -53,6 +53,11 @@ Siehe `PRICING.md`: Free 5 GB + Pay-as-you-go, Pro 1 TB, Family 2 TB, Zusatzspei
 Monats-/Jahresabos in CHF/EUR/USD, geplante Speicher-API. Alles im Admin-Preisbuch änderbar,
 inklusive Marge je Speicherart (Fil One, FOC, beides).
 
+## Backup-Programm & S3-Gateway
+
+`npm run build:cli` → `bin/focvault.mjs`: verschlüsseltes, inkrementelles Backup von Ordnern und ein
+lokales S3-Gateway für rclone, Cyberduck, AWS CLI oder NAS-Backups. Anleitung: `BACKUP.md`.
+
 ## Secure Send
 
 Link mit Ablauf, Download-Limit (serverseitig, global) und optionalem Passwort. Der Link
