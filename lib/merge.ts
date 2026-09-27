@@ -1,4 +1,4 @@
-import type { SecretEntry, VaultContainer, VaultEntry } from './vault'
+import type { SecretEntry, TrashEntry, VaultContainer, VaultEntry } from './vault'
 
 /**
  * 3-Wege-Merge für den Tresor-Index (mehrere Geräte).
@@ -31,6 +31,7 @@ export function mergeContainers(base: VaultContainer, local: VaultContainer, rem
   return {
     v: 3,
     files: merge3<VaultEntry>(base.files, local.files, remote.files, f => f.storedAt),
-    secrets: merge3<SecretEntry>(base.secrets, local.secrets, remote.secrets, s => s.updatedAt)
+    secrets: merge3<SecretEntry>(base.secrets, local.secrets, remote.secrets, s => s.updatedAt),
+    trash: merge3<TrashEntry>(base.trash ?? [], local.trash ?? [], remote.trash ?? [], t => t.trashedAt)
   }
 }

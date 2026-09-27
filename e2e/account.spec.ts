@@ -17,7 +17,7 @@ async function expectFileListed(page: Page, name: string) {
 }
 
 async function downloadAndCompare(page: Page, name: string, expected: Buffer) {
-  const card = page.locator('.filecard, .fileitem, [class*="file"]').filter({ hasText: name }).first()
+  const card = page.locator('.filecard').filter({ hasText: name }).first()
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     card.locator('button[title="Herunterladen"]').click()
@@ -61,8 +61,16 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   // 3) Download: byte-identisch
   await downloadAndCompare(page, fileName, content)
 
+  // 3a) Vorschau: Textdatei wird lokal entschlüsselt angezeigt
+  await page.getByTestId('upload-input').setInputFiles({ name: 'notiz.txt', mimeType: 'text/plain', buffer: Buffer.from('Hallo Vorschau – vertraulich') })
+  await expectFileListed(page, 'notiz.txt')
+  await page.locator('.filename').getByRole('button', { name: 'notiz.txt' }).click()
+  await expect(page.locator('.previewtext')).toHaveText('Hallo Vorschau – vertraulich')
+  await page.getByRole('dialog').getByRole('button', { name: 'Schließen' }).click()
+  await expect(page.locator('.previewmodal')).toHaveCount(0)
+
   // 3b) Secure Send: Einmal-Link mit Passwort, Empfänger ohne Konto
-  const card = page.locator('.filecard, .fileitem, [class*="file"]').filter({ hasText: fileName }).first()
+  const card = page.locator('.filecard').filter({ hasText: fileName }).first()
   await card.locator('button[title="Teilen"]').click()
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('button', { name: 'Einmal (danach ungültig)' }).click()
@@ -142,4 +150,28 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await expect(page.getByText(fileName)).toHaveCount(0)
   await page.getByRole('tab', { name: 'Filecoin (FOC)' }).click()
   await expect(page.getByText('1 · Netz und zahlende Wallet')).toBeVisible()
+
+  // 9) Papierkorb (Pro): Admin setzt Pro → löschen, rückgängig, erneut löschen, wiederherstellen
+  await page.getByRole('tab', { name: 'Konten' }).click()
+  await page.getByPlaceholder(/Suchen/).fill(email)
+  const planSelect = page.getByLabel(`Paket für ${email}`)
+  await planSelect.selectOption('pro')
+  await expect(page.locator('tr', { hasText: email })).toContainText('monatlich')
+  await page.goto('/app')
+  await page.getByLabel('Passphrase').fill(NEW_PASS)
+  await page.getByRole('button', { name: 'Entsperren' }).click()
+  await expectFileListed(page, fileName)
+  const fileCard = () => page.locator('.filecard').filter({ hasText: fileName })
+  await fileCard().locator('button[title="Löschen"]').click()
+  await expect(page.getByText(`„${fileName}" liegt im Papierkorb.`)).toBeVisible()
+  await page.getByRole('button', { name: 'Rückgängig' }).click()
+  await expectFileListed(page, fileName)
+  await fileCard().locator('button[title="Löschen"]').click()
+  await expect(fileCard()).toHaveCount(0)
+  await page.getByRole('button', { name: /Papierkorb/ }).first().click()
+  await expect(page.locator('.trashrow', { hasText: fileName })).toContainText('noch 29 Tage')
+  await page.locator('.trashrow', { hasText: fileName }).getByRole('button', { name: 'Wiederherstellen' }).click()
+  await expect(page.getByText(`„${fileName}" ist wiederhergestellt.`)).toBeVisible()
+  await page.getByRole('button', { name: 'Meine Cloud', exact: true }).click()
+  await downloadAndCompare(page, fileName, content)
 })

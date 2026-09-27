@@ -16,6 +16,9 @@ import AccountUpload from '@/components/account/AccountUpload'
 import PlansView from '@/components/account/PlansView'
 import ShareDialog from '@/components/account/ShareDialog'
 import SendView from '@/components/account/SendView'
+import TrashView from '@/components/account/TrashView'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import PreviewModal from '@/components/account/PreviewModal'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
 import { ApiClientError, api } from '@/features/api/client'
@@ -24,7 +27,7 @@ import { useErrorText } from '@/features/i18n/errors'
 import { buildPassphraseChange, deriveFromPassphrase, unwrapMasterKeyRaw } from '@/features/keys/kdf'
 import { downloadFile } from '@/features/objects/transfer'
 import { appMessages } from '@/lib/i18n/messages/app'
-import { formatBytes, type SecretEntry, type TierName, type VaultEntry } from '@/lib/vault'
+import { formatBytes, type SecretEntry, type TierName, type TrashEntry, type VaultEntry } from '@/lib/vault'
 
 const TIER: Record<string, TierName> = { free: 'FREE', pro: 'PRO', family: 'FAMILY', business: 'BUSINESS' }
 const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Business' }
@@ -155,6 +158,11 @@ export default function AppPage() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [undo, setUndo] = useState<TrashEntry | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<VaultEntry | null>(null)
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const [trashDays, setTrashDays] = useState(30)
+  const [purgeAt, setPurgeAt] = useState<Record<string, string>>({})
   const [sharing, setSharing] = useState<VaultEntry | null>(null)
   const [onFilecoin, setOnFilecoin] = useState<Record<string, { copies: number }>>({})
   useEffect(() => {
@@ -177,8 +185,33 @@ export default function AppPage() {
     const q = new URLSearchParams(window.location.search)
     setDevPro(process.env.NODE_ENV !== 'production' && q.get('pro') === '1')
     const v = q.get('view')
-    if (v === 'plans' || v === 'account' || v === 'send') setView(v)
+    if (v === 'plans' || v === 'account' || v === 'send' || v === 'trash') setView(v)
+    api.offer().then(o => setTrashDays(o.trashDays)).catch(() => undefined)
   }, [])
+
+  // Papierkorb mit dem Server abgleichen: Löschfristen holen, abgelaufene (endgültig gelöschte) Einträge entfernen.
+  const trashLen = vault.trash?.length ?? 0
+  useEffect(() => {
+    if (status !== 'ready' || (!trashLen && view !== 'trash')) return
+    let cancelled = false
+    api
+      .listTrash()
+      .then(({ items }) => {
+        if (cancelled) return
+        const map = Object.fromEntries(items.map(i => [i.objectId, i.purgeAfter]))
+        setPurgeAt(map)
+        const cutoff = Date.now() - 60_000
+        mutate(c => {
+          const trash = c.trash ?? []
+          const keep = trash.filter(e => !e.objectId || map[e.objectId] || e.trashedAt > cutoff)
+          return keep.length === trash.length ? c : { ...c, trash: keep }
+        })
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [status, view, trashLen, mutate])
 
   const onStored = useCallback(
     (entry: VaultEntry) => {
@@ -212,12 +245,18 @@ export default function AppPage() {
     [masterKey, errText, t]
   )
 
-  const onDelete = useCallback(
-    async (id: string) => {
-      const entry = vault.files.find(f => f.id === id)
-      if (!entry) return
-      if (!window.confirm(fmt(t.files.confirmDelete, { name: entry.name }))) return
-      setBusyId(id)
+  const paidPlan = account?.plan !== undefined && account.plan !== 'free'
+
+  useEffect(() => {
+    if (!undo) return
+    const timer = setTimeout(() => setUndo(null), 12_000)
+    return () => clearTimeout(timer)
+  }, [undo])
+
+  /** Endgültig löschen (Free, oder aus dem Papierkorb). */
+  const deleteForever = useCallback(
+    async (entry: VaultEntry) => {
+      setBusyId(entry.id)
       setError(null)
       try {
         if (entry.objectId) {
@@ -227,7 +266,7 @@ export default function AppPage() {
             if (!(e instanceof ApiClientError && e.code === 'NOT_FOUND')) throw e
           }
         }
-        mutate(c => ({ ...c, files: c.files.filter(f => f.id !== id) }))
+        mutate(c => ({ ...c, files: c.files.filter(f => f.id !== entry.id), trash: (c.trash ?? []).filter(f => f.id !== entry.id) }))
         void refreshAccount()
       } catch (e) {
         setError(errText(e))
@@ -235,8 +274,55 @@ export default function AppPage() {
         setBusyId(null)
       }
     },
-    [vault.files, mutate, refreshAccount, errText, t]
+    [mutate, refreshAccount, errText]
   )
+
+  /** Pro/Family: in den Papierkorb (mit Rückgängig), Free: nach Bestätigung endgültig. */
+  const onDelete = useCallback(
+    async (id: string) => {
+      const entry = vault.files.find(f => f.id === id)
+      if (!entry) return
+      if (!paidPlan || !entry.objectId) return setConfirmDelete(entry)
+      setBusyId(id)
+      setError(null)
+      try {
+        await api.trashObject(entry.objectId)
+        const trashed: TrashEntry = { ...entry, trashedAt: Date.now() }
+        mutate(c => ({ ...c, files: c.files.filter(f => f.id !== id), trash: [trashed, ...(c.trash ?? []).filter(f => f.id !== id)] }))
+        setUndo(trashed)
+        setNotice(null)
+      } catch (e) {
+        if (e instanceof ApiClientError && e.code === 'PLAN_REQUIRED') setConfirmDelete(entry)
+        else setError(errText(e))
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [vault.files, paidPlan, mutate, errText]
+  )
+
+  const onRestore = useCallback(
+    async (entry: TrashEntry) => {
+      setBusyId(entry.id)
+      setError(null)
+      try {
+        if (entry.objectId) await api.restoreObject(entry.objectId)
+        const { trashedAt: _t, ...file } = entry
+        mutate(c => ({ ...c, trash: (c.trash ?? []).filter(f => f.id !== entry.id), files: [file, ...c.files.filter(f => f.id !== entry.id)] }))
+        setUndo(null)
+        setNotice(fmt(t.trash.restored, { name: entry.name }))
+      } catch (e) {
+        setError(errText(e))
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [mutate, errText, t]
+  )
+
+  const emptyTrash = useCallback(async () => {
+    for (const e of vault.trash ?? []) await deleteForever(e)
+  }, [vault.trash, deleteForever])
 
   const upsertSecret = useCallback(
     (s: SecretEntry) => mutate(c => ({ ...c, secrets: [s, ...c.secrets.filter(x => x.id !== s.id)] })),
@@ -263,6 +349,7 @@ export default function AppPage() {
   const titles: Record<ViewId, string> = {
     cloud: t.nav.cloud,
     send: t.nav.send,
+    trash: t.nav.trash,
     plans: t.nav.plans,
     account: t.nav.account,
     passwords: t.nav.passwords,
@@ -287,6 +374,14 @@ export default function AppPage() {
           {error && (
             <div className="errorbox" onClick={() => setError(null)}>
               {error}
+            </div>
+          )}
+          {undo && (
+            <div className="notice undonotice">
+              <span>{fmt(t.files.movedToTrash, { name: undo.name })}</span>
+              <button className="small" onClick={() => void onRestore(undo)}>
+                {t.files.undo}
+              </button>
             </div>
           )}
           {notice && (
@@ -321,13 +416,72 @@ export default function AppPage() {
                 onDownload={e => void onDownload(e)}
                 onDelete={id => void onDelete(id)}
                 onShare={e => setSharing(e)}
+                onPreview={e => setPreviewId(e.id)}
                 onFilecoin={onFilecoin}
-                deleteNote={t.files.deleteNote}
+                headerAction={
+                  paidPlan || (vault.trash?.length ?? 0) > 0 ? (
+                    <button className="small trashbtn" onClick={() => setView('trash')}>
+                      <TrashIcon />
+                      {t.trash.button}
+                      {(vault.trash?.length ?? 0) > 0 && <b className="trashcount">{vault.trash!.length}</b>}
+                    </button>
+                  ) : (
+                    <button className="small trashbtn locked" data-tip={t.trash.lockedTip} aria-label={`${t.trash.button} – ${t.trash.lockedTip}`} onClick={() => setView('plans')}>
+                      <LockIcon />
+                      {t.trash.button}
+                    </button>
+                  )
+                }
+                deleteNote={fmt(paidPlan ? t.files.deleteNote : t.files.deleteNoteFree, { days: trashDays })}
               />
             </>
           )}
 
+          {previewId &&
+            (() => {
+              const i = vault.files.findIndex(f => f.id === previewId)
+              if (i < 0) return null
+              const files = vault.files
+              return (
+                <PreviewModal
+                  entry={files[i]}
+                  masterKey={masterKey}
+                  onClose={() => setPreviewId(null)}
+                  onDownload={e => void onDownload(e)}
+                  onPrev={i > 0 ? () => setPreviewId(files[i - 1].id) : undefined}
+                  onNext={i < files.length - 1 ? () => setPreviewId(files[i + 1].id) : undefined}
+                />
+              )
+            })()}
           {view === 'send' && <SendView files={vault.files} />}
+          {view === 'trash' && (
+            <TrashView
+              entries={vault.trash ?? []}
+              purgeAt={purgeAt}
+              paid={paidPlan}
+              days={trashDays}
+              busyId={busyId}
+              onRestore={e => void onRestore(e)}
+              onDeleteForever={e => void deleteForever(e)}
+              onEmpty={emptyTrash}
+              onUpgrade={() => setView('plans')}
+              onBack={() => setView('cloud')}
+            />
+          )}
+          {confirmDelete && (
+            <ConfirmDialog
+              title={fmt(t.files.confirmDelete, { name: confirmDelete.name })}
+              body={t.files.confirmDeleteBody}
+              confirmLabel={t.confirm.delete}
+              cancelLabel={t.confirm.cancel}
+              onCancel={() => setConfirmDelete(null)}
+              onConfirm={() => {
+                const e = confirmDelete
+                setConfirmDelete(null)
+                void deleteForever(e)
+              }}
+            />
+          )}
           {sharing && <ShareDialog entry={sharing} masterKey={masterKey} onClose={() => setSharing(null)} />}
 
           {view === 'plans' && <PlansView />}
@@ -422,5 +576,23 @@ export default function AppPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg className="icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    </svg>
+  )
+}
+
+function LockIcon() {
+  return (
+    <svg className="icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
   )
 }

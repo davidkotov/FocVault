@@ -44,3 +44,20 @@ describe('3-Wege-Merge (Tresor-Index über mehrere Geräte)', () => {
     expect(out.secrets.map(s => `${s.id}@${s.updatedAt}`)).toEqual(['s1@4', 's2@2'])
   })
 })
+
+describe('Papierkorb im Index', () => {
+  it('Verschieben auf einem Gerät übersteht den Abgleich mit einem unveränderten zweiten Gerät', async () => {
+    const { mergeContainers } = await import('./merge')
+    const file: VaultEntry = { id: 'f1', name: 'a.txt', size: 1, type: '', folder: 'documents', wrappedKey: '', wrapIv: '', chunks: [], storedAt: 1, v: 2 }
+    const base = { v: 3 as const, files: [file], secrets: [], trash: [] }
+    const moved = { v: 3 as const, files: [], secrets: [], trash: [{ ...file, trashedAt: 5 }] }
+    // Gerät B (unverändert = base) gleicht gegen den Server-Stand (moved) ab
+    const merged = mergeContainers(base, base, moved)
+    expect(merged.files).toEqual([])
+    expect(merged.trash?.map(t => t.id)).toEqual(['f1'])
+    // Wiederherstellen: zurück in files, raus aus trash
+    const restored = mergeContainers(moved, { v: 3, files: [file], secrets: [], trash: [] }, moved)
+    expect(restored.files.map(f => f.id)).toEqual(['f1'])
+    expect(restored.trash).toEqual([])
+  })
+})

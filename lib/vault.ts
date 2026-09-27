@@ -80,10 +80,16 @@ export interface SecretEntry {
   updatedAt: number
 }
 
+/** Datei im Papierkorb (Pro/Family): Metadaten bleiben verschlüsselt im Index, bis sie endgültig gelöscht wird. */
+export interface TrashEntry extends VaultEntry {
+  trashedAt: number
+}
+
 export interface VaultContainer {
   v: 3
   files: VaultEntry[]
   secrets: SecretEntry[]
+  trash?: TrashEntry[]
 }
 
 export const EMPTY_CONTAINER: VaultContainer = { v: 3, files: [], secrets: [] }
@@ -159,7 +165,15 @@ export function parseVaultContainer(json: string): VaultContainer {
   if (parsed && typeof parsed === 'object' && Array.isArray(parsed.files)) {
     const files = parsed.files.map(normalize).filter((e: VaultEntry | null): e is VaultEntry => e !== null)
     const secrets = Array.isArray(parsed.secrets) ? parsed.secrets.filter(isSecret) : []
-    return { v: 3, files, secrets }
+    const trash = Array.isArray(parsed.trash)
+      ? parsed.trash
+          .map((t: any) => {
+            const e = normalize(t)
+            return e && typeof t.trashedAt === 'number' ? { ...e, trashedAt: t.trashedAt } : null
+          })
+          .filter((e: TrashEntry | null): e is TrashEntry => e !== null)
+      : []
+    return { v: 3, files, secrets, ...(trash.length ? { trash } : {}) }
   }
   return { v: 3, files: [], secrets: [] }
 }

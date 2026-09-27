@@ -19,7 +19,7 @@ const csp = [
   "font-src 'self' data: https://fonts.reown.com",
   `connect-src 'self' https: wss:${isDev ? ' ws: http://localhost:*' : ''}`,
   // Reown: Verify-API und der Iframe der eingebetteten E-Mail-/Social-Wallets
-  "frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://secure.walletconnect.com https://secure.walletconnect.org https://secure.reown.com",
+  "frame-src 'self' blob: https://verify.walletconnect.com https://verify.walletconnect.org https://secure.walletconnect.com https://secure.walletconnect.org https://secure.reown.com",
   "worker-src 'self' blob:",
   "media-src 'self' blob:",
   "object-src 'none'",

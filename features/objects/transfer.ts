@@ -171,21 +171,15 @@ export async function uploadFile(
 /** Große Dateien (Chrome/Edge) streamend auf die Platte, sonst im Speicher sammeln. */
 const STREAM_TO_DISK_FROM = 512 * 1024 * 1024
 
-export async function downloadFile(
-  entry: VaultEntry,
-  masterKey: CryptoKey,
-  opts: { signal?: AbortSignal; onProgress?: (p: TransferProgress) => void } = {}
-): Promise<void> {
-  if (!entry.objectId) throw new Error('Diese Datei liegt im Wallet-Speicher und ist im Konto-Modus nicht abrufbar.')
-  const fileKey = await unwrapFileKey({ wrapped: entry.wrappedKey, iv: entry.wrapIv }, masterKey)
-  const { pieces } = await api.download(entry.objectId)
+async function pieceSource(entry: VaultEntry, signal?: AbortSignal): Promise<PieceSource> {
+  const { pieces } = await api.download(entry.objectId!)
   const byIndex = new Map(pieces.map(p => [p.index, p]))
-  const source: PieceSource = {
+  return {
     openStream: async ref => {
       const index = Number(ref.split('/').pop())
       const piece = byIndex.get(index)
       if (!piece) throw new Error(`Teil ${index + 1} fehlt auf dem Server.`)
-      const res = await fetch(piece.url, { signal: opts.signal, headers: piece.headers })
+      const res = await fetch(piece.url, { signal, headers: piece.headers })
       if (!res.ok || !res.body) throw new Error(`Download von Teil ${index + 1} fehlgeschlagen (HTTP ${res.status}).`)
       return res.body
     },
@@ -193,6 +187,35 @@ export async function downloadFile(
       throw new Error('Legacy-Format wird im Konto-Modus nicht verwendet.')
     }
   }
+}
+
+/** Entschlüsselt eine Datei komplett in den Speicher (Vorschau, kleine Dateien). */
+export async function decryptToBlob(
+  entry: VaultEntry,
+  masterKey: CryptoKey,
+  opts: { signal?: AbortSignal; onProgress?: (p: TransferProgress) => void } = {}
+): Promise<Blob> {
+  if (!entry.objectId) throw new Error('Datei nicht verfügbar.')
+  const fileKey = await unwrapFileKey({ wrapped: entry.wrappedKey, iv: entry.wrapIv }, masterKey)
+  const source = await pieceSource(entry, opts.signal)
+  const parts: BlobPart[] = []
+  let done = 0
+  await decryptChunksTo(entry, fileKey, source, plain => {
+    parts.push(plain)
+    done += plain.byteLength
+    opts.onProgress?.({ done, total: entry.size })
+  })
+  return new Blob(parts, { type: entry.type || 'application/octet-stream' })
+}
+
+export async function downloadFile(
+  entry: VaultEntry,
+  masterKey: CryptoKey,
+  opts: { signal?: AbortSignal; onProgress?: (p: TransferProgress) => void } = {}
+): Promise<void> {
+  if (!entry.objectId) throw new Error('Diese Datei liegt im Wallet-Speicher und ist im Konto-Modus nicht abrufbar.')
+  const fileKey = await unwrapFileKey({ wrapped: entry.wrappedKey, iv: entry.wrapIv }, masterKey)
+  const source = await pieceSource(entry, opts.signal)
   let done = 0
   const report = (n: number) => {
     done += n

@@ -41,7 +41,7 @@ export const refreshUrlsSchema = z.object({ pieces: z.array(z.number().int().min
 
 interface ObjectRow {
   id: string
-  state: 'uploading' | 'stored' | 'failed' | 'deleted'
+  state: 'uploading' | 'stored' | 'trashed' | 'failed' | 'deleted'
   cipher_bytes: number
 }
 
@@ -218,19 +218,84 @@ export async function downloadObject(deps: Deps, session: SessionInfo, objectId:
   }
 }
 
-/** Löscht sofort aus dem Storage und gibt die Quota frei (Papierkorb folgt in Phase 2). */
+/** Endgültig löschen: sofort aus dem Storage, Quota frei (auch direkt aus dem Papierkorb). */
 export async function deleteObject(deps: Deps, session: SessionInfo, objectId: string): Promise<void> {
   const obj = await loadOwned(deps, session, objectId)
+  await purgeObject(deps, session.accountId, objectId, obj, 'user')
+}
+
+async function purgeObject(deps: Deps, accountId: string, objectId: string, obj: ObjectRow, actor: 'user' | 'system'): Promise<void> {
   const pieces = await pieceRows(deps, objectId)
   await deps.storage.delete(pieces.map(p => p.key))
   await deps.db.tx(async tx => {
-    await tx.query(`UPDATE objects SET state = 'deleted', deleted_at = now() WHERE id = $1`, [objectId])
-    if (obj.state === 'stored') {
+    const upd = await tx.query(
+      `UPDATE objects SET state = 'deleted', deleted_at = now(), purge_after = NULL WHERE id = $1 AND state <> 'deleted' RETURNING id`,
+      [objectId]
+    )
+    if (!upd.length) return
+    if (obj.state === 'stored' || obj.state === 'trashed') {
       await tx.query(
         `INSERT INTO usage_ledger (account_id, delta_bytes, reason, object_id) VALUES ($1, $2, 'delete', $3)`,
-        [session.accountId, -obj.cipher_bytes, objectId]
+        [accountId, -obj.cipher_bytes, objectId]
       )
     }
-    await audit(tx, session.accountId, 'user', 'object.deleted', { bytes: obj.cipher_bytes })
+    await audit(tx, accountId, actor, actor === 'system' ? 'object.purged' : 'object.deleted', { bytes: obj.cipher_bytes })
   })
+}
+
+const PAID_PLANS = new Set(['pro', 'family', 'business'])
+
+export interface TrashItem {
+  objectId: string
+  trashedAt: string
+  purgeAfter: string
+}
+
+/**
+ * In den Papierkorb (nur Abos): Datei bleibt `trashDays` Tage wiederherstellbar und belegt
+ * weiter Speicher (ehrlich angezeigt). Freigabe-Links werden sofort ungültig.
+ */
+export async function trashObject(deps: Deps, session: SessionInfo, objectId: string): Promise<TrashItem> {
+  const obj = await loadOwned(deps, session, objectId)
+  const acc = await deps.db.query<{ plan: string }>('SELECT plan FROM accounts WHERE id = $1', [session.accountId])
+  if (!PAID_PLANS.has(acc[0]?.plan ?? 'free')) throw new ApiError('PLAN_REQUIRED', 'Den Papierkorb gibt es mit Pro und Family.')
+  if (obj.state !== 'stored') throw new ApiError('NOT_FOUND', 'Datei ist nicht (mehr) verfügbar.')
+  const days = (await getPricing(deps.db)).trashDays
+  const rows = await deps.db.query<{ trashed_at: string; purge_after: string }>(
+    `UPDATE objects SET state = 'trashed', trashed_at = now(), purge_after = now() + make_interval(days => $2)
+      WHERE id = $1 AND state = 'stored' RETURNING trashed_at, purge_after`,
+    [objectId, days]
+  )
+  if (!rows[0]) throw new ApiError('NOT_FOUND', 'Datei ist nicht (mehr) verfügbar.')
+  await audit(deps.db, session.accountId, 'user', 'object.trashed', { bytes: obj.cipher_bytes })
+  return { objectId, trashedAt: new Date(rows[0].trashed_at).toISOString(), purgeAfter: new Date(rows[0].purge_after).toISOString() }
+}
+
+export async function restoreObject(deps: Deps, session: SessionInfo, objectId: string): Promise<void> {
+  const obj = await loadOwned(deps, session, objectId)
+  if (obj.state !== 'trashed') throw new ApiError('NOT_FOUND', 'Datei liegt nicht im Papierkorb.')
+  await deps.db.query(`UPDATE objects SET state = 'stored', trashed_at = NULL, purge_after = NULL WHERE id = $1 AND state = 'trashed'`, [objectId])
+  await audit(deps.db, session.accountId, 'user', 'object.restored', { bytes: obj.cipher_bytes })
+}
+
+/** Papierkorb des Kontos laut Server – der Client gleicht damit seinen verschlüsselten Index ab. */
+export async function listTrash(deps: Deps, session: SessionInfo): Promise<TrashItem[]> {
+  const rows = await deps.db.query<{ id: string; trashed_at: string; purge_after: string }>(
+    `SELECT id, trashed_at, purge_after FROM objects WHERE owner_account_id = $1 AND state = 'trashed' ORDER BY trashed_at DESC`,
+    [session.accountId]
+  )
+  return rows.map(r => ({ objectId: r.id, trashedAt: new Date(r.trashed_at).toISOString(), purgeAfter: new Date(r.purge_after).toISOString() }))
+}
+
+/** Abgelaufene Papierkorb-Einträge endgültig löschen (Hintergrund/Cron). */
+export async function purgeExpiredTrash(deps: Deps, limit = 200): Promise<number> {
+  const rows = await deps.db.query<{ id: string; owner_account_id: string; cipher_bytes: number }>(
+    `SELECT id, owner_account_id, cipher_bytes::float8 AS cipher_bytes FROM objects
+      WHERE state = 'trashed' AND purge_after <= now() ORDER BY purge_after LIMIT $1`,
+    [limit]
+  )
+  for (const r of rows) {
+    await purgeObject(deps, r.owner_account_id, r.id, { id: r.id, state: 'trashed', cipher_bytes: Number(r.cipher_bytes) }, 'system')
+  }
+  return rows.length
 }

@@ -59,12 +59,13 @@ export interface PublicOffer {
   payg: PricingConfig['payg']
   plans: PricingConfig['plans']
   addons: PricingConfig['addons']
+  trashDays: number
   purchasesEnabled: boolean
 }
 
 export async function offer(deps: Deps): Promise<PublicOffer> {
   const p = await getPricing(deps.db)
-  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, purchasesEnabled: purchasesEnabled() }
+  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, trashDays: p.trashDays, purchasesEnabled: purchasesEnabled() }
 }
 
 /** Währung wählen (nur solange kein Abo/Zusatzspeicher läuft – sonst Wechsel beim Planwechsel). */
@@ -305,7 +306,7 @@ export async function accountBilling(deps: Deps, accountId: string, stored: numb
   }
 }
 
-const STORED_BY_ACCOUNT = `SELECT owner_account_id, SUM(cipher_bytes) AS stored FROM objects WHERE state = 'stored' GROUP BY owner_account_id`
+const STORED_BY_ACCOUNT = `SELECT owner_account_id, SUM(cipher_bytes) AS stored FROM objects WHERE state IN ('stored', 'trashed') GROUP BY owner_account_id`
 
 export interface EconomicsReport {
   pricing: PricingConfig
@@ -487,7 +488,7 @@ export async function adminListAccounts(
     `SELECT a.id,
             COALESCE(a.email, a.label, (SELECT w.address FROM auth_wallets w WHERE w.account_id = a.id LIMIT 1), '—') AS display,
             a.plan, a.status, a.currency, a.billing_interval, a.payg_enabled, a.payg_cap_gb, a.last_login_at, a.created_at,
-            COALESCE((SELECT SUM(o.cipher_bytes) FROM objects o WHERE o.owner_account_id = a.id AND o.state = 'stored'), 0)::float8 AS stored,
+            COALESCE((SELECT SUM(o.cipher_bytes) FROM objects o WHERE o.owner_account_id = a.id AND o.state IN ('stored', 'trashed')), 0)::float8 AS stored,
             COALESCE((SELECT SUM(ad.bytes) FROM account_addons ad WHERE ad.account_id = a.id AND ad.status = 'active'), 0)::float8 AS addons_bytes,
             COALESCE((SELECT SUM(CASE WHEN ad.billing_interval = 'year' THEN ad.price / 12 ELSE ad.price END)
                         FROM account_addons ad WHERE ad.account_id = a.id AND ad.status = 'active'), 0)::float8 AS addons_monthly

@@ -45,7 +45,7 @@ Admin (nur in Dev). Seiten: `/de/registrieren`, `/de/anmelden`, `/de/app`, `/de/
 Die Ampel im Admin warnt, wenn das Guthaben weniger als 21 Tage reicht, und stoppt neue
 Uploads unter 5 Tagen – FOC hält 30 Tage Kosten als Reserve; gerät das Konto ins Minus,
 dürfen Anbieter Daten löschen. Hintergrund-Abgleich: `instrumentation.ts` (Dauerprozess) bzw.
-`GET /api/v1/cron/foc` mit `Authorization: Bearer $CRON_SECRET` (Vercel Cron).
+`GET /api/v1/cron/maintenance` mit `Authorization: Bearer $CRON_SECRET` (Vercel Cron).
 
 ## Preise
 

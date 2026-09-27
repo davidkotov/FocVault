@@ -244,6 +244,18 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       CREATE INDEX shares_account ON shares (account_id, created_at DESC);
       CREATE INDEX shares_object ON shares (object_id);
     `
+  },
+  {
+    version: 7,
+    name: 'trash',
+    sql: `
+      -- Papierkorb (Pro/Family): Dateien bleiben bis purge_after wiederherstellbar und zählen zur Quota.
+      ALTER TABLE objects DROP CONSTRAINT objects_state_check;
+      ALTER TABLE objects ADD CONSTRAINT objects_state_check CHECK (state IN ('uploading','stored','trashed','failed','deleted'));
+      ALTER TABLE objects ADD COLUMN trashed_at timestamptz;
+      ALTER TABLE objects ADD COLUMN purge_after timestamptz;
+      CREATE INDEX objects_purge ON objects (purge_after) WHERE state = 'trashed';
+    `
   }
 ]
 

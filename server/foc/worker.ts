@@ -1,8 +1,9 @@
 import { deps } from '../deps'
-import { runFocSync } from './sync'
+import { runMaintenance } from '../maintenance'
 
 const g = globalThis as unknown as { __fvFocTimer?: ReturnType<typeof setInterval> }
 
+/** Hintergrund-Wartung im Dauerprozess (Papierkorb leeren, Filecoin-Abgleich). */
 export function startFocWorker(): void {
   if (g.__fvFocTimer || process.env.FOC_BACKGROUND_SYNC === '0' || process.env.VERCEL) return
   const every = Math.max(30, Number(process.env.FOC_SYNC_INTERVAL_SEC ?? 120)) * 1000
@@ -11,12 +12,12 @@ export function startFocWorker(): void {
     if (busy) return
     busy = true
     try {
-      const d = await deps()
-      const r = await runFocSync(d.db, d.storage)
-      if (r.ran && r.packed) console.log(`[foc] ${r.message}`)
-      else if (r.ran && r.message.startsWith('Fehler')) console.error(`[foc] ${r.message}`)
+      const r = await runMaintenance(await deps())
+      if (r.purged) console.log(`[wartung] ${r.purged} Datei(en) aus dem Papierkorb endgültig gelöscht`)
+      if (r.foc.ran && r.foc.packed) console.log(`[foc] ${r.foc.message}`)
+      else if (r.foc.ran && r.foc.message.startsWith('Fehler')) console.error(`[foc] ${r.foc.message}`)
     } catch (e) {
-      console.error('[foc] Abgleich fehlgeschlagen:', (e as Error).message)
+      console.error('[wartung] fehlgeschlagen:', (e as Error).message)
     } finally {
       busy = false
     }

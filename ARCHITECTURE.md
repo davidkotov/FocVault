@@ -769,8 +769,8 @@ Umgesetzt auf `feat/phase1-accounts-storage` (Phase 0 separat in PR #5). Wo die 
 | Passphrase-Login | HMAC-Challenge (§8.1) | **Auth-Key** (HKDF-getrennt vom KEK) wird gesendet, Server speichert scrypt-Hash | gleiches Schutzziel (Passphrase/KEK verlassen nie das Gerät), einfacher, bewährt |
 | ORM | Drizzle (§6.1) | **parametrisiertes SQL** hinter `Db`-Interface; lokal **PGlite**, Prod `pg` | keine Codegenerierung, gleiches SQL in Tests (echtes Postgres im RAM) |
 | Frame-Format | `frame2` mit Frame-Index in AAD (§4.6) | AAD = `focvault/frame/v2` ‖ Objekt-ID ‖ Piece-Index | Frame-Position ist bereits über die IV (baseIv + Zähler) gebunden |
-| Löschen | Papierkorb 30 Tage (§9.6) | **sofortiges Löschen** | Papierkorb in Phase 2 |
-| Secure Send Konto-Dateien | §9.5 | **noch nicht** (Hinweis in der UI) | Phase 2 |
+| Löschen | Papierkorb 30 Tage (§9.6) | **Papierkorb für Pro/Family** (Frist im Preisbuch, Standard 30 Tage, zählt zur Quota), Free löscht sofort nach Bestätigung | Papierkorb als Abo-Vorteil |
+| Secure Send Konto-Dateien | §9.5 | **umgesetzt** (Migration v6, serverseitiges Limit, Widerruf) | – |
 | E-Mail-Verifikation | §8.1 | **noch nicht** (`email_verified_at` bleibt leer) | braucht E-Mail-Provider |
 | Rate-Limit | Redis (§12.4) | **prozesslokal** | eine Instanz in Phase 1; Redis mit Phase 3 |
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 import { FOLDERS, formatBytes, type VaultEntry } from '@/lib/vault'
@@ -13,6 +13,10 @@ interface Props {
   onDownload: (entry: VaultEntry) => void
   onDelete: (id: string) => void
   onShare: (entry: VaultEntry) => void
+  /** Rechts in der Kopfzeile, z. B. der Papierkorb-Button */
+  headerAction?: ReactNode
+  /** Klick auf Vorschaubild/Name */
+  onPreview?: (entry: VaultEntry) => void
   /** objectId → bestätigte Kopien auf Filecoin */
   onFilecoin?: Record<string, { copies: number }>
   /** Hinweis unter der Liste; Standard beschreibt den Wallet-Modus (Pieces bleiben on-chain). */
@@ -37,7 +41,7 @@ function tileColor(folder: string): string {
   }
 }
 
-export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onFilecoin, deleteNote }: Props) {
+export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onFilecoin, headerAction, deleteNote }: Props) {
   const [active, setActive] = useState<string>('all')
   const t = useMessages(appMessages)
   const { fmtDate } = useI18n()
@@ -54,7 +58,10 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
     <div className="card">
       <h3>
         {t.files.title}
-        <span>{fmt(t.files.count, { n: entries.length, size: formatBytes(entries.reduce((s, e) => s + e.size, 0)) })}</span>
+        <div className="h3right">
+          <span>{fmt(t.files.count, { n: entries.length, size: formatBytes(entries.reduce((s, e) => s + e.size, 0)) })}</span>
+          {headerAction}
+        </div>
       </h3>
 
       {entries.length > 0 && (
@@ -81,11 +88,24 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
         <div className="filegrid">
           {filtered.map(e => (
             <div className="filecard" key={e.id}>
-              <div className="filetile" style={{ background: tileColor(e.folder) }}>
+              <button
+                type="button"
+                className="filetile"
+                style={{ background: tileColor(e.folder) }}
+                aria-label={`${t.preview.open}: ${e.name}`}
+                disabled={!canDecrypt || !onPreview}
+                onClick={() => onPreview?.(e)}
+              >
                 {iconFor(e.folder)}
-              </div>
+              </button>
               <div className="filename" title={e.name}>
-                {e.name}
+                {onPreview ? (
+                  <button type="button" className="linkish" onClick={() => onPreview(e)}>
+                    {e.name}
+                  </button>
+                ) : (
+                  e.name
+                )}
               </div>
               <div className="filemeta">
                 {formatBytes(e.size)} · {fmtDate(e.storedAt)}

@@ -146,6 +146,9 @@ export const api = {
   adminFocSessionKey: (network: FocSettings['network']) => call<{ address: string }>('POST', '/admin/foc/session-key', { network }),
   adminFocSync: () => call<FocSyncResult>('POST', '/admin/foc/sync'),
 
+  trashObject: (id: string) => call<{ objectId: string; trashedAt: string; purgeAfter: string }>('POST', `/objects/${encodeURIComponent(id)}/trash`),
+  restoreObject: (id: string) => call<{ ok: true }>('POST', `/objects/${encodeURIComponent(id)}/restore`),
+  listTrash: () => call<{ items: Array<{ objectId: string; trashedAt: string; purgeAfter: string }> }>('GET', '/objects/trash'),
   filecoinStatus: () => call<FilecoinFileStatus>('GET', '/objects/filecoin'),
   createShare: (input: { objectId: string; meta: string; expiresInHours: number | null; maxDownloads: number | null }) =>
     call<ShareSummary>('POST', '/shares', input),
@@ -204,6 +207,7 @@ export interface PublicOffer {
   payg: PricingConfig['payg']
   plans: PricingConfig['plans']
   addons: PricingConfig['addons']
+  trashDays: number
   purchasesEnabled: boolean
 }
 

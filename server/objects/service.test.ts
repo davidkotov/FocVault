@@ -101,3 +101,38 @@ describe('Objekte & Quota', () => {
     expect(createObjectSchema.safeParse({ fmt: 'frame2', pieces: [{ index: 0, cipherBytes: 5 }] }).success).toBe(true)
   })
 })
+
+describe('Papierkorb (Pro/Family)', () => {
+  beforeEach(() => resetRateLimits())
+
+  it('Free löscht sofort, Pro legt in den Papierkorb – belegt weiter Speicher, wiederherstellbar, läuft ab', async () => {
+    const { trashObject, restoreObject, listTrash, purgeExpiredTrash } = await import('./service')
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'trash@example.com')
+    const created = await createObject(deps, session, { fmt: 'frame2', pieces: [{ index: 0, cipherBytes: 400 }] })
+    const key = objectPieceKey(session.accountId, created.objectId, 0)
+    await deps.storage.writeStream(key, bytes(400), 400)
+    await completeObject(deps, session, created.objectId)
+
+    await expect(trashObject(deps, session, created.objectId)).rejects.toMatchObject({ code: 'PLAN_REQUIRED' })
+    await deps.db.query(`UPDATE accounts SET plan = 'pro' WHERE id = $1`, [session.accountId])
+
+    const item = await trashObject(deps, session, created.objectId)
+    expect(new Date(item.purgeAfter).getTime() - Date.now()).toBeGreaterThan(29 * 86400_000)
+    expect(await usedBytes(deps.db, session.accountId)).toBe(400)
+    await expect(downloadObject(deps, session, created.objectId)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect((await listTrash(deps, session)).map(t => t.objectId)).toEqual([created.objectId])
+
+    await restoreObject(deps, session, created.objectId)
+    expect((await downloadObject(deps, session, created.objectId)).pieces).toHaveLength(1)
+    expect(await listTrash(deps, session)).toEqual([])
+
+    await trashObject(deps, session, created.objectId)
+    expect(await purgeExpiredTrash(deps)).toBe(0)
+    await deps.db.query(`UPDATE objects SET purge_after = now() - interval '1 minute' WHERE id = $1`, [created.objectId])
+    expect(await purgeExpiredTrash(deps)).toBe(1)
+    expect(await usedBytes(deps.db, session.accountId)).toBe(0)
+    expect(await deps.storage.head(key)).toBeNull()
+    await expect(restoreObject(deps, session, created.objectId)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+})

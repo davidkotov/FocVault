@@ -41,6 +41,26 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Papierkorb (Pro/Family) und Vorschau im Browser
+
+**Papierkorb (Migration v7):** Löschen verschiebt bei Pro/Family in den Papierkorb (`state = trashed`,
+`purge_after`), Frist im Preisbuch (`trashDays`, Standard 30). Der Papierkorb zählt zur Quota und zu
+den Kosten (Admin-Auswertung, FOC-Sicherung bleibt bestehen), Freigabe-Links werden sofort ungültig.
+Wiederherstellen, einzeln endgültig löschen, Papierkorb leeren; nach Ablauf löscht die Wartung
+(`server/maintenance.ts`, Hintergrund bzw. `GET /api/v1/cron/maintenance`) endgültig – auch auf Filecoin.
+Metadaten liegen weiter verschlüsselt im Tresor-Index (`trash`), der Geräte-Abgleich (3-Wege-Merge)
+kennt den Papierkorb. Free: endgültiges Löschen nach Bestätigung; der Papierkorb-Button in „Meine
+Cloud“ zeigt ein Schloss mit Hinweis „Upgrade nötig“. Nach dem Löschen: „Rückgängig“ (12 s).
+Bestätigungen laufen über einen eigenen Dialog statt `window.confirm`.
+
+**Vorschau:** Klick auf Datei/Kachel öffnet eine Vorschau (Bilder, PDF, Video, Audio, Text), lokal
+entschlüsselt als Blob-URL, Blättern mit ←/→, Escape schließt. Obergrenzen je Typ (z. B. Video 400 MB),
+darüber Hinweis „bitte herunterladen“. CSP: `frame-src blob:` für PDFs.
+
+**Tests:** Vitest 80/80 (u. a. Papierkorb-Lebenszyklus inkl. Ablauf, Merge über Geräte),
+Playwright 5/5 (neu: Textvorschau; Pro: Löschen → Rückgängig → Papierkorb → Wiederherstellen → Download
+byte-identisch).
+
 ### Filecoin Onchain Cloud als Speicher, Secure Send neu, Wallet-Modus entfernt
 
 **FOC-Anbindung (`server/foc/*`, Migration v5, Admin-Tab „Filecoin (FOC)“):** Der Server sichert

@@ -2093,3 +2093,50 @@ input[type='range']:focus { box-shadow: none; }
 .builton { font-size: 12.5px; font-weight: 600; color: var(--text-dim); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
 .builton:hover { color: var(--accent-dark); border-color: var(--accent-border); }
 .footbottom { flex-wrap: wrap; gap: 10px; }
+
+/* ---------- Papierkorb & Bestätigung ---------- */
+.trashlist { display: flex; flex-direction: column; margin-top: 12px; }
+.trashrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border-soft); }
+.trashinfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.trashinfo strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trashupsell { text-align: left; }
+.confirmmodal { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; width: min(440px, 100%); box-shadow: 0 24px 60px rgba(15, 20, 32, 0.25); }
+.confirmmodal h3 { margin: 0 0 8px; font-size: 17px; }
+.confirmmodal p { margin: 0 0 18px; color: var(--text-dim); font-size: 14px; line-height: 1.5; }
+.confirmactions { justify-content: flex-end; }
+.undonotice { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* ---------- Vorschau ---------- */
+button.filetile { width: 100%; border: none; padding: 0; cursor: zoom-in; }
+button.filetile:hover:not(:disabled) { background: inherit; filter: brightness(0.97); }
+button.filetile:disabled { opacity: 1; cursor: default; }
+.linkish { border: none; background: none; padding: 0; font: inherit; font-weight: inherit; color: inherit; text-align: left; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linkish:hover:not(:disabled) { background: none; color: var(--accent-dark); text-decoration: underline; }
+.previewbackdrop { padding: 16px; }
+.previewmodal { background: var(--card); border-radius: 16px; width: min(1100px, 100%); height: min(88vh, 900px); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(15, 20, 32, 0.35); }
+.previewhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.previewtitle { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.previewtitle strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.previewbody { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #0f1420; }
+.previewbody img, .previewbody video { max-width: 100%; max-height: 100%; object-fit: contain; }
+.previewbody iframe { width: 100%; height: 100%; border: none; background: #fff; }
+.previewbody audio { width: min(520px, 90%); }
+.previewtext { width: 100%; height: 100%; margin: 0; padding: 16px; overflow: auto; background: var(--card); color: var(--text); font-family: var(--mono); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.previewstate { color: #cbd5e1; display: flex; flex-direction: column; align-items: center; gap: 12px; font-size: 14px; padding: 24px; text-align: center; }
+.previewbody .errorbox { margin: 24px; }
+
+/* ---------- Papierkorb-Button in „Meine Cloud“ ---------- */
+.h3right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.trashbtn { display: inline-flex; align-items: center; gap: 7px; font-family: inherit; position: relative; }
+.trashbtn .icon { stroke: currentColor; fill: none; stroke-width: 1.8; }
+.trashcount { font-size: 11px; background: var(--border-soft); color: var(--text-dim); border-radius: 999px; padding: 0 7px; line-height: 18px; }
+.trashbtn.locked { color: var(--text-mute); border-style: dashed; }
+.trashbtn.locked:hover:not(:disabled) { color: var(--text-dim); background: var(--card); border-color: var(--text-mute); }
+[data-tip]::after {
+  content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 8px); width: max-content; max-width: 260px;
+  background: #0f1420; color: #fff; font-size: 12px; font-weight: 500; line-height: 1.4; text-align: left; white-space: normal;
+  padding: 8px 10px; border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 20, 32, 0.25);
+  opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity 0.15s, transform 0.15s; z-index: 40;
+}
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translateY(0); }
+.backbtn { margin-bottom: 14px; }
