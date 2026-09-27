@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { SecretEntry } from '@/lib/vault'
 import { generateTotp, generateBase32Secret, totpRemaining, parseOtpauth } from '@/lib/totp'
 import QrScanModal from '@/components/QrScanModal'
+import { fmt, useMessages } from '@/features/i18n/I18nProvider'
+import { secretsMessages } from '@/lib/i18n/messages/secrets'
 
 interface Props {
   entries: SecretEntry[]
@@ -24,6 +26,7 @@ interface FormState {
 }
 
 export default function TotpPanel({ entries, onSave, onDelete }: Props) {
+  const { common: c, totp: m } = useMessages(secretsMessages)
   const [live, setLive] = useState<LiveState>({ codes: {}, remaining: {} })
   const [form, setForm] = useState<FormState | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
@@ -71,7 +74,7 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
       setScanOpen(false)
     } else if (lastScan.current !== data) {
       lastScan.current = data
-      alert('Kein gültiger otpauth://-Link – nur 2FA-QR-Codes von Authenticator-Setups werden übernommen.')
+      alert(m.invalidScan)
     }
   }
 
@@ -88,7 +91,7 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
     if (form.otpauth.trim()) {
       const parsed = parseOtpauth(form.otpauth)
       if (!parsed) {
-        alert('Der otpauth://-Link ist ungültig.')
+        alert(m.invalidLink)
         return
       }
       secret = parsed.secret
@@ -118,8 +121,8 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
   return (
     <div className="card">
       <h3>
-        2FA-Authenticator
-        <span>{entries.length} Konten · Codes live im Browser</span>
+        {m.heading}
+        <span>{fmt(m.subtitle, { n: entries.length })}</span>
       </h3>
 
       {entries.length > 0 && (
@@ -141,13 +144,13 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
                   </div>
                 </div>
                 <div className="secactions">
-                  <button className="iconbtn" title="Bearbeiten" onClick={() => setForm({ id: s.id, title: s.title, secret: s.secretBase32 ?? '', otpauth: '' })}>
+                  <button className="iconbtn" title={c.edit} onClick={() => setForm({ id: s.id, title: s.title, secret: s.secretBase32 ?? '', otpauth: '' })}>
                     <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
                       <path d="M12 20h9" />
                       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                     </svg>
                   </button>
-                  <button className="iconbtn danger" title="Entfernen" onClick={() => onDelete(s.id)}>
+                  <button className="iconbtn danger" title={m.remove} onClick={() => onDelete(s.id)}>
                     <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
                       <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                     </svg>
@@ -160,18 +163,15 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
       )}
 
       {entries.length === 0 && !form && (
-        <p className="dim">
-          Noch keine 2FA-Konten. Scanne den QR-Code deines 2FA-Setups oder füge das
-          Secret manuell hinzu – die Codes werden direkt hier berechnet.
-        </p>
+        <p className="dim">{m.empty}</p>
       )}
 
       {form ? (
         <form className="secform" onSubmit={submit}>
-          <h4>{form.id ? '2FA-Konto bearbeiten' : '2FA-Konto hinzufügen'}</h4>
+          <h4>{form.id ? m.editTitle : m.addTitle}</h4>
           <div className="secfields">
             <label>
-              otpauth://-Link (z. B. aus dem QR-Code/Daten-Backup)
+              {m.otpauthLabel}
               <div className="pwrow">
                 <textarea rows={2} value={form.otpauth} onChange={e => setForm({ ...form, otpauth: e.target.value })} placeholder="otpauth://totp/Google:name@mail.com?secret=…" />
                 <button type="button" className="small scanbtn" onClick={() => setScanOpen(true)}>
@@ -179,17 +179,17 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
                     <path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4" />
                     <rect x="7" y="7" width="10" height="10" rx="2" />
                   </svg>
-                  QR scannen
+                  {m.scanQr}
                 </button>
               </div>
             </label>
-            <div className="orline"><span>oder manuell</span></div>
+            <div className="orline"><span>{m.orManual}</span></div>
             <label>
-              Titel <span className="req">*</span>
-              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="z. B. Google" />
+              {c.title} <span className="req">*</span>
+              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={m.titlePlaceholder} />
             </label>
             <label>
-              Secret (Base32)
+              {m.secret}
               <div className="pwrow">
                 <input
                   value={form.secret}
@@ -198,25 +198,24 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
                   className="mono"
                 />
                 <button type="button" className="small" onClick={() => setForm({ ...form, secret: generateBase32Secret() })}>
-                  Generieren
+                  {c.generate}
                 </button>
               </div>
             </label>
             <p className="dim" style={{ fontSize: 12.5 }}>
-              Ziffern (6), Zeitraum (30 s) und Algorithmus (SHA1) werden automatisch aus dem
-              otpauth://-Link übernommen, sonst Standard.
+              {m.autoHint}
             </p>
           </div>
           <div className="row" style={{ marginTop: 14 }}>
             <button className="primary" type="submit" disabled={!form.title.trim() || (!form.secret.trim() && !form.otpauth.trim())}>
-              Speichern
+              {c.save}
             </button>
-            <button type="button" onClick={() => setForm(null)}>Abbrechen</button>
+            <button type="button" onClick={() => setForm(null)}>{c.cancel}</button>
           </div>
         </form>
       ) : (
         <div className="row" style={{ marginTop: 14 }}>
-          <button className="primary" onClick={startNew}>+ 2FA-Konto hinzufügen</button>
+          <button className="primary" onClick={startNew}>{m.addButton}</button>
         </div>
       )}
 

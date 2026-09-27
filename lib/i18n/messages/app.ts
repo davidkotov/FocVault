@@ -15,7 +15,8 @@ const de = {
     active: '{plan} aktiv',
     menu: 'Menü',
     trash: 'Papierkorb',
-    proOnly: 'Upgrade nötig – ab Pro'
+    proOnly: 'Upgrade nötig – ab Pro',
+    familyFolder: 'Familienordner'
   },
   folders: { all: 'Alle', documents: 'Dokumente', photos: 'Fotos', videos: 'Videos', backups: 'Backups & Mehr' },
   search: 'Dateien durchsuchen…',
@@ -94,6 +95,20 @@ const de = {
     joined: 'Willkommen in der Family von {owner}!',
     decline: 'Nicht jetzt',
     left: 'Du hast die Familie verlassen.'
+  },
+  familyFolder: {
+    title: 'Familienordner',
+    lead: 'Dateien, die alle in deiner Family sehen – Ende-zu-Ende-verschlüsselt mit einem gemeinsamen Schlüssel, den nur eure Geräte kennen. Deine übrigen Dateien bleiben privat.',
+    loading: 'Öffne den Familienordner …',
+    waiting: 'Dein Zugang wird eingerichtet: Sobald ein anderes Mitglied FocVault öffnet, erhält dein Gerät den gemeinsamen Schlüssel. Das passiert automatisch.',
+    retry: 'Erneut prüfen',
+    members: '{ready} von {total} Mitgliedern haben Zugriff',
+    pending: 'wartet auf Zugriff',
+    addedBy: 'von {name}',
+    deleteNote: 'Löschen entfernt die Datei für alle in der Familie.',
+    shareOwnOnly: 'Teilen per Link geht für Dateien, die du selbst hinzugefügt hast.',
+    confirmDelete: '„{name}“ für alle löschen?',
+    confirmDeleteBody: 'Die Datei wird für die ganze Familie endgültig entfernt.'
   },
   passkeys: {
     title: 'Passkeys',
@@ -241,7 +256,8 @@ const en: typeof de = {
     active: '{plan} active',
     menu: 'Menu',
     trash: 'Trash',
-    proOnly: 'Upgrade required – from Pro'
+    proOnly: 'Upgrade required – from Pro',
+    familyFolder: 'Family folder'
   },
   folders: { all: 'All', documents: 'Documents', photos: 'Photos', videos: 'Videos', backups: 'Backups & more' },
   search: 'Search files…',
@@ -320,6 +336,20 @@ const en: typeof de = {
     joined: 'Welcome to the Family of {owner}!',
     decline: 'Not now',
     left: 'You left the family.'
+  },
+  familyFolder: {
+    title: 'Family folder',
+    lead: 'Files everyone in your Family can see – end-to-end encrypted with a shared key that only your devices know. Your other files stay private.',
+    loading: 'Opening the family folder …',
+    waiting: 'Your access is being set up: as soon as another member opens FocVault, your device receives the shared key. This happens automatically.',
+    retry: 'Check again',
+    members: '{ready} of {total} members have access',
+    pending: 'waiting for access',
+    addedBy: 'by {name}',
+    deleteNote: 'Deleting removes the file for everyone in the family.',
+    shareOwnOnly: 'Link sharing works for files you added yourself.',
+    confirmDelete: 'Delete “{name}” for everyone?',
+    confirmDeleteBody: 'The file is permanently removed for the whole family.'
   },
   passkeys: {
     title: 'Passkeys',

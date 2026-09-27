@@ -113,7 +113,7 @@ async function uploadPiece(
 export async function uploadFile(
   file: File,
   masterKey: CryptoKey,
-  opts: { signal?: AbortSignal; onProgress?: (p: TransferProgress) => void } = {}
+  opts: { signal?: AbortSignal; onProgress?: (p: TransferProgress) => void; space?: boolean } = {}
 ): Promise<VaultEntry> {
   const count = Math.max(1, Math.ceil(file.size / ACCOUNT_PIECE_SIZE))
   const ranges = Array.from({ length: count }, (_, i) => {
@@ -124,6 +124,7 @@ export async function uploadFile(
   const total = ranges.reduce((n, r) => n + r.plan.paddedSize, 0)
   const created = await api.createObject({
     fmt: 'frame2',
+    ...(opts.space ? { space: true } : {}),
     pieces: ranges.map((r, index) => ({ index, cipherBytes: r.plan.paddedSize }))
   })
   const objectId = created.objectId

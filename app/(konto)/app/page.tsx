@@ -23,6 +23,7 @@ import VersionsDialog from '@/components/account/VersionsDialog'
 import FamilyPanel from '@/components/account/FamilyPanel'
 import ProofDialog from '@/components/account/ProofDialog'
 import PasskeysPanel from '@/components/account/PasskeysPanel'
+import FamilyFolderView from '@/components/account/FamilyFolderView'
 import { passkeySupported } from '@/features/keys/passkey'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
@@ -516,7 +517,8 @@ export default function AppPage() {
     passwords: t.nav.passwords,
     notes: t.nav.notes,
     '2fa': t.nav.totp,
-    passkeys: t.nav.passkeys
+    passkeys: t.nav.passkeys,
+    familyFolder: t.nav.familyFolder
   }
 
   return (
@@ -530,6 +532,7 @@ export default function AppPage() {
         tier={tier}
         showPlans
         pro={isPro}
+        family={account.plan === 'family'}
       />
       <div className="main">
         <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
@@ -672,6 +675,8 @@ export default function AppPage() {
           {sharing && <ShareDialog entry={sharing} masterKey={masterKey} onClose={() => setSharing(null)} />}
 
           {view === 'plans' && <PlansView />}
+
+          {view === 'familyFolder' && account.plan === 'family' && <FamilyFolderView freeBytes={freeBytes} />}
 
           {view === 'passkeys' &&
             (isPro ? (

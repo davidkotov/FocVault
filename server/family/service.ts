@@ -5,6 +5,7 @@ import type { SessionInfo } from '../auth/sessions'
 import { getPricing } from '../billing/settings'
 import { ApiError } from '../shared/errors'
 import { isUuid, uuidv7 } from '../shared/ids'
+import { detachFromSpace } from './space'
 
 /**
  * Family: Das Konto mit dem Family-Abo ist Eigentümer; bis zu (Plätze − 1) weitere Konten treten per
@@ -64,13 +65,15 @@ export async function syncFamilyAfterPlanChange(db: Db, accountId: string): Prom
   await db.query('DELETE FROM family_members WHERE account_id = $1', [accountId])
   const members = await db.query<{ account_id: string }>('SELECT account_id FROM family_members WHERE owner_account_id = $1', [accountId])
   if (!members.length && !(await db.query('SELECT 1 FROM families WHERE owner_account_id = $1', [accountId])).length) return
-  await db.tx(async tx => {
-    for (const m of members) {
-      await tx.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan = 'family'`, [m.account_id])
-      await audit(tx, m.account_id, 'system', 'family.ended', {})
-    }
-    await tx.query('DELETE FROM families WHERE owner_account_id = $1', [accountId])
-  })
+  // Die Familie selbst bleibt bestehen (Familienordner liest der Inhaber weiter); Mitglieder und
+  // offene Einladungen enden, deren Familienordner-Dateien gehen an den Inhaber.
+  for (const m of members) {
+    await detachFromSpace(db, m.account_id, accountId)
+    await db.query('DELETE FROM family_members WHERE account_id = $1', [m.account_id])
+    await db.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan = 'family'`, [m.account_id])
+    await audit(db, m.account_id, 'system', 'family.ended', {})
+  }
+  await db.query('UPDATE family_invites SET revoked_at = now() WHERE owner_account_id = $1 AND used_at IS NULL AND revoked_at IS NULL', [accountId])
 }
 
 export interface FamilyView {
@@ -218,6 +221,7 @@ export async function removeMember(deps: Deps, session: SessionInfo, memberId: s
     self ? [memberId] : [memberId, session.accountId]
   )
   if (!r.length) throw new ApiError('NOT_FOUND', 'Mitglied nicht gefunden.')
+  await detachFromSpace(deps.db, memberId, (r[0] as { owner_account_id: string }).owner_account_id)
   await deps.db.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan = 'family'`, [memberId])
   await audit(deps.db, memberId, self ? 'user' : 'system', self ? 'family.left' : 'family.removed', {})
 }

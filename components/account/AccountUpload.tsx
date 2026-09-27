@@ -18,12 +18,14 @@ interface Job {
 interface Props {
   masterKey: CryptoKey
   freeBytes: number
+  /** Hochladen in den Familienordner (Datei-Schlüssel mit dem Ordner-Schlüssel verpackt) */
+  space?: boolean
   onStored: (entry: VaultEntry) => void
   onError: (msg: string) => void
 }
 
 /** Drag & Drop, mehrere Dateien, nacheinander: verschlüsseln → hochladen → abschließen. */
-export default function AccountUpload({ masterKey, freeBytes, onStored, onError }: Props) {
+export default function AccountUpload({ masterKey, freeBytes, onStored, onError, space }: Props) {
   const m = useMessages(appMessages).upload
   const errText = useErrorText()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -46,6 +48,7 @@ export default function AccountUpload({ masterKey, freeBytes, onStored, onError 
       patch(job.id, { state: 'run' })
       try {
         const entry = await uploadFile(files[i], masterKey, {
+          space,
           signal: abort.signal,
           onProgress: p => patch(job.id, { pct: p.total ? Math.round((p.done / p.total) * 100) : 100 })
         })

@@ -41,6 +41,29 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Gemeinsamer Familienordner (Ende-zu-Ende) und Englisch für Passwörter/Notizen/2FA
+
+**Familienordner (Migration v12, `server/family/space.ts`, `features/family/*`):** Jedes Konto erzeugt ein
+ECDH-P-256-Schlüsselpaar; der private Teil liegt im eigenen verschlüsselten Tresor-Index (auf allen
+Geräten gleich), der öffentliche beim Server. Der Ordner-Schlüssel (AES-256, Generationen) wird je
+Mitglied mit ECDH-ES + HKDF-SHA-256 + AES-GCM verpackt; Familie, Generation und Empfänger stecken in
+HKDF-Info und AAD (Hüllen lassen sich nicht umleiten). Jedes Gerät, das einen Schlüssel besitzt, verteilt
+fehlende Hüllen automatisch (auch ältere Generationen für neue Mitglieder). Der Inhaber legt Generation 1
+an und nach dem Entfernen eines Mitglieds eine neue; entfernte Mitglieder bekommen serverseitig keine
+Dateien mehr, ihre Familienordner-Dateien gehen an den Inhaber (Quota). Index des Ordners: AES-GCM mit
+der neuesten Generation, optimistisches Locking, bei Konflikt wird die Änderung neu angewendet.
+Datei-Schlüssel gemeinsamer Dateien sind mit dem Ordner-Schlüssel verpackt (`spaceGen`), Objekte tragen
+`space_owner` (Lesen/Löschen für alle Mitglieder). Endet das Family-Abo, behält der Inhaber den Ordner.
+UI: Menüpunkt „Familienordner“ mit Zugriffsstatus je Mitglied, Hochladen, Vorschau, Download, Löschen für
+alle, Teilen eigener Dateien. Der Server sieht weder Ordner-Schlüssel noch Namen oder Inhalte.
+
+**Englisch:** Passwort-Manager, Notizen, 2FA-Authenticator und QR-Scan vollständig zweisprachig
+(`lib/i18n/messages/secrets.ts`, 68 Texte je Sprache, inkl. CSV-Import-Meldungen).
+
+**Tests:** Vitest 94/94 (u. a. Hüllen nur für Empfänger/Generation/Familie öffnbar, Index-Header,
+Server: Generationen, Rechte, Rotation), Playwright 7/7 (neu im Family-Test: Kind wartet → Inhaber legt
+Schlüssel an und lädt hoch → Kind lädt die gemeinsame Datei byte-identisch herunter).
+
 ### Passkey-Entsperren (Pro/Family)
 
 Face ID, Touch ID, Windows Hello oder Sicherheitsschlüssel statt Passphrase – über die WebAuthn-PRF-

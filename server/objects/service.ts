@@ -12,6 +12,7 @@ import { getPricing } from '../billing/settings'
 import { objectPieceKey } from '../storage/provider'
 import { assertFocWritable } from '../foc/health'
 import { pooledUsedBytes } from '../family/service'
+import { spaceOwnerOf } from '../family/space'
 
 const UPLOAD_URL_TTL_SEC = 60 * 60
 const DOWNLOAD_URL_TTL_SEC = 15 * 60
@@ -23,6 +24,8 @@ export const MAX_PIECE_CIPHER_BYTES = streamCipherPlan(ACCOUNT_PIECE_SIZE).padde
 export const createObjectSchema = z
   .object({
     fmt: z.literal('frame2'),
+    /** in den Familienordner (nur Family-Mitglieder) */
+    space: z.boolean().optional(),
     pieces: z
       .array(
         z.object({
@@ -44,13 +47,17 @@ interface ObjectRow {
   id: string
   state: 'uploading' | 'stored' | 'version' | 'trashed' | 'failed' | 'deleted'
   cipher_bytes: number
+  owner_account_id?: string
 }
 
-async function loadOwned(deps: Deps, session: SessionInfo, objectId: string): Promise<ObjectRow> {
+/** Eigene Objekte; mit `allowSpace` auch Objekte im Familienordner der eigenen Familie. */
+async function loadOwned(deps: Deps, session: SessionInfo, objectId: string, allowSpace = false): Promise<ObjectRow> {
   if (!isUuid(objectId)) throw new ApiError('NOT_FOUND', 'Datei nicht gefunden.')
+  const space = allowSpace ? await spaceOwnerOf(deps.db, session.accountId) : null
   const rows = await deps.db.query<ObjectRow>(
-    'SELECT id, state, cipher_bytes::float8 AS cipher_bytes FROM objects WHERE id = $1 AND owner_account_id = $2',
-    [objectId, session.accountId]
+    `SELECT id, state, cipher_bytes::float8 AS cipher_bytes, owner_account_id FROM objects
+      WHERE id = $1 AND (owner_account_id = $2 OR ($3::uuid IS NOT NULL AND space_owner = $3::uuid))`,
+    [objectId, session.accountId, space]
   )
   if (!rows[0] || rows[0].state === 'deleted') throw new ApiError('NOT_FOUND', 'Datei nicht gefunden.')
   return { ...rows[0], cipher_bytes: Number(rows[0].cipher_bytes) }
@@ -90,6 +97,8 @@ export async function createObject(
 ): Promise<CreateObjectResult> {
   await releaseStaleUploads(deps, session.accountId)
   await assertFocWritable(deps.db)
+  const spaceOwner = input.space ? await spaceOwnerOf(deps.db, session.accountId) : null
+  if (input.space && !spaceOwner) throw new ApiError('PLAN_REQUIRED', 'Den Familienordner gibt es mit Family.')
   const total = input.pieces.reduce((n, p) => n + p.cipherBytes, 0)
   const objectId = uuidv7()
   await deps.db.tx(async tx => {
@@ -120,9 +129,9 @@ export async function createObject(
       )
     }
     await tx.query(
-      `INSERT INTO objects (id, owner_account_id, state, fmt, cipher_bytes, piece_count)
-       VALUES ($1, $2, 'uploading', $3, $4, $5)`,
-      [objectId, session.accountId, input.fmt, total, input.pieces.length]
+      `INSERT INTO objects (id, owner_account_id, state, fmt, cipher_bytes, piece_count, space_owner)
+       VALUES ($1, $2, 'uploading', $3, $4, $5, $6)`,
+      [objectId, session.accountId, input.fmt, total, input.pieces.length, spaceOwner]
     )
     await tx.query(
       `INSERT INTO object_pieces (object_id, piece_index, storage_key, cipher_bytes)
@@ -205,7 +214,7 @@ export async function completeObject(
 }
 
 export async function downloadObject(deps: Deps, session: SessionInfo, objectId: string): Promise<DownloadResult> {
-  const obj = await loadOwned(deps, session, objectId)
+  const obj = await loadOwned(deps, session, objectId, true)
   if (obj.state !== 'stored') throw new ApiError('NOT_FOUND', 'Datei ist nicht (mehr) verfügbar.')
   const pieces = await pieceRows(deps, objectId)
   return {
@@ -221,8 +230,8 @@ export async function downloadObject(deps: Deps, session: SessionInfo, objectId:
 
 /** Endgültig löschen: sofort aus dem Storage, Quota frei (auch direkt aus dem Papierkorb). */
 export async function deleteObject(deps: Deps, session: SessionInfo, objectId: string): Promise<void> {
-  const obj = await loadOwned(deps, session, objectId)
-  await purgeObject(deps, session.accountId, objectId, obj, 'user')
+  const obj = await loadOwned(deps, session, objectId, true)
+  await purgeObject(deps, obj.owner_account_id ?? session.accountId, objectId, obj, 'user')
 }
 
 async function purgeObject(deps: Deps, accountId: string, objectId: string, obj: ObjectRow, actor: 'user' | 'system'): Promise<void> {

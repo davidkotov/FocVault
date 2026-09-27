@@ -32,6 +32,8 @@ export function mergeContainers(base: VaultContainer, local: VaultContainer, rem
     v: 3,
     files: merge3<VaultEntry>(base.files, local.files, remote.files, f => f.storedAt),
     secrets: merge3<SecretEntry>(base.secrets, local.secrets, remote.secrets, s => s.updatedAt),
-    trash: merge3<TrashEntry>(base.trash ?? [], local.trash ?? [], remote.trash ?? [], t => t.trashedAt)
+    trash: merge3<TrashEntry>(base.trash ?? [], local.trash ?? [], remote.trash ?? [], t => t.trashedAt),
+    // Schlüsselpaar: einmal erzeugt; bei Gleichstand gewinnt der Server-Stand (den kennen die anderen schon)
+    ...((remote.familyKey ?? local.familyKey) ? { familyKey: remote.familyKey ?? local.familyKey } : {})
   }
 }

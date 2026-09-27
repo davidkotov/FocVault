@@ -122,6 +122,8 @@ export interface PresignedPiece {
 
 export interface CreateObjectInput {
   fmt: 'frame2'
+  /** in den Familienordner */
+  space?: boolean
   pieces: Array<{ index: number; cipherBytes: number }>
 }
 

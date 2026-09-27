@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 
 const PASS = 'Korrekt Pferd Batterie Heftklammer'
@@ -43,7 +45,7 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   const link = await page.locator('.sharelink input').inputValue()
   expect(link).toMatch(/\/app\?join=[A-Za-z0-9_-]{32}$/)
 
-  const guest = await browser.newContext({ locale: 'de-CH' })
+  const guest = await browser.newContext({ locale: 'de-CH', acceptDownloads: true })
   const g = await guest.newPage()
   await g.goto(link)
   await expect(g).toHaveURL(/registrieren/)
@@ -55,6 +57,27 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   await expect(g.locator('.navlock')).toHaveCount(0)
   await g.getByRole('button', { name: /Konto & Sicherheit/ }).click()
   await expect(g.getByText(`Du nutzt den Family-Speicher von ${owner}.`, { exact: false })).toBeVisible()
+
+  // Familienordner: Kind öffnet zuerst (veröffentlicht seinen Schlüssel, wartet auf Zugriff)
+  await g.getByRole('button', { name: 'Familienordner' }).click()
+  await expect(g.getByText(/Dein Zugang wird eingerichtet/)).toBeVisible()
+
+  // Inhaber öffnet → legt den Ordner-Schlüssel an (auch für das Kind) und lädt eine Datei hoch
+  const shared = randomBytes(150_000)
+  await page.reload()
+  await page.getByLabel('Passphrase').fill(PASS)
+  await page.getByRole('button', { name: 'Entsperren' }).click()
+  await page.getByRole('button', { name: 'Familienordner' }).click()
+  await expect(page.getByText('2 von 2 Mitgliedern haben Zugriff')).toBeVisible()
+  await page.getByTestId('upload-input').setInputFiles({ name: 'Ferienplan.bin', mimeType: 'application/octet-stream', buffer: shared })
+  await expect(page.locator('.filecard', { hasText: 'Ferienplan.bin' })).toBeVisible()
+
+  // Kind sieht die Datei und lädt sie byte-identisch herunter
+  await g.getByRole('button', { name: 'Erneut prüfen' }).click()
+  const card = g.locator('.filecard', { hasText: 'Ferienplan.bin' })
+  await expect(card).toBeVisible()
+  const [dl] = await Promise.all([g.waitForEvent('download'), card.locator('button[title="Herunterladen"]').click()])
+  expect(Buffer.compare(await readFile(await dl.path()), shared)).toBe(0)
 
   // Einladungslink ist verbraucht
   const g2 = await guest.newPage()

@@ -5,7 +5,7 @@ import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 import { formatBytes, type TierName } from '@/lib/vault'
 
-export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys'
+export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder'
 
 interface Props {
   view: ViewId
@@ -18,6 +18,8 @@ interface Props {
   showPlans?: boolean
   /** Pro-Module freigeschaltet (sonst Schloss + Hinweis) */
   pro?: boolean
+  /** Familienordner anzeigen (Family-Mitglieder und -Inhaber) */
+  family?: boolean
 }
 
 const ICONS: Record<ViewId, JSX.Element> = {
@@ -66,6 +68,13 @@ const ICONS: Record<ViewId, JSX.Element> = {
       <path d="M12 7v5l3.5 2" />
     </>
   ),
+  familyFolder: (
+    <>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <circle cx="10" cy="13" r="1.6" />
+      <circle cx="15" cy="13" r="1.6" />
+    </>
+  ),
   passkeys: (
     <>
       <circle cx="8" cy="15" r="4" />
@@ -75,7 +84,7 @@ const ICONS: Record<ViewId, JSX.Element> = {
 }
 
 /** Seitenleiste; auf dem Handy als ausklappbares Menü (Burger-Button in der Topbar-Zeile). */
-export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true }: Props) {
+export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, family = false }: Props) {
   const m = useMessages(appMessages).nav
   const [open, setOpen] = useState(false)
   const pct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0
@@ -121,6 +130,7 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
       <nav className="navlist">
         <Item id="cloud" label={m.cloud} />
         <Item id="send" label={m.send} />
+        {family && <Item id="familyFolder" label={m.familyFolder} />}
         {showPlans && <Item id="plans" label={m.plans} />}
         <Item id="account" label={m.account} />
 

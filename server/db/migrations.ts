@@ -343,6 +343,39 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       -- SHA-256 jedes gesicherten Ciphertext-Teils: Grundlage des Nachweises (Zertifikat).
       ALTER TABLE foc_members ADD COLUMN sha256 bytea;
     `
+  },
+  {
+    version: 12,
+    name: 'family_space',
+    sql: `
+      -- Familienordner: gemeinsame Dateien, verschlüsselt mit einem Ordner-Schlüssel, den nur
+      -- Mitglieder kennen. Jedes Konto hat ein öffentliches ECDH-Schlüsselpaar (privater Teil im
+      -- eigenen verschlüsselten Tresor); der Ordner-Schlüssel wird je Mitglied dafür verpackt.
+      CREATE TABLE account_pubkeys (
+        account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        public_key jsonb NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE family_space_keys (
+        owner_account_id uuid NOT NULL REFERENCES families(owner_account_id) ON DELETE CASCADE,
+        generation integer NOT NULL CHECK (generation > 0),
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        wrapped jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (owner_account_id, generation, account_id)
+      );
+      CREATE TABLE family_space_index (
+        owner_account_id uuid PRIMARY KEY REFERENCES families(owner_account_id) ON DELETE CASCADE,
+        version bigint NOT NULL,
+        body bytea NOT NULL,
+        rotate_needed boolean NOT NULL DEFAULT false,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      -- Objekte im Familienordner: gehören dem hochladenden Konto (Quota-Pool), sind aber für
+      -- alle Mitglieder der Familie abrufbar.
+      ALTER TABLE objects ADD COLUMN space_owner uuid REFERENCES families(owner_account_id) ON DELETE SET NULL;
+      CREATE INDEX objects_space ON objects (space_owner) WHERE space_owner IS NOT NULL;
+    `
   }
 ]
 

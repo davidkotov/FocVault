@@ -19,8 +19,9 @@ import type { FocSyncResult } from '@/server/foc/sync'
 import type { PublicShare, ShareSummary } from '@/server/shares/service'
 import type { FilecoinFileStatus, ProofCertificate } from '@/server/foc/proofs'
 import type { FamilyView } from '@/server/family/service'
+import type { SpaceState } from '@/server/family/space'
 
-export type { FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
+export type { SpaceState, FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
 /** Weiterleitung zu Stripe (Checkout, Kundenportal) */
 export interface Redirect {
@@ -128,6 +129,24 @@ export const api = {
     if (res.status === 204) return null
     const version = Number(res.headers.get('x-fv-version'))
     return { version, body: new Uint8Array(await res.arrayBuffer()) }
+  },
+
+  setPublicKey: (publicKey: JsonWebKey) => call<{ ok: true }>('PUT', '/account/pubkey', { publicKey }),
+  familySpace: () => call<SpaceState>('GET', '/family/space'),
+  familySpaceGrant: (generation: number, grants: Array<{ accountId: string; wrapped: unknown }>) =>
+    call<{ ok: true }>('POST', '/family/space/keys', { generation, grants }),
+  async getSpaceIndex(): Promise<{ version: number; body: Uint8Array<ArrayBuffer> } | null> {
+    const res = await send('/family/space/index', { method: 'GET' })
+    if (res.status === 204) return null
+    return { version: Number(res.headers.get('x-fv-version')), body: new Uint8Array(await res.arrayBuffer()) }
+  },
+  async putSpaceIndex(baseVersion: number, body: Uint8Array<ArrayBuffer>): Promise<{ version: number }> {
+    const res = await send('/family/space/index', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/octet-stream', 'x-fv-base-version': String(baseVersion) },
+      body: new Blob([body])
+    })
+    return (await res.json()) as { version: number }
   },
 
   async putIndex(baseVersion: number, body: Uint8Array<ArrayBuffer>): Promise<{ version: number }> {

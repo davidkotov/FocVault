@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import type { SecretEntry } from '@/lib/vault'
+import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { secretsMessages } from '@/lib/i18n/messages/secrets'
 
 interface Props {
   entries: SecretEntry[]
@@ -10,6 +12,8 @@ interface Props {
 }
 
 export default function NotesPanel({ entries, onSave, onDelete }: Props) {
+  const { common: c, notes: m } = useMessages(secretsMessages)
+  const { fmtDate } = useI18n()
   const [form, setForm] = useState<{ id?: string; title: string; body: string } | null>(null)
 
   const startNew = () => setForm({ title: '', body: '' })
@@ -33,8 +37,8 @@ export default function NotesPanel({ entries, onSave, onDelete }: Props) {
   return (
     <div className="card">
       <h3>
-        Notizen
-        <span>{entries.length} Notizen · verschlüsselt im Vault</span>
+        {m.heading}
+        <span>{fmt(m.subtitle, { n: entries.length })}</span>
       </h3>
 
       {entries.length > 0 && (
@@ -43,16 +47,16 @@ export default function NotesPanel({ entries, onSave, onDelete }: Props) {
             <div className="notecard" key={s.id}>
               <div className="notehead">
                 <div className="sectitle">{s.title}</div>
-                <button className="iconbtn danger" title="Löschen" onClick={() => onDelete(s.id)}>
+                <button className="iconbtn danger" title={c.delete} onClick={() => onDelete(s.id)}>
                   <svg className="icon" width="14" height="14" viewBox="0 0 24 24">
                     <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                   </svg>
                 </button>
               </div>
-              <div className="notebody">{s.body || <span className="dim">Leere Notiz</span>}</div>
+              <div className="notebody">{s.body || <span className="dim">{m.emptyNote}</span>}</div>
               <div className="notefoot">
-                <span className="dim">{new Date(s.updatedAt).toLocaleDateString('de-DE')}</span>
-                <button className="small" onClick={() => startEdit(s)}>Bearbeiten</button>
+                <span className="dim">{fmtDate(s.updatedAt)}</span>
+                <button className="small" onClick={() => startEdit(s)}>{c.edit}</button>
               </div>
             </div>
           ))}
@@ -60,32 +64,32 @@ export default function NotesPanel({ entries, onSave, onDelete }: Props) {
       )}
 
       {entries.length === 0 && !form && (
-        <p className="dim">Noch keine Notizen. Schreibe deine erste verschlüsselte Notiz.</p>
+        <p className="dim">{m.empty}</p>
       )}
 
       {form ? (
         <form className="secform" onSubmit={submit}>
-          <h4>{form.id ? 'Notiz bearbeiten' : 'Neue Notiz'}</h4>
+          <h4>{form.id ? m.editTitle : m.newTitle}</h4>
           <div className="secfields">
             <label>
-              Titel <span className="req">*</span>
-              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="z. B. Ideen, PINs, Recovery-Hinweise" autoFocus />
+              {c.title} <span className="req">*</span>
+              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={m.titlePlaceholder} autoFocus />
             </label>
             <label>
-              Inhalt
-              <textarea rows={6} value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} placeholder="Verschlüsselt gespeichert – niemand sonst liest mit." />
+              {m.body}
+              <textarea rows={6} value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} placeholder={m.bodyPlaceholder} />
             </label>
           </div>
           <div className="row" style={{ marginTop: 14 }}>
             <button className="primary" type="submit" disabled={form.title.trim() === ''}>
-              Speichern
+              {c.save}
             </button>
-            <button type="button" onClick={() => setForm(null)}>Abbrechen</button>
+            <button type="button" onClick={() => setForm(null)}>{c.cancel}</button>
           </div>
         </form>
       ) : (
         <div className="row" style={{ marginTop: 14 }}>
-          <button className="primary" onClick={startNew}>+ Neue Notiz</button>
+          <button className="primary" onClick={startNew}>{m.newButton}</button>
         </div>
       )}
     </div>

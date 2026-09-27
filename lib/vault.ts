@@ -51,6 +51,10 @@ export interface VaultEntry {
   pieceSize?: number
   /** Ältere Fassungen (Pro/Family), neueste zuerst */
   versions?: FileVersion[]
+  /** Familienordner: Generation des Ordner-Schlüssels, mit dem der Datei-Schlüssel verpackt ist */
+  spaceGen?: number
+  /** Familienordner: wer die Datei hinzugefügt hat */
+  addedBy?: string
   /** S3-Gateway: ETag (MD5) wie vom Client erwartet */
   etag?: string
   /** Vom Backup-Programm gesichert: Quelle auf dem Gerät (für inkrementelle Backups) */
@@ -108,6 +112,8 @@ export interface VaultContainer {
   files: VaultEntry[]
   secrets: SecretEntry[]
   trash?: TrashEntry[]
+  /** Schlüsselpaar für den Familienordner (privater Teil nur hier, im verschlüsselten Tresor) */
+  familyKey?: { publicJwk: JsonWebKey; privateJwk: JsonWebKey }
 }
 
 export const EMPTY_CONTAINER: VaultContainer = { v: 3, files: [], secrets: [] }
@@ -191,7 +197,9 @@ export function parseVaultContainer(json: string): VaultContainer {
           })
           .filter((e: TrashEntry | null): e is TrashEntry => e !== null)
       : []
-    return { v: 3, files, secrets, ...(trash.length ? { trash } : {}) }
+    const familyKey =
+      parsed.familyKey && typeof parsed.familyKey === 'object' && parsed.familyKey.privateJwk && parsed.familyKey.publicJwk ? parsed.familyKey : undefined
+    return { v: 3, files, secrets, ...(trash.length ? { trash } : {}), ...(familyKey ? { familyKey } : {}) }
   }
   return { v: 3, files: [], secrets: [] }
 }
