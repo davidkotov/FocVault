@@ -28,7 +28,7 @@ The two commits (`269c419` "Initial commit", `814740c` "Add files via upload") a
 
 **The crypto is also not backdoored.** Keys are generated with `crypto.getRandomValues`, imported as **non-extractable** `CryptoKey`s, and never serialised anywhere except wrapped under the user's own master key. There is no hidden second recipient, no key escrow, no "phone home".
 
-> Caveat: this audit covers *source*. It does not prove the deployed demo at `http://179.43.188.2:3000` serves this source. Do not enter a real wallet on that plain-HTTP demo host.
+> Caveat: this audit covers *source*. It does not prove that a deployed demo serves this source. Never enter a real wallet on a plain-HTTP demo host.
 
 ---
 
@@ -324,5 +324,5 @@ Worth stating explicitly, because it is a short list of things that are often wr
 
 ## 5. Non-code risks
 
-- The demo at `http://179.43.188.2:3000` is **plain HTTP**. With no TLS, anyone on the path can rewrite the JavaScript and steal the master key at unlock time. This defeats the entire security model. Never connect a funded wallet to it; move to HTTPS before showing it to anyone.
+- The former demo host was **plain HTTP** (since replaced by the HTTPS deployment). With no TLS, anyone on the path can rewrite the JavaScript and steal the master key at unlock time. This defeats the entire security model. Never connect a funded wallet to it; move to HTTPS before showing it to anyone.
 - `README.md` already notes the EU DSA/GDPR takedown obligations for a hosting service and recommends legal review before launch. That assessment is correct and should not be skipped — zero-knowledge does not exempt an operator from abuse-report handling.
