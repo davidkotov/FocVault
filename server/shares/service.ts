@@ -19,18 +19,23 @@ export const createShareSchema = z
     /** eine Datei (ältere Clients) … */
     objectId: z.string().uuid().optional(),
     /** … oder mehrere, in dieser Reihenfolge */
-    objectIds: z.array(z.string().uuid()).min(1).max(MAX_ITEMS).optional(),
+    objectIds: z.array(z.string().uuid()).max(MAX_ITEMS).optional(),
     /** mit dem Link-Schlüssel verschlüsselte Metadaten, base64 */
     meta: z.string().min(20).max(2_000_000).regex(/^[A-Za-z0-9+/=]+$/),
+    /** verschlüsselter Inhalt (z. B. Notiz) – erst beim gezählten Abruf ausgeliefert, base64 */
+    payload: z.string().min(20).max(400_000).regex(/^[A-Za-z0-9+/=]+$/).optional(),
     expiresInHours: z.number().int().min(1).max(24 * 365).nullable(),
     maxDownloads: z.number().int().min(1).max(1000).nullable()
   })
-  .refine(v => !!v.objectId !== !!v.objectIds, { message: 'objectId oder objectIds angeben' })
+  .refine(v => !(v.objectId && v.objectIds), { message: 'objectId oder objectIds angeben' })
+  .refine(v => !!v.objectId || (v.objectIds?.length ?? 0) > 0 || !!v.payload, { message: 'Datei oder Inhalt erforderlich' })
 
 export interface ShareSummary {
   id: string
-  objectId: string
+  objectId: string | null
   objectIds: string[]
+  /** enthält einen Inhalt (Notiz) */
+  hasPayload: boolean
   createdAt: string
   expiresAt: string | null
   maxDownloads: number | null
@@ -39,8 +44,9 @@ export interface ShareSummary {
 }
 
 export interface PublicShare {
-  objectId: string
+  objectId: string | null
   objectIds: string[]
+  hasPayload: boolean
   meta: string
   expiresAt: string | null
   remaining: number | null
@@ -57,10 +63,11 @@ interface ShareRow {
   revoked_at: string | null
   object_ids: string[]
   stored: number
+  has_payload: boolean
 }
 
 function isActive(r: ShareRow): boolean {
-  if (r.revoked_at || Number(r.stored) === 0) return false
+  if (r.revoked_at || (Number(r.stored) === 0 && !r.has_payload)) return false
   if (r.expires_at && new Date(r.expires_at).getTime() <= Date.now()) return false
   return r.max_downloads === null || r.downloads < r.max_downloads
 }
@@ -68,8 +75,9 @@ function isActive(r: ShareRow): boolean {
 function summary(r: ShareRow): ShareSummary {
   return {
     id: r.id,
-    objectId: r.object_ids[0],
+    objectId: r.object_ids[0] ?? null,
     objectIds: r.object_ids,
+    hasPayload: !!r.has_payload,
     createdAt: new Date(r.created_at).toISOString(),
     expiresAt: r.expires_at ? new Date(r.expires_at).toISOString() : null,
     maxDownloads: r.max_downloads,
@@ -80,10 +88,11 @@ function summary(r: ShareRow): ShareSummary {
 
 const SELECT = `
   SELECT s.id, s.account_id, s.meta, s.expires_at, s.max_downloads, s.downloads, s.created_at, s.revoked_at,
-         array_agg(i.object_id::text ORDER BY i.position) AS object_ids,
-         count(*) FILTER (WHERE o.state = 'stored')::float8 AS stored
-    FROM shares s JOIN share_items i ON i.share_id = s.id JOIN objects o ON o.id = i.object_id`
-const GROUP = `GROUP BY s.id, s.account_id, s.meta, s.expires_at, s.max_downloads, s.downloads, s.created_at, s.revoked_at`
+         coalesce(array_remove(array_agg(i.object_id::text ORDER BY i.position), NULL), '{}') AS object_ids,
+         count(o.id) FILTER (WHERE o.state = 'stored')::float8 AS stored,
+         (s.payload IS NOT NULL) AS has_payload
+    FROM shares s LEFT JOIN share_items i ON i.share_id = s.id LEFT JOIN objects o ON o.id = i.object_id`
+const GROUP = `GROUP BY s.id, s.account_id, s.meta, s.expires_at, s.max_downloads, s.downloads, s.created_at, s.revoked_at, s.payload`
 
 /** 16 Zufallsbytes → nicht erratbare Link-ID (die ID allein entschlüsselt nichts). */
 function newId(): string {
@@ -91,7 +100,8 @@ function newId(): string {
 }
 
 export async function createShare(deps: Deps, session: SessionInfo, input: z.output<typeof createShareSchema>): Promise<ShareSummary> {
-  const ids = input.objectIds ?? [input.objectId!]
+  const ids = input.objectIds ?? (input.objectId ? [input.objectId] : [])
+  if (!ids.length && !input.payload) throw new ApiError('BAD_REQUEST', 'Datei oder Inhalt erforderlich.')
   if (new Set(ids).size !== ids.length) throw new ApiError('BAD_REQUEST', 'Dateien doppelt ausgewählt.')
   const owned = await deps.db.query<{ id: string }>(
     `SELECT id FROM objects WHERE id = ANY($1::uuid[]) AND owner_account_id = $2 AND state = 'stored'`,
@@ -106,16 +116,24 @@ export async function createShare(deps: Deps, session: SessionInfo, input: z.out
   const id = newId()
   await deps.db.tx(async tx => {
     await tx.query(
-      `INSERT INTO shares (id, account_id, object_id, meta, expires_at, max_downloads)
-       VALUES ($1, $2, $3, $4, CASE WHEN $5::float8 IS NULL THEN NULL ELSE now() + make_interval(hours => $5::int) END, $6)`,
-      [id, session.accountId, ids[0], Buffer.from(input.meta, 'base64'), input.expiresInHours, input.maxDownloads]
+      `INSERT INTO shares (id, account_id, object_id, meta, expires_at, max_downloads, payload)
+       VALUES ($1, $2, $3, $4, CASE WHEN $5::float8 IS NULL THEN NULL ELSE now() + make_interval(hours => $5::int) END, $6, $7)`,
+      [
+        id,
+        session.accountId,
+        ids[0] ?? null,
+        Buffer.from(input.meta, 'base64'),
+        input.expiresInHours,
+        input.maxDownloads,
+        input.payload ? Buffer.from(input.payload, 'base64') : null
+      ]
     )
     await tx.query(
       `INSERT INTO share_items (share_id, position, object_id) SELECT $1, p - 1, o FROM unnest($2::uuid[]) WITH ORDINALITY AS t(o, p)`,
       [id, ids]
     )
   })
-  await audit(deps.db, session.accountId, 'user', 'share.created', { files: ids.length, expiresInHours: input.expiresInHours, maxDownloads: input.maxDownloads })
+  await audit(deps.db, session.accountId, 'user', 'share.created', { files: ids.length, note: !!input.payload, expiresInHours: input.expiresInHours, maxDownloads: input.maxDownloads })
   const rows = await deps.db.query<ShareRow>(`${SELECT} WHERE s.id = $1 ${GROUP}`, [id])
   return summary(rows[0])
 }
@@ -152,8 +170,9 @@ async function loadPublic(deps: Deps, id: string): Promise<ShareRow> {
 export async function publicShare(deps: Deps, id: string): Promise<PublicShare> {
   const r = await loadPublic(deps, id)
   return {
-    objectId: r.object_ids[0],
+    objectId: r.object_ids[0] ?? null,
     objectIds: r.object_ids,
+    hasPayload: !!r.has_payload,
     meta: Buffer.from(r.meta).toString('base64'),
     expiresAt: r.expires_at ? new Date(r.expires_at).toISOString() : null,
     remaining: r.max_downloads === null ? null : r.max_downloads - Number(r.downloads)
@@ -164,7 +183,10 @@ export async function publicShare(deps: Deps, id: string): Promise<PublicShare> 
  * Download starten: zählt serverseitig einmal pro Abruf (auch bei mehreren Dateien) und liefert
  * die Abruf-URLs aller noch vorhandenen Dateien. Einmal-Links gelten global, nicht pro Gerät.
  */
-export async function startShareDownload(deps: Deps, id: string): Promise<DownloadResult & { items: Array<{ objectId: string } & DownloadResult> }> {
+export async function startShareDownload(
+  deps: Deps,
+  id: string
+): Promise<DownloadResult & { items: Array<{ objectId: string } & DownloadResult>; payload?: string }> {
   const r = await loadPublic(deps, id)
   const upd = await deps.db.query(
     `UPDATE shares SET downloads = downloads + 1
@@ -189,5 +211,10 @@ export async function startShareDownload(deps: Deps, id: string): Promise<Downlo
     r.object_ids.map(async objectId => ({ objectId, pieces: await Promise.all(pieces.filter(p => p.object_id === objectId).map(presign)) }))
   )
   // `pieces` der ersten Datei für ältere Empfängerseiten
-  return { pieces: items[0]?.pieces ?? [], items: items.filter(i => i.pieces.length) }
+  let payload: string | undefined
+  if (r.has_payload) {
+    const p = await deps.db.query<{ payload: Uint8Array }>('SELECT payload FROM shares WHERE id = $1', [id])
+    payload = Buffer.from(p[0].payload).toString('base64')
+  }
+  return { pieces: items[0]?.pieces ?? [], items: items.filter(i => i.pieces.length), ...(payload ? { payload } : {}) }
 }

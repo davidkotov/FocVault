@@ -98,8 +98,26 @@ export interface SecretEntry {
   period?: number
   /** TOTP: standard SHA1 */
   algorithm?: 'SHA1' | 'SHA256' | 'SHA512'
+  /** Notiz: oben angeheftet */
+  pinned?: boolean
+  /** Notiz: freie Schlagwörter */
+  tags?: string[]
+  /** Notiz: Vorlage (Ausweis, Kreditkarte …) mit strukturierten Feldern */
+  template?: NoteTemplateId
+  fields?: NoteField[]
+  /** Notiz: verschlüsselte Anhänge (eigene Objekte, zählen zum Speicher) */
+  attachments?: VaultEntry[]
+  /** Notiz: IDs der Secure-Send-Links (nur für die Anzeige in der Link-Übersicht) */
+  shareIds?: string[]
   createdAt: number
   updatedAt: number
+}
+
+export type NoteTemplateId = 'id' | 'card' | 'insurance' | 'wifi' | 'license'
+
+export interface NoteField {
+  key: string
+  value: string
 }
 
 /** Datei im Papierkorb (Pro/Family): Metadaten bleiben verschlüsselt im Index, bis sie endgültig gelöscht wird. */

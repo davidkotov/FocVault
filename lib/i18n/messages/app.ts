@@ -226,7 +226,8 @@ const de = {
     notice: 'Links',
     empty: 'Noch keine Links erstellt.',
     file: 'Datei',
-    deleted: 'gelöschte Datei'
+    deleted: 'gelöschte Datei',
+    note: 'Notiz'
   },
   account: {
     title: 'Konto',
@@ -494,7 +495,8 @@ const en: typeof de = {
     notice: 'Links',
     empty: 'No links created yet.',
     file: 'File',
-    deleted: 'deleted file'
+    deleted: 'deleted file',
+    note: 'Note'
   },
   account: {
     title: 'Account',

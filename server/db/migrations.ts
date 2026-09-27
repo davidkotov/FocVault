@@ -475,6 +475,19 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       -- Die Kennung ist von Recovery-Auth-Key und KEK unabhängig (eigener HKDF-Zweig).
       ALTER TABLE accounts ADD COLUMN recovery_lookup bytea UNIQUE;
     `
+  },
+  {
+    version: 17,
+    name: 'note_shares',
+    sql: `
+      -- Notizen per Secure Send: Inhalt verschlüsselt in payload (nur beim gezählten Abruf ausgeliefert),
+      -- Anhänge über share_items. Die Dateien selbst stehen in share_items; shares.object_id ist nur
+      -- noch die erste Datei (oder leer) und darf den Link beim Löschen nicht mitreißen.
+      ALTER TABLE shares ALTER COLUMN object_id DROP NOT NULL;
+      ALTER TABLE shares DROP CONSTRAINT shares_object_id_fkey;
+      ALTER TABLE shares ADD CONSTRAINT shares_object_id_fkey FOREIGN KEY (object_id) REFERENCES objects(id) ON DELETE SET NULL;
+      ALTER TABLE shares ADD COLUMN payload bytea;
+    `
   }
 ]
 

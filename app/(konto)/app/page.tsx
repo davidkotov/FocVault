@@ -220,6 +220,7 @@ export default function AppPage() {
   const [freeGb, setFreeGb] = useState(5)
   const [purgeAt, setPurgeAt] = useState<Record<string, string>>({})
   const [sharing, setSharing] = useState<VaultEntry[] | null>(null)
+  const [sharingNote, setSharingNote] = useState<SecretEntry | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [dropOver, setDropOver] = useState<string | null>(null)
   const [confirmBulk, setConfirmBulk] = useState<VaultEntry[] | null>(null)
@@ -811,7 +812,7 @@ export default function AppPage() {
               <button className="small backbtn" onClick={() => setView('cloud')}>
                 ← {t.trash.back}
               </button>
-              <SendView files={vault.files} />
+              <SendView files={vault.files} notes={vault.secrets.filter(s => s.kind === 'note')} />
             </>
           )}
           {view === 'trash' && (
@@ -843,6 +844,19 @@ export default function AppPage() {
             />
           )}
           {sharing && <ShareDialog entries={sharing} masterKey={masterKey} onClose={() => setSharing(null)} />}
+          {sharingNote && (
+            <ShareDialog
+              note={sharingNote}
+              masterKey={masterKey}
+              onClose={() => setSharingNote(null)}
+              onCreated={id =>
+                mutate(c => ({
+                  ...c,
+                  secrets: c.secrets.map(s => (s.id === sharingNote.id ? { ...s, shareIds: [...(s.shareIds ?? []), id].slice(-50) } : s))
+                }))
+              }
+            />
+          )}
           {confirmBulk && (
             <ConfirmDialog
               title={fmt(t.bulk.confirmDelete, { n: confirmBulk.length })}
@@ -904,7 +918,14 @@ export default function AppPage() {
                 onDelete={deleteSecret}
               />
             ) : view === 'notes' ? (
-              <NotesPanel entries={vault.secrets.filter(s => s.kind === 'note')} onSave={upsertSecret} onDelete={deleteSecret} />
+              <NotesPanel
+                entries={vault.secrets.filter(s => s.kind === 'note')}
+                onSave={upsertSecret}
+                onDelete={deleteSecret}
+                masterKey={masterKey}
+                onShare={setSharingNote}
+                onStorageChanged={() => void refreshAccount()}
+              />
             ) : (
               <TotpPanel entries={vault.secrets.filter(s => s.kind === 'totp')} onSave={upsertSecret} onDelete={deleteSecret} />
             ))}

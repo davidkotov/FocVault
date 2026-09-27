@@ -41,6 +41,27 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Notizen v2: Formatierung, Vorlagen, Anhänge, Teilen per Secure Send
+
+**Notizen:** Formatierung (# Überschriften, Listen, anklickbare Checklisten `- [ ]`, **fett**, *kursiv*,
+`Code`, Links) über eine eigene sichere Darstellung (kein HTML), Werkzeugleiste im Editor. Anheften,
+Tags mit Filter-Chips, Volltextsuche (ohne geheime Felder). **Vorlagen:** Ausweis/Pass, Kreditkarte,
+Versicherung, WLAN, Softwarelizenz mit strukturierten Feldern; geheime Felder verdeckt (Anzeigen/Kopieren),
+Ablauf-Erinnerung ab 60 Tagen vorher (Badge + Hinweis oben). **Anhänge:** eigene verschlüsselte Objekte
+(zählen zum Speicher, erscheinen nicht in „Meine Cloud“), beim Löschen der Notiz mitgelöscht.
+**Teilen (Migration v17):** Notiz-Links ohne oder mit Anhängen; der Notizinhalt liegt verschlüsselt im
+`payload` des Links und wird **erst beim gezählten Abruf** ausgeliefert – ein Einmal-Link ist also wirklich
+nur einmal lesbar. `shares.object_id` darf leer sein und reißt Links beim Löschen einer Datei nicht mehr mit
+(ON DELETE SET NULL; Dateien stehen in `share_items`). Link-Übersicht zeigt „🗒 Titel“.
+
+### Wiederherstellen nur mit den 24 Wörtern (Migration v16)
+
+Aus den Wörtern wird per eigenem HKDF-Zweig eine Konto-Kennung abgeleitet; der Server speichert nur
+HMAC(Server-Secret, Kennung). Neue Konten erhalten sie bei der Registrierung, ältere beim nächsten
+erfolgreichen Wiederherstellen. `/wiederherstellen`: E-Mail nur noch optional.
+
+**Tests:** Vitest 107/107, Playwright 8/8 (neu: `e2e/notes.spec.ts`; account.spec stellt ohne E-Mail wieder her).
+
 ### Mehrfachauswahl, Drag & Drop, Secure Send für mehrere Dateien, Abschnitt „API-Module“
 
 **Meine Cloud:** Dateien markieren (Kästchen, „Alle auswählen“) → Leiste „n ausgewählt“ mit Teilen,

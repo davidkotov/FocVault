@@ -47,22 +47,35 @@ interface ShareMetaV3 {
 interface ShareMetaV4 {
   v: 4
   files: SharedFile[]
+  /** Link enthält eine Notiz (Inhalt im Payload, erst beim gezählten Abruf) */
+  note?: boolean
+}
+
+/** Geteilte Notiz – liegt verschlüsselt im Payload des Links. */
+export interface SharedNote {
+  title: string
+  body?: string
+  template?: string
+  fields?: Array<{ key: string; value: string }>
+  tags?: string[]
 }
 
 export interface ShareLinkOptions {
   expiresInHours: number | null
   maxDownloads: number | null
   password?: string
+  /** Notiz mitsenden (Anhänge = `entries`) */
+  note?: SharedNote
 }
 
-/** Link für eine oder mehrere Dateien. `keyFor` liefert den Schlüssel, mit dem der Datei-Schlüssel verpackt ist. */
+/** Link für eine oder mehrere Dateien (und/oder eine Notiz). `keyFor` liefert den Schlüssel, mit dem der Datei-Schlüssel verpackt ist. */
 export async function createShareLink(
   entries: VaultEntry | VaultEntry[],
   keyFor: CryptoKey | ((e: VaultEntry) => CryptoKey),
   opts: ShareLinkOptions
 ): Promise<{ url: string; id: string }> {
   const list = Array.isArray(entries) ? entries : [entries]
-  if (!list.length || list.some(e => !e.objectId)) throw new Error('Diese Datei kann nicht geteilt werden.')
+  if ((!list.length && !opts.note) || list.some(e => !e.objectId)) throw new Error('Diese Datei kann nicht geteilt werden.')
   const linkKey = randomLinkKey()
   const raws: Bytes[] = []
   try {
@@ -73,11 +86,13 @@ export async function createShareLink(
       raws.push(raw)
       files.push({ objectId: e.objectId!, name: e.name, type: e.type, size: e.size, pieceSize: e.pieceSize, chunks: e.chunks, fileKey: toB64(raw) })
     }
-    const meta: ShareMetaV4 = { v: 4, files }
+    const meta: ShareMetaV4 = { v: 4, files, ...(opts.note ? { note: true } : {}) }
     const container = await encryptShareContainer(JSON.stringify(meta), linkKey)
+    const payload = opts.note ? toB64(await encryptShareContainer(JSON.stringify(opts.note), linkKey)) : undefined
     const share = await api.createShare({
       objectIds: files.map(f => f.objectId),
       meta: toB64(container),
+      payload,
       expiresInHours: opts.expiresInHours,
       maxDownloads: opts.maxDownloads
     })
@@ -109,6 +124,9 @@ export class SharePasswordError extends Error {}
 export interface OpenedShare {
   id: string
   files: SharedFile[]
+  hasNote: boolean
+  /** bleibt im Speicher, um den Payload nach dem Abruf zu entschlüsseln */
+  linkKey: Bytes
   expiresAt: string | null
   remaining: number | null
 }
@@ -132,18 +150,19 @@ export async function openShareLink(id: string, fragment: string, password?: str
     meta.v === 4
       ? meta.files
       : meta.v === 3
-        ? [{ objectId: pub.objectId, name: meta.name, type: meta.type, size: meta.size, pieceSize: meta.pieceSize, chunks: meta.chunks, fileKey: meta.fileKey }]
+        ? [{ objectId: pub.objectId ?? '', name: meta.name, type: meta.type, size: meta.size, pieceSize: meta.pieceSize, chunks: meta.chunks, fileKey: meta.fileKey }]
         : (() => {
             throw new Error('Unbekanntes Link-Format')
           })()
-  return { id, files, expiresAt: pub.expiresAt, remaining: pub.remaining }
+  return { id, files, hasNote: meta.v === 4 && !!meta.note && pub.hasPayload, linkKey, expiresAt: pub.expiresAt, remaining: pub.remaining }
 }
 
-/** Download-Vorgang starten (zählt einmal) → Abruf-URLs je Datei. */
-export async function startSharedDownload(share: OpenedShare): Promise<Map<string, PresignedPiece[]>> {
+/** Download-Vorgang starten (zählt einmal) → Abruf-URLs je Datei und ggf. die Notiz. */
+export async function startSharedDownload(share: OpenedShare): Promise<{ pieces: Map<string, PresignedPiece[]>; note: SharedNote | null }> {
   const r = await api.shareDownload(share.id)
-  const items = r.items ?? [{ objectId: share.files[0].objectId, pieces: r.pieces }]
-  return new Map(items.map(i => [i.objectId, i.pieces]))
+  const items = r.items ?? (share.files[0] ? [{ objectId: share.files[0].objectId, pieces: r.pieces }] : [])
+  const note = r.payload ? (JSON.parse(await decryptShareContainer(fromB64(r.payload), share.linkKey)) as SharedNote) : null
+  return { pieces: new Map(items.map(i => [i.objectId, i.pieces])), note }
 }
 
 export async function downloadSharedFile(file: SharedFile, pieces: PresignedPiece[], onProgress?: (done: number, total: number) => void): Promise<void> {
