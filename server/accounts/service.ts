@@ -1,3 +1,4 @@
+import { passkeyEnvelopes } from './passkeys'
 import { pooledUsedBytes } from '../family/service'
 import type { z } from 'zod'
 import type { AccountView, KdfParams, KekType, KeyEnvelope, Plan } from '../../lib/api-types'
@@ -236,6 +237,7 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
     createdAt: new Date(a.created_at).toISOString(),
     kdf: pass.kdf_params,
     envelopes,
+    passkeys: await passkeyEnvelopes(deps.db, a.id, a.plan),
     isAdmin: isAdminIdentity(a.email, wallets)
   }
 }

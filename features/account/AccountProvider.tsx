@@ -6,6 +6,7 @@ import type { VaultContainer } from '@/lib/vault'
 import { mergeContainers } from '@/lib/merge'
 import { api, errorMessage } from '@/features/api/client'
 import { deriveFromPassphrase, unwrapMasterKey } from '@/features/keys/kdf'
+import { passkeyKek, passkeyPrf } from '@/features/keys/passkey'
 import { loadIndex, saveIndex, type IndexState } from '@/features/vault/sync'
 
 export type AccountStatus = 'loading' | 'signedOut' | 'locked' | 'ready'
@@ -26,6 +27,8 @@ interface AccountContextValue {
   /** Session besteht (z. B. nach Reown-Login), Tresor noch gesperrt. */
   signIn: (view: AccountView) => void
   unlock: (passphrase: string) => Promise<void>
+  /** Mit einem hinterlegten Passkey entsperren (Pro/Family) */
+  unlockWithPasskey: () => Promise<void>
   lock: () => void
   logout: () => Promise<void>
   refreshAccount: () => Promise<void>
@@ -107,6 +110,19 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     },
     [enter]
   )
+
+  const unlockWithPasskey = useCallback(async () => {
+    const view = accountRef.current
+    if (!view?.passkeys.length) throw new Error('Kein Passkey eingerichtet.')
+    const { credentialId, prf } = await passkeyPrf(view.passkeys)
+    const pk = view.passkeys.find(p => p.credentialId === credentialId)!
+    try {
+      const kek = await passkeyKek(prf, credentialId)
+      await enter(view, await unwrapMasterKey({ kekType: 'passkey', iv: pk.iv, cipher: pk.cipher }, kek))
+    } finally {
+      prf.fill(0)
+    }
+  }, [enter])
 
   const lock = useCallback(() => {
     keyRef.current = null
@@ -200,13 +216,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       enter,
       signIn,
       unlock,
+      unlockWithPasskey,
       lock,
       logout,
       refreshAccount,
       mutate,
       retrySync: () => void flush()
     }),
-    [status, account, masterKey, vault, syncing, syncError, bootError, enter, signIn, unlock, lock, logout, refreshAccount, mutate, flush]
+    [status, account, masterKey, vault, syncing, syncError, bootError, enter, signIn, unlock, unlockWithPasskey, lock, logout, refreshAccount, mutate, flush]
   )
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>

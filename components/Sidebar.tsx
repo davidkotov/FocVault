@@ -5,7 +5,7 @@ import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 import { formatBytes, type TierName } from '@/lib/vault'
 
-export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa'
+export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys'
 
 interface Props {
   view: ViewId
@@ -65,6 +65,12 @@ const ICONS: Record<ViewId, JSX.Element> = {
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7v5l3.5 2" />
     </>
+  ),
+  passkeys: (
+    <>
+      <circle cx="8" cy="15" r="4" />
+      <path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2" />
+    </>
   )
 }
 
@@ -122,13 +128,7 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
         <Item id="passwords" label={m.passwords} locked={!pro} />
         <Item id="notes" label={m.notes} locked={!pro} />
         <Item id="2fa" label={m.totp} locked={!pro} />
-        <div className="navitem disabled">
-          <svg className="icon" viewBox="0 0 24 24">
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            <rect x="3" y="11" width="18" height="10" rx="2" />
-          </svg>
-          {m.passkeys} {pro ? <span className="badge-soon">{m.soon}</span> : <Lock />}
-        </div>
+        <Item id="passkeys" label={m.passkeys} locked={!pro} />
 
         <div className="spacer" />
 

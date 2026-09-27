@@ -187,6 +187,9 @@ export const api = {
   familyJoin: (token: string) => call<AccountView>('POST', '/family/join', { token }),
   familyRemove: (accountId: string) => call<{ ok: true }>('DELETE', `/family/members/${encodeURIComponent(accountId)}`),
   proof: (objectId: string) => call<ProofCertificate>('GET', `/objects/${encodeURIComponent(objectId)}/proof`),
+  addPasskey: (input: { credentialId: string; label: string; salt: string; iv: string; cipher: string }) =>
+    call<AccountView>('POST', '/account/passkeys', input),
+  removePasskey: (credentialId: string) => call<AccountView>('DELETE', `/account/passkeys/${encodeURIComponent(credentialId)}`),
   filecoinStatus: () => call<FilecoinFileStatus>('GET', '/objects/filecoin'),
   createShare: (input: { objectId: string; meta: string; expiresInHours: number | null; maxDownloads: number | null }) =>
     call<ShareSummary>('POST', '/shares', input),

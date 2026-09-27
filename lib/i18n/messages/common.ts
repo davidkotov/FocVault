@@ -27,6 +27,11 @@ const de = {
     INTERNAL: 'Etwas ist schiefgelaufen. Bitte erneut versuchen.',
     ABORTED: 'Abgebrochen.',
     WRONG_PASSPHRASE: 'Die Passphrase ist falsch.',
+    WRONG_PASSKEY: 'Dieser Passkey passt nicht (mehr) zu diesem Konto.',
+    UNSUPPORTED: 'Dieser Browser unterstützt keine Passkeys.',
+    NO_PRF: 'Dieser Passkey kann nicht zum Entsperren verwendet werden. Bitte einen aktuellen Browser bzw. Face ID, Touch ID, Windows Hello oder einen Sicherheitsschlüssel mit PRF nutzen.',
+    CANCELLED: 'Abgebrochen.',
+    NO_MATCH: 'Dieser Passkey gehört nicht zu diesem Konto.',
     WRONG_RECOVERY: 'Das Recovery-Kit passt nicht zu diesem Konto.',
     INVALID_RECOVERY: 'Recovery-Kit ungültig – bitte prüfe Schreibweise und Reihenfolge der 24 Wörter.',
     GENERIC: 'Etwas ist schiefgelaufen.'
@@ -62,6 +67,11 @@ const en: typeof de = {
     INTERNAL: 'Something went wrong. Please try again.',
     ABORTED: 'Cancelled.',
     WRONG_PASSPHRASE: 'The passphrase is incorrect.',
+    WRONG_PASSKEY: 'This passkey no longer matches this account.',
+    UNSUPPORTED: 'This browser does not support passkeys.',
+    NO_PRF: 'This passkey cannot be used to unlock. Please use a current browser or Face ID, Touch ID, Windows Hello or a security key with PRF.',
+    CANCELLED: 'Cancelled.',
+    NO_MATCH: 'This passkey does not belong to this account.',
     WRONG_RECOVERY: 'This recovery kit does not belong to this account.',
     INVALID_RECOVERY: 'Invalid recovery kit – please check the spelling and order of the 24 words.',
     GENERIC: 'Something went wrong.'

@@ -18,7 +18,7 @@ const te = new TextEncoder()
 /** Fehler mit maschinenlesbarem Code – die UI übersetzt ihn (commonMessages.errors). */
 export class KeyError extends Error {
   constructor(
-    readonly code: 'WRONG_PASSPHRASE' | 'WRONG_RECOVERY' | 'INVALID_RECOVERY',
+    readonly code: 'WRONG_PASSPHRASE' | 'WRONG_RECOVERY' | 'INVALID_RECOVERY' | 'WRONG_PASSKEY',
     message: string
   ) {
     super(message)
@@ -123,7 +123,9 @@ export async function unwrapMasterKeyRaw(env: KeyEnvelope, kek: CryptoKey): Prom
   } catch {
     throw env.kekType === 'passphrase'
       ? new KeyError('WRONG_PASSPHRASE', 'Die Passphrase ist falsch.')
-      : new KeyError('WRONG_RECOVERY', 'Das Recovery-Kit passt nicht zu diesem Konto.')
+      : env.kekType === 'passkey'
+        ? new KeyError('WRONG_PASSKEY', 'Dieser Passkey passt nicht (mehr) zu diesem Konto.')
+        : new KeyError('WRONG_RECOVERY', 'Das Recovery-Kit passt nicht zu diesem Konto.')
   }
 }
 

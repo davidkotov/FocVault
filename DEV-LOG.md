@@ -41,6 +41,20 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Passkey-Entsperren (Pro/Family)
+
+Face ID, Touch ID, Windows Hello oder Sicherheitsschlüssel statt Passphrase – über die WebAuthn-PRF-
+Erweiterung (hmac-secret). Beim Einrichten bestätigt man mit der Passphrase; der Browser holt den
+PRF-Wert, leitet per HKDF-SHA-256 (Kontext `focvault/passkey-kek/v1` + Credential-ID) einen Schlüssel ab
+und verpackt damit den Master-Key (`account_keys.kek_type = 'passkey'`, `kek_id` = Credential-ID,
+Salt/Name in `kdf_params`). Der Server speichert nur diese Hülle – ohne das Gerät wertlos. Entsperren:
+„Mit Passkey entsperren“ im Sperrbildschirm. Die Anmeldung (Session) bleibt unverändert; Passphrase und
+Recovery-Kit gelten weiter. Nur mit Abo sichtbar/nutzbar; Free sieht ein Schloss. Bis zu 10 Passkeys,
+einzeln entfernbar. Neuer Menüpunkt „Passkeys“.
+
+**Tests:** Vitest 91/91 (Plan-Sperre, doppelt, Entfernen, bei Free ausgeblendet), Playwright: echter
+WebAuthn-Ablauf mit virtuellem Authenticator inkl. PRF (einrichten → sperren → mit Passkey entsperren).
+
 ### Backup-Programm (CLI) und S3-Gateway
 
 **`cli/`** (gebündelt mit esbuild zu `bin/focvault.mjs`, Node ≥ 20): nutzt dieselben Module wie der Browser

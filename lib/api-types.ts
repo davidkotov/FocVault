@@ -11,7 +11,7 @@ export interface KdfParams {
   p: number
 }
 
-export type KekType = 'passphrase' | 'recovery'
+export type KekType = 'passphrase' | 'recovery' | 'passkey'
 
 /** Master-Key, AES-GCM-gewrappt durch einen KEK. Der Server kann ihn nicht öffnen. */
 export interface KeyEnvelope {
@@ -41,7 +41,20 @@ export interface AccountView {
   kdf: KdfParams
   /** Passphrase-Envelope; nach Recovery-Login zusätzlich das Recovery-Envelope. */
   envelopes: KeyEnvelope[]
+  /** Passkeys zum Entsperren (nur Pro/Family): Envelope + PRF-Salt je Passkey */
+  passkeys: PasskeyEnvelope[]
   isAdmin: boolean
+}
+
+export interface PasskeyEnvelope {
+  /** WebAuthn-Credential-ID (base64url) */
+  credentialId: string
+  label: string
+  /** Eingabe für die PRF-Erweiterung (base64url, 32 Byte) */
+  salt: string
+  iv: string
+  cipher: string
+  createdAt: string
 }
 
 export type BillingCurrency = 'CHF' | 'EUR' | 'USD'

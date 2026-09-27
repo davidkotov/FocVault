@@ -95,6 +95,26 @@ const de = {
     decline: 'Nicht jetzt',
     left: 'Du hast die Familie verlassen.'
   },
+  passkeys: {
+    title: 'Passkeys',
+    lead: 'Entsperre deinen Tresor mit Face ID, Touch ID, Windows Hello oder einem Sicherheitsschlüssel statt mit der Passphrase. Der Passkey bleibt auf deinem Gerät; FocVault speichert nur eine damit verschlossene Kopie deines Schlüssels. Deine Passphrase und dein Recovery-Kit gelten weiter.',
+    none: 'Noch kein Passkey eingerichtet.',
+    add: 'Passkey hinzufügen',
+    adding: 'Bitte am Gerät bestätigen …',
+    name: 'Name',
+    confirm: 'Zur Bestätigung deine Passphrase',
+    save: 'Einrichten',
+    cancel: 'Abbrechen',
+    remove: 'Entfernen',
+    added: 'Passkey eingerichtet – beim nächsten Entsperren genügt Face ID, Touch ID oder Windows Hello.',
+    removed: 'Passkey entfernt.',
+    removeBody: 'Mit diesem Passkey lässt sich der Tresor danach nicht mehr entsperren. Passphrase und Recovery-Kit gelten weiter.',
+    since: 'seit {date}',
+    unlock: 'Mit Passkey entsperren',
+    unlocking: 'Bitte am Gerät bestätigen …',
+    or: 'oder mit Passphrase',
+    unsupported: 'Dieser Browser unterstützt keine Passkeys.'
+  },
   proof: {
     title: 'Nachweis auf Filecoin',
     lead: 'Diese Datei liegt verschlüsselt in {copies} Kopien bei unabhängigen Speicheranbietern. Die Anbieter müssen laufend kryptografisch beweisen, dass sie die Daten noch haben (Proof of Data Possession) – öffentlich überprüfbar, ohne dass jemand den Inhalt sieht.',
@@ -300,6 +320,26 @@ const en: typeof de = {
     joined: 'Welcome to the Family of {owner}!',
     decline: 'Not now',
     left: 'You left the family.'
+  },
+  passkeys: {
+    title: 'Passkeys',
+    lead: 'Unlock your vault with Face ID, Touch ID, Windows Hello or a security key instead of your passphrase. The passkey stays on your device; FocVault only stores a copy of your key that is locked with it. Your passphrase and recovery kit keep working.',
+    none: 'No passkey set up yet.',
+    add: 'Add passkey',
+    adding: 'Please confirm on your device …',
+    name: 'Name',
+    confirm: 'Your passphrase to confirm',
+    save: 'Set up',
+    cancel: 'Cancel',
+    remove: 'Remove',
+    added: 'Passkey set up – next time Face ID, Touch ID or Windows Hello is enough to unlock.',
+    removed: 'Passkey removed.',
+    removeBody: 'This passkey can no longer unlock your vault. Your passphrase and recovery kit keep working.',
+    since: 'since {date}',
+    unlock: 'Unlock with passkey',
+    unlocking: 'Please confirm on your device …',
+    or: 'or with passphrase',
+    unsupported: 'This browser does not support passkeys.'
   },
   proof: {
     title: 'Proof on Filecoin',

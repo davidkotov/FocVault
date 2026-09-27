@@ -22,6 +22,8 @@ import PreviewModal from '@/components/account/PreviewModal'
 import VersionsDialog from '@/components/account/VersionsDialog'
 import FamilyPanel from '@/components/account/FamilyPanel'
 import ProofDialog from '@/components/account/ProofDialog'
+import PasskeysPanel from '@/components/account/PasskeysPanel'
+import { passkeySupported } from '@/features/keys/passkey'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
 import { ApiClientError, api } from '@/features/api/client'
@@ -36,7 +38,10 @@ const TIER: Record<string, TierName> = { free: 'FREE', pro: 'PRO', family: 'FAMI
 const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Business' }
 
 function UnlockScreen() {
-  const { account, unlock, logout } = useAccount()
+  const { account, unlock, unlockWithPasskey, logout } = useAccount()
+  const pk = useMessages(appMessages).passkeys
+  const [pkBusy, setPkBusy] = useState(false)
+  const canPasskey = !!account?.passkeys.length && passkeySupported()
   const { path } = useI18n()
   const m = useMessages(appMessages).unlock
   const errText = useErrorText()
@@ -62,14 +67,36 @@ function UnlockScreen() {
         <h2>{m.title}</h2>
         <p className="lead">{fmt(m.lead, { name: account?.label ?? '' })}</p>
         {error && <div className="errorbox">{error}</div>}
+        {canPasskey && (
+          <>
+            <button
+              type="button"
+              className="primary full passkeybtn"
+              disabled={pkBusy || busy}
+              onClick={async () => {
+                setPkBusy(true)
+                setError(null)
+                try {
+                  await unlockWithPasskey()
+                } catch (err) {
+                  setError(errText(err))
+                  setPkBusy(false)
+                }
+              }}
+            >
+              🔑 {pkBusy ? pk.unlocking : pk.unlock}
+            </button>
+            <div className="ordivider">{pk.or}</div>
+          </>
+        )}
         <div className="field">
           <label htmlFor="unlock">{m.passphrase}</label>
-          <input id="unlock" type="password" autoFocus autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} />
+          <input id="unlock" type="password" autoFocus={!canPasskey} autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} />
         </div>
         {busy ? (
           <Working label={m.working} />
         ) : (
-          <button className="primary full" type="submit" disabled={!pass}>
+          <button className={canPasskey ? 'full' : 'primary full'} type="submit" disabled={!pass}>
             {m.submit}
           </button>
         )}
@@ -488,7 +515,8 @@ export default function AppPage() {
     account: t.nav.account,
     passwords: t.nav.passwords,
     notes: t.nav.notes,
-    '2fa': t.nav.totp
+    '2fa': t.nav.totp,
+    passkeys: t.nav.passkeys
   }
 
   return (
@@ -644,6 +672,13 @@ export default function AppPage() {
           {sharing && <ShareDialog entry={sharing} masterKey={masterKey} onClose={() => setSharing(null)} />}
 
           {view === 'plans' && <PlansView />}
+
+          {view === 'passkeys' &&
+            (isPro ? (
+              <PasskeysPanel />
+            ) : (
+              <UpgradeWall title={t.nav.passkeys} description={t.passkeys.lead} onUpgrade={() => setView('plans')} />
+            ))}
 
           {(view === 'passwords' || view === 'notes' || view === '2fa') &&
             (!isPro ? (
