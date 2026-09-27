@@ -5,6 +5,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import NotesPanel from '@/components/NotesPanel'
 import PasswordsPanel from '@/components/PasswordsPanel'
 import TotpPanel from '@/components/TotpPanel'
+import { Icon } from '@/components/site/Icons'
 import { useAccount } from '@/features/account/AccountProvider'
 import { api, type VaultAuditEvent, type VaultRole } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
@@ -123,10 +124,10 @@ export default function SharedVaultsView() {
           {vaults.map(v => (
             <button key={v.id} type="button" className="vaultrow" onClick={() => (setOpenId(v.id), setTab('passwords'), setAudit(null))}>
               <span className="vaulticon" aria-hidden="true">
-                🗄️
+                <Icon name="vault" size={20} />
               </span>
               <span className="vaultmain">
-                <strong>{v.data ? v.data.name || '—' : `🔒 ${m.waiting}`}</strong>
+                <strong>{v.data ? v.data.name || '—' : m.waiting}</strong>
                 <span className="hint">
                   {v.data ? `${fmt(m.items, { n: v.data.secrets.length })} · ` : ''}
                   {fmt(m.people, { n: v.state.members.length })}
@@ -183,7 +184,7 @@ export default function SharedVaultsView() {
           </form>
         ) : (
           <h3 className="vaulttitle">
-            🗄️ {data ? data.name : m.waiting}
+            <Icon name="vault" size={20} className="inlineicon" /> {data ? data.name : m.waiting}
             {data && canEdit && (
               <button className="linkish small-link" onClick={() => setRenaming(data.name)}>
                 {m.rename}

@@ -1,5 +1,6 @@
 'use client'
 
+import { Icon } from '@/components/site/Icons'
 import { useCallback, useEffect, useState } from 'react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { api, type RetentionRule, type S3Overview } from '@/features/api/client'
@@ -225,7 +226,7 @@ function BucketRow({ bucket, editing, onEdit, onSaved, onError }: { bucket: Buck
     <div className="trashrow bucketrow">
       <div className="trashinfo">
         <strong>
-          🪣 {bucket.name} {bucket.objectLock && <span className="badge ok">🔒 Object Lock</span>}
+          <Icon name="bucket" size={16} className="inlineicon" /> {bucket.name} {bucket.objectLock && <span className="badge ok">Object Lock</span>}
         </strong>
         <span className="hint">
           {fmt(m.objects, { n: bucket.objects, size: formatBytes(bucket.bytes) })} · {fmt(m.onFilecoin, { n: bucket.onFilecoin, total: bucket.objects })}

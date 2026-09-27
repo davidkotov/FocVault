@@ -8,9 +8,9 @@ export interface TemplateField {
 }
 
 /** Vorlagen für strukturierte Notizen. Labels kommen aus den Übersetzungen (secrets.templates). */
-export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: TemplateField[] }> = {
+export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: 'idcard' | 'card' | 'shield' | 'wifi' | 'key'; fields: TemplateField[] }> = {
   id: {
-    icon: '🪪',
+    icon: 'idcard',
     fields: [
       { key: 'docType', type: 'text' },
       { key: 'name', type: 'text' },
@@ -21,7 +21,7 @@ export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: Temp
     ]
   },
   card: {
-    icon: '💳',
+    icon: 'card',
     fields: [
       { key: 'holder', type: 'text' },
       { key: 'number', type: 'secret' },
@@ -32,7 +32,7 @@ export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: Temp
     ]
   },
   insurance: {
-    icon: '🛡️',
+    icon: 'shield',
     fields: [
       { key: 'insurer', type: 'text' },
       { key: 'policy', type: 'text' },
@@ -41,7 +41,7 @@ export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: Temp
     ]
   },
   wifi: {
-    icon: '📶',
+    icon: 'wifi',
     fields: [
       { key: 'ssid', type: 'text' },
       { key: 'password', type: 'secret' },
@@ -49,7 +49,7 @@ export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: Temp
     ]
   },
   license: {
-    icon: '🔑',
+    icon: 'key',
     fields: [
       { key: 'product', type: 'text' },
       { key: 'licenseKey', type: 'secret' },

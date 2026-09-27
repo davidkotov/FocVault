@@ -1,5 +1,6 @@
 'use client'
 
+import { Icon } from '@/components/site/Icons'
 import { useEffect, useState } from 'react'
 import { api, type ProofCertificate } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
@@ -44,7 +45,9 @@ export default function ProofDialog({ entry, onClose }: { entry: VaultEntry; onC
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="proof-title" onMouseDown={e => e.target === e.currentTarget && onClose()}>
       <div className="sharemodal">
         <div className="sharehead">
-          <h3 id="proof-title">⛓ {m.title}</h3>
+          <h3 id="proof-title">
+            <Icon name="proof" size={18} className="inlineicon" /> {m.title}
+          </h3>
           <button className="small" onClick={onClose}>
             {m.close}
           </button>

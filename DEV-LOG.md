@@ -41,6 +41,27 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Neue Landingpage (/v2), /sicherheit, Rechtsseiten, Team, Icons statt Emojis
+
+**/v2** (Entwurf zum Vergleich, die alte Landing bleibt unter /): Hero mit Dashboard-Vorschau, Alpen-Sektion
+(Matterhorn 4K, `public/matterhorn*.jpg`, Unsplash-Lizenz) mit Live-Ablauf im Dashboard, Live-Leiste mit
+**echten** Kennzahlen (`/api/v1/public/stats`: Verfügbarkeit 90 Tage, gespeicherte Datenmenge, Dateien auf
+Filecoin), alle 17 Dashboard-Module mit Filter Privat/Family/Business, Architektur, „Warum Schweiz & EU“,
+sachlicher Vergleich (Dropbox, Google Drive, 1Password; mit Stand und Fussnote), Nachweise (Status,
+PDP-Explorer, Sicherheit, security.txt), Preise (gemeinsame `PricingSection`), Apps (Web jetzt; App Store,
+Google Play, macOS, Windows, Linux „bald“), neue FAQ, Team-Teaser, Abschluss-CTA.
+**/sicherheit**: Live-Verschlüsselung im Browser (echtes AES-256-GCM mit Tab-Schlüssel), animierte
+Schlüsselhierarchie, Weg einer Datei, Secure-Send-Fragment, Verfahren, „was wir sehen“, Meldestelle;
+`public/.well-known/security.txt`.
+**Rechtliches**: /impressum, /datenschutz, /agb, /avv (DE/EN, `lib/legal/content.ts`), Firmenangaben zentral in
+`lib/legal/company.ts` (Platzhalter markiert, Entwurfs-Hinweis bis `final: true`), AVV als PDF.
+**/team** mit Platzhaltern für Personen und Fotos, Werte, Standort, Kontakte.
+Kopf-/Fusszeile verlinken Sicherheit, Team, Kontakt, alle Rechtsseiten; englische Pfade /en/security, /privacy,
+/terms, /dpa, /imprint. **Dashboard**: Emojis durch einheitliche Linien-Icons ersetzt (Dateikacheln, Ordner,
+Notiz-Vorlagen, Tresore, Passkeys, Speicher-API, Speichernachweis, Secure-Send-Seite, Anmelden, Upgrade).
+
+**Tests:** Vitest 121/121, Playwright 14/14 (neu `e2e/landing-v2.spec.ts`).
+
 ### Review-Follow-ups (Sicherheit) + Business-Zusatzspeicher ab 3 TB (Migration v22)
 
 - **Geteilte Tresore, Rotations-Race:** neue Generation nur mit `rotate: true`, geprüft unter

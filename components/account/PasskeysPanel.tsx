@@ -1,5 +1,6 @@
 'use client'
 
+import { Icon } from '@/components/site/Icons'
 import { useState } from 'react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { useAccount } from '@/features/account/AccountProvider'
@@ -67,7 +68,9 @@ export default function PasskeysPanel() {
         {account.passkeys.map(p => (
           <div className="trashrow" key={p.credentialId}>
             <div className="trashinfo">
-              <strong>🔑 {p.label}</strong>
+              <strong>
+                <Icon name="passkey" size={15} className="inlineicon" /> {p.label}
+              </strong>
               <span className="hint">{fmt(m.since, { date: fmtDate(p.createdAt) })}</span>
             </div>
             <button className="small danger" onClick={() => setRemove({ id: p.credentialId, label: p.label })}>

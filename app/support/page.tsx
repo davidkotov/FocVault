@@ -168,7 +168,7 @@ export default function SupportPage() {
               ))}
             </fieldset>
             <p className="hint">
-              {m.privacy} <a href="#">{m.privacyLink}</a>.
+              {m.privacy} <Link href={path('/datenschutz')}>{m.privacyLink}</Link>.
             </p>
             <div className="responsepill">
               <span className="statusdot operational" />

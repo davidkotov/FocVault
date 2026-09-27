@@ -9,6 +9,7 @@ import { secretsMessages } from '@/lib/i18n/messages/secrets'
 import { EXPIRY_WARN_DAYS, NOTE_TEMPLATES, TEMPLATE_IDS, daysUntilExpiry, emptyFields, fieldType, noteSearchText, parseTags } from '@/lib/note-templates'
 import { formatBytes, type NoteField, type NoteTemplateId, type SecretEntry, type VaultEntry } from '@/lib/vault'
 import ConfirmDialog from './ConfirmDialog'
+import { Icon as SiteIcon } from '@/components/site/Icons'
 import NoteBody, { checklistProgress, toggleCheckLine } from './NoteBody'
 import NoteFields from './NoteFields'
 
@@ -207,7 +208,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
               <div className={`notecard${s.pinned ? ' pinned' : ''}`} key={s.id}>
                 <div className="notehead">
                   <div className="sectitle">
-                    {s.template && <span aria-hidden="true">{NOTE_TEMPLATES[s.template]?.icon} </span>}
+                    {s.template && NOTE_TEMPLATES[s.template] && <SiteIcon name={NOTE_TEMPLATES[s.template].icon} size={16} className="inlineicon" />}
                     {s.title}
                   </div>
                   <div className="row" style={{ gap: 2, flexWrap: 'nowrap' }}>
@@ -276,7 +277,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
       {form ? (
         <form className="secform" onSubmit={submit}>
           <h4>
-            {form.template && <span aria-hidden="true">{NOTE_TEMPLATES[form.template].icon} </span>}
+            {form.template && <SiteIcon name={NOTE_TEMPLATES[form.template].icon} size={18} className="inlineicon" />}
             {form.id ? m.editTitle : m.newTitle}
           </h4>
           <div className="secfields">
@@ -316,7 +317,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
                 • {m.fmtList}
               </button>
               <button type="button" className="small" onClick={() => format('check')} title={m.fmtCheck}>
-                ☐ {m.fmtCheck}
+                <SiteIcon name="checkbox" size={14} /> {m.fmtCheck}
               </button>
             </div>
             <textarea id="note-body" ref={bodyRef} rows={7} value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} placeholder={m.bodyPlaceholder} />
@@ -379,7 +380,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
           <span className="dim">{m.fromTemplate}:</span>
           {TEMPLATE_IDS.map(id => (
             <button key={id} className="small" onClick={() => startNew(id)}>
-              {NOTE_TEMPLATES[id].icon} {m.templates[id]}
+              <SiteIcon name={NOTE_TEMPLATES[id].icon} size={15} /> {m.templates[id]}
             </button>
           ))}
         </div>

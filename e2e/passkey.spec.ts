@@ -54,7 +54,7 @@ test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async 
   await page.getByLabel('Zur Bestätigung deine Passphrase').fill(PASS)
   await page.getByRole('button', { name: 'Einrichten' }).click()
   await expect(page.getByText(/Passkey eingerichtet/)).toBeVisible()
-  await expect(page.locator('.trashrow', { hasText: '🔑' })).toHaveCount(1)
+  await expect(page.locator('.trashrow').filter({ has: page.locator('.sicon') })).toHaveCount(1)
 
   // Sperren → mit Passkey entsperren (ohne Passphrase)
   await page.getByRole('button', { name: 'Sperren' }).click()

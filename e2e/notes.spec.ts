@@ -74,5 +74,5 @@ test('Notizen: Vorlage, Checkliste, Tags, Anhang, Suche, per Secure Send teilen 
   // Link-Übersicht zeigt die Notiz
   await page.getByRole('button', { name: 'Meine Cloud', exact: true }).click()
   await page.locator('.h3right').getByRole('button', { name: /Secure Send/ }).click()
-  await expect(page.locator('.sharerow').first()).toContainText('🗒 WLAN Büro')
+  await expect(page.locator('.sharerow').first()).toContainText('WLAN Büro')
 })

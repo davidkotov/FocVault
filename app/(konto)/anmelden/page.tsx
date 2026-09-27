@@ -13,6 +13,7 @@ import { useErrorText } from '@/features/i18n/errors'
 import { deriveFromPassphrase, unwrapMasterKey } from '@/features/keys/kdf'
 import { authMessages } from '@/lib/i18n/messages/auth'
 import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
+import { Icon } from '@/components/site/Icons'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -119,7 +120,7 @@ export default function LoginPage() {
             </div>
           ) : (
             <button type="button" className="linkish" onClick={() => setSso(true)}>
-              🏢 {sm.sso}
+              <Icon name="building" size={15} className="inlineicon" /> {sm.sso}
             </button>
           )}
         </div>

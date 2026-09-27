@@ -1,5 +1,6 @@
 'use client'
 
+import { Icon, type IconName } from '@/components/site/Icons'
 import { useState, type ReactNode } from 'react'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
@@ -36,9 +37,10 @@ interface Props {
 /** Datentyp für gezogene Dateien (IDs als JSON) */
 export const DRAG_MIME = 'application/x-focvault-files'
 
-function iconFor(folder: string): string {
-  const f = FOLDERS.find(x => x.id === folder)
-  return f && f.id !== 'all' ? f.icon : '🗄️'
+const FOLDER_ICON: Record<string, IconName> = { all: 'cloud', documents: 'file', photos: 'image', videos: 'video', backups: 'archive' }
+
+function iconFor(folder: string) {
+  return <Icon name={FOLDER_ICON[folder] ?? 'archive'} size={30} />
 }
 
 function tileColor(folder: string): string {
@@ -89,7 +91,7 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
             if (f.id !== 'all' && n === 0) return null
             return (
               <button key={f.id} className={active === f.id ? 'chip active' : 'chip'} onClick={() => setActive(f.id)}>
-                {f.icon} {t.folders[f.id]} {n > 0 ? `(${n})` : ''}
+                <Icon name={FOLDER_ICON[f.id] ?? 'archive'} size={14} /> {t.folders[f.id]} {n > 0 ? `(${n})` : ''}
               </button>
             )
           })}

@@ -23,6 +23,7 @@ import { ensureKeypair } from '@/features/emergency/client'
 import { vaultsMessages } from '@/lib/i18n/messages/vaults'
 import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
 import TeamAdminView from '@/components/account/TeamAdminView'
+import { Icon } from '@/components/site/Icons'
 import TeamNotices, { TeamEscrowCard } from '@/components/account/TeamNotices'
 import SendView from '@/components/account/SendView'
 import TrashView from '@/components/account/TrashView'
@@ -98,7 +99,7 @@ function UnlockScreen() {
                 }
               }}
             >
-              🔑 {pkBusy ? pk.unlocking : pk.unlock}
+              <Icon name="passkey" size={16} className="inlineicon" /> {pkBusy ? pk.unlocking : pk.unlock}
             </button>
             <div className="ordivider">{pk.or}</div>
           </>

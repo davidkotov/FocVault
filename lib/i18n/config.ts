@@ -9,7 +9,12 @@ export const CURRENCY_COOKIE = 'fv_currency'
 const EN_SLUGS: Record<string, string> = {
   anmelden: 'login',
   registrieren: 'register',
-  wiederherstellen: 'recover'
+  wiederherstellen: 'recover',
+  sicherheit: 'security',
+  datenschutz: 'privacy',
+  agb: 'terms',
+  impressum: 'imprint',
+  avv: 'dpa'
 }
 const EN_SLUGS_REVERSE: Record<string, string> = Object.fromEntries(Object.entries(EN_SLUGS).map(([k, v]) => [v, k]))
 

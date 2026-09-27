@@ -30,7 +30,7 @@ export default function SendView({ files, notes = [] }: { files: VaultEntry[]; n
   const labelOf = (s: ShareSummary) => {
     if (!s.hasPayload) return nameOf(s.objectId ?? '')
     const note = notes.find(n => n.shareIds?.includes(s.id))
-    return `🗒 ${note ? note.title : t.note}`
+    return note ? note.title : t.note
   }
 
   return (

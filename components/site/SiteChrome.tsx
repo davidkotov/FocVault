@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import LocaleSwitch from '@/components/LocaleSwitch'
+import { Icon } from '@/components/site/Icons'
 import { useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { landingMessages } from '@/lib/i18n/messages/landing'
 
@@ -45,7 +46,7 @@ export function SiteHeader() {
           </Link>
           <div className="navlinks">
             <a href={`${home}#produkt`}>{t.nav.product}</a>
-            <a href={`${home}#sicherheit`}>{t.nav.security}</a>
+            <Link href={path('/sicherheit')}>{t.nav.security}</Link>
             <a href={`${home}#preise`}>{t.nav.pricing}</a>
             <a href={`${home}#faq`}>{t.nav.faq}</a>
           </div>
@@ -92,20 +93,23 @@ export function SiteFooter() {
           </div>
           <div className="footcol">
             <h5>{t.footer.company}</h5>
-            <a href={`${home}#sicherheit`}>{t.nav.security}</a>
+            <Link href={path('/sicherheit')}>{t.nav.security}</Link>
+            <Link href={path('/team')}>{t.footer.team}</Link>
             <a href={`${home}#faq`}>FAQ</a>
+            <Link href={path('/support?topic=business')}>{t.footer.contact}</Link>
           </div>
           <div className="footcol">
             <h5>{t.footer.legal}</h5>
-            <a href="#">{t.footer.privacy}</a>
-            <a href="#">{t.footer.terms}</a>
-            <a href="#">{t.footer.imprint}</a>
+            <Link href={path('/datenschutz')}>{t.footer.privacy}</Link>
+            <Link href={path('/agb')}>{t.footer.terms}</Link>
+            <Link href={path('/avv')}>{t.footer.dpa}</Link>
+            <Link href={path('/impressum')}>{t.footer.imprint}</Link>
           </div>
         </div>
         <div className="footbottom">
           <span>{t.footer.copy}</span>
           <a className="builton" href="https://www.filecoin.cloud" target="_blank" rel="noreferrer">
-            ⛓ {t.footer.builtOn}
+            <Icon name="chain" size={14} className="inlineicon" /> {t.footer.builtOn}
           </a>
           <LocaleSwitch />
         </div>

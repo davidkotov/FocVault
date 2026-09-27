@@ -137,6 +137,9 @@ const de = {
     privacy: 'Datenschutz',
     terms: 'AGB',
     imprint: 'Impressum',
+    dpa: 'AVV',
+    team: 'Team',
+    contact: 'Kontakt',
     copy: '© 2026 FocVault. Gespeichert auf Filecoin.',
     builtOn: 'Gebaut auf Filecoin Onchain Cloud'
   }
@@ -281,6 +284,9 @@ const en: typeof de = {
     privacy: 'Privacy',
     terms: 'Terms',
     imprint: 'Imprint',
+    dpa: 'DPA',
+    team: 'Team',
+    contact: 'Contact',
     copy: '© 2026 FocVault. Stored on Filecoin.',
     builtOn: 'Built on Filecoin Onchain Cloud'
   }
