@@ -203,7 +203,7 @@ export const api = {
   family: () => call<FamilyView>('GET', '/family'),
   familyInvite: () => call<{ token: string; expiresAt: string }>('POST', '/family/invites'),
   familyRevokeInvite: (id: string) => call<{ ok: true }>('DELETE', `/family/invites/${encodeURIComponent(id)}`),
-  familyInviteInfo: (token: string) => call<{ ownerLabel: string; expiresAt: string }>('GET', `/family/join?token=${encodeURIComponent(token)}`),
+  familyInviteInfo: (token: string) => call<{ ownerLabel: string; expiresAt: string; kind: 'family' | 'business' }>('GET', `/family/join?token=${encodeURIComponent(token)}`),
   familyJoin: (token: string) => call<AccountView>('POST', '/family/join', { token }),
   familyRemove: (accountId: string) => call<{ ok: true }>('DELETE', `/family/members/${encodeURIComponent(accountId)}`),
   proof: (objectId: string) => call<ProofCertificate>('GET', `/objects/${encodeURIComponent(objectId)}/proof`),
@@ -229,8 +229,12 @@ export const api = {
   buyAddon: (packId: string) => call<AccountView>('POST', '/billing/addons', { packId }),
   cancelAddon: (id: string) => call<AccountView>('DELETE', `/billing/addons/${encodeURIComponent(id)}`),
   setPayg: (enabled: boolean, capGb?: number) => call<AccountView | Redirect>('PUT', '/billing/payg', { enabled, capGb }),
-  changePlan: (plan: 'free' | 'pro' | 'family', interval: BillingInterval, currency: BillingCurrency) =>
-    call<AccountView | Redirect>('PUT', '/billing/plan', { plan, interval, currency }),
+  changePlan: (
+    plan: 'free' | 'pro' | 'family' | 'business',
+    interval: BillingInterval,
+    currency: BillingCurrency,
+    business?: { tier: 'starter' | 'business'; extraSeats: number }
+  ) => call<AccountView | Redirect>('PUT', '/billing/plan', { plan, interval, currency, ...(business ?? {}) }),
   billingPortal: () => call<Redirect>('POST', '/billing/portal'),
   resumeSubscription: () => call<AccountView>('POST', '/billing/resume'),
   setCurrency: (currency: BillingCurrency) => call<AccountView>('PUT', '/billing/currency', { currency })
@@ -278,6 +282,7 @@ export interface PublicOffer {
   addons: PricingConfig['addons']
   trashDays: number
   versions: PricingConfig['versions']
+  business: PricingConfig['business']
   purchasesEnabled: boolean
 }
 

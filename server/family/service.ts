@@ -14,6 +14,21 @@ import { detachFromSpace } from './space'
  * niemand in der Familie (auch nicht der Eigentümer) kann die Dateien der anderen lesen.
  */
 const INVITE_DAYS = 7
+/** Pläne mit Mitgliedern: Family (privat) und Business (Team) */
+export const GROUP_PLANS = new Set(['family', 'business'])
+
+/** Plätze inklusive Inhaber: Family laut Preisbuch, Business laut gebuchten Nutzern. */
+export async function groupSeats(db: Db, ownerId: string): Promise<number> {
+  const pricing = await getPricing(db)
+  const r = await db.query<{ plan: string; seats: number | null; business_tier: 'starter' | 'business' | 'enterprise' | null }>(
+    'SELECT plan, seats, business_tier FROM accounts WHERE id = $1',
+    [ownerId]
+  )
+  const a = r[0]
+  if (a?.plan !== 'business') return pricing.plans.family.seats
+  const tier = a.business_tier ?? 'business'
+  return a.seats ?? (tier === 'enterprise' ? pricing.business.enterprise.seats : pricing.business[tier].seats)
+}
 const hash = (token: string) => createHash('sha256').update(token).digest()
 
 export interface FamilyPool {
@@ -60,7 +75,14 @@ export async function quotaAccountId(db: Db, accountId: string): Promise<string>
 export async function syncFamilyAfterPlanChange(db: Db, accountId: string): Promise<void> {
   const acc = await db.query<{ plan: string }>('SELECT plan FROM accounts WHERE id = $1', [accountId])
   const plan = acc[0]?.plan
-  if (plan === 'family') return
+  if (plan && GROUP_PLANS.has(plan)) {
+    // Mitglieder folgen dem Plan des Inhabers (z. B. Wechsel Family → Business)
+    await db.query(
+      `UPDATE accounts SET plan = $2 WHERE id IN (SELECT account_id FROM family_members WHERE owner_account_id = $1) AND plan IN ('family', 'business')`,
+      [accountId, plan]
+    )
+    return
+  }
   // Mitglied bekommt einen anderen Plan (z. B. vom Admin) → verlässt die Familie
   await db.query('DELETE FROM family_members WHERE account_id = $1', [accountId])
   const members = await db.query<{ account_id: string }>('SELECT account_id FROM family_members WHERE owner_account_id = $1', [accountId])
@@ -70,7 +92,7 @@ export async function syncFamilyAfterPlanChange(db: Db, accountId: string): Prom
   for (const m of members) {
     await detachFromSpace(db, m.account_id, accountId)
     await db.query('DELETE FROM family_members WHERE account_id = $1', [m.account_id])
-    await db.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan = 'family'`, [m.account_id])
+    await db.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan IN ('family', 'business')`, [m.account_id])
     await audit(db, m.account_id, 'system', 'family.ended', {})
   }
   await db.query('UPDATE family_invites SET revoked_at = now() WHERE owner_account_id = $1 AND used_at IS NULL AND revoked_at IS NULL', [accountId])
@@ -78,6 +100,8 @@ export async function syncFamilyAfterPlanChange(db: Db, accountId: string): Prom
 
 export interface FamilyView {
   role: 'owner' | 'member' | null
+  /** Family (privat) oder Business-Team */
+  kind: 'family' | 'business'
   ownerLabel: string | null
   seats: number
   members: Array<{ id: string; label: string; usedBytes: number; joinedAt: string | null; owner: boolean; you: boolean }>
@@ -90,12 +114,14 @@ async function label(db: Db, id: string): Promise<string> {
 }
 
 export async function familyView(deps: Deps, session: SessionInfo): Promise<FamilyView> {
-  const pricing = await getPricing(deps.db)
-  const seats = pricing.plans.family.seats
   const acc = await deps.db.query<{ plan: string }>('SELECT plan FROM accounts WHERE id = $1', [session.accountId])
   const member = await isFamilyMember(deps.db, session.accountId)
-  if (!member && acc[0]?.plan !== 'family') return { role: null, ownerLabel: null, seats, members: [], invites: [] }
+  const kind = acc[0]?.plan === 'business' ? 'business' : 'family'
+  if (!member && !GROUP_PLANS.has(acc[0]?.plan ?? '')) {
+    return { role: null, kind, ownerLabel: null, seats: (await getPricing(deps.db)).plans.family.seats, members: [], invites: [] }
+  }
   const ownerId = await quotaAccountId(deps.db, session.accountId)
+  const seats = await groupSeats(deps.db, ownerId)
   const rows = await deps.db.query<{ id: string; email: string | null; label: string | null; joined_at: string | null; used: number }>(
     `SELECT a.id, a.email, a.label, m.joined_at,
             COALESCE((SELECT SUM(o.cipher_bytes) FROM objects o WHERE o.owner_account_id = a.id
@@ -115,6 +141,7 @@ export async function familyView(deps: Deps, session: SessionInfo): Promise<Fami
       : []
   return {
     role: ownerId === session.accountId ? 'owner' : 'member',
+    kind,
     ownerLabel: await label(deps.db, ownerId),
     seats,
     members: rows.map(r => ({
@@ -131,8 +158,8 @@ export async function familyView(deps: Deps, session: SessionInfo): Promise<Fami
 
 async function assertOwner(deps: Deps, session: SessionInfo): Promise<void> {
   const acc = await deps.db.query<{ plan: string }>('SELECT plan FROM accounts WHERE id = $1', [session.accountId])
-  if (acc[0]?.plan !== 'family' || (await isFamilyMember(deps.db, session.accountId))) {
-    throw new ApiError('PLAN_REQUIRED', 'Einladen können Inhaber eines Family-Abos.')
+  if (!GROUP_PLANS.has(acc[0]?.plan ?? '') || (await isFamilyMember(deps.db, session.accountId))) {
+    throw new ApiError('PLAN_REQUIRED', 'Einladen können Inhaber eines Family- oder Business-Abos.')
   }
   await deps.db.query('INSERT INTO families (owner_account_id) VALUES ($1) ON CONFLICT DO NOTHING', [session.accountId])
 }
@@ -140,7 +167,7 @@ async function assertOwner(deps: Deps, session: SessionInfo): Promise<void> {
 /** Einladungslink (einmalig, 7 Tage gültig). Der Token wird nur gehasht gespeichert. */
 export async function createInvite(deps: Deps, session: SessionInfo): Promise<{ token: string; expiresAt: string }> {
   await assertOwner(deps, session)
-  const seats = (await getPricing(deps.db)).plans.family.seats
+  const seats = await groupSeats(deps.db, session.accountId)
   const used = await deps.db.query<{ n: number }>(
     `SELECT (SELECT count(*) FROM family_members WHERE owner_account_id = $1)
           + (SELECT count(*) FROM family_invites WHERE owner_account_id = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now())
@@ -170,14 +197,15 @@ export async function revokeInvite(deps: Deps, session: SessionInfo, inviteId: s
 }
 
 /** Vorschau für den Beitritt: von wem ist die Einladung? */
-export async function inviteInfo(deps: Deps, token: string): Promise<{ ownerLabel: string; expiresAt: string }> {
+export async function inviteInfo(deps: Deps, token: string): Promise<{ ownerLabel: string; expiresAt: string; kind: 'family' | 'business' }> {
   const r = await deps.db.query<{ owner_account_id: string; expires_at: string }>(
     `SELECT owner_account_id, expires_at FROM family_invites
       WHERE token_hash = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()`,
     [hash(token)]
   )
   if (!r[0]) throw new ApiError('GONE', 'Diese Einladung ist abgelaufen, wurde schon benutzt oder zurückgezogen.')
-  return { ownerLabel: await label(deps.db, r[0].owner_account_id), expiresAt: new Date(r[0].expires_at).toISOString() }
+  const plan = await deps.db.query<{ plan: string }>('SELECT plan FROM accounts WHERE id = $1', [r[0].owner_account_id])
+  return { ownerLabel: await label(deps.db, r[0].owner_account_id), expiresAt: new Date(r[0].expires_at).toISOString(), kind: plan[0]?.plan === 'business' ? 'business' : 'family' }
 }
 
 /**
@@ -203,9 +231,9 @@ export async function joinFamily(deps: Deps, session: SessionInfo, token: string
       throw new ApiError('BAD_REQUEST', 'Bitte zuerst dein eigenes Abo kündigen – danach kannst du beitreten.')
     }
     const owner = await tx.query<{ plan: string }>('SELECT plan FROM accounts WHERE id = $1', [ownerId])
-    if (owner[0]?.plan !== 'family') throw new ApiError('GONE', 'Diese Familie hat kein aktives Family-Abo mehr.')
+    if (!GROUP_PLANS.has(owner[0]?.plan ?? '')) throw new ApiError('GONE', 'Diese Einladung gehört zu keinem aktiven Abo mehr.')
     await tx.query(`INSERT INTO family_members (account_id, owner_account_id) VALUES ($1, $2)`, [session.accountId, ownerId])
-    await tx.query(`UPDATE accounts SET plan = 'family', payg_enabled = false WHERE id = $1`, [session.accountId])
+    await tx.query(`UPDATE accounts SET plan = $2, payg_enabled = false WHERE id = $1`, [session.accountId, owner[0].plan])
     await tx.query(`UPDATE family_invites SET used_at = now(), used_by = $2 WHERE id = $1`, [inv[0].id, session.accountId])
     await audit(tx, session.accountId, 'user', 'family.joined', {})
     await audit(tx, ownerId, 'system', 'family.member_joined', {})
@@ -222,6 +250,6 @@ export async function removeMember(deps: Deps, session: SessionInfo, memberId: s
   )
   if (!r.length) throw new ApiError('NOT_FOUND', 'Mitglied nicht gefunden.')
   await detachFromSpace(deps.db, memberId, (r[0] as { owner_account_id: string }).owner_account_id)
-  await deps.db.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan = 'family'`, [memberId])
+  await deps.db.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan IN ('family', 'business')`, [memberId])
   await audit(deps.db, memberId, self ? 'user' : 'system', self ? 'family.left' : 'family.removed', {})
 }

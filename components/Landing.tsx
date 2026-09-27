@@ -8,7 +8,7 @@ import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { landingMessages } from '@/lib/i18n/messages/landing'
 import { DEFAULT_PRICING, type Interval, type PricingConfig } from '@/lib/pricing'
 
-type Offer = Pick<PricingConfig, 'free' | 'payg' | 'plans' | 'addons'>
+type Offer = Pick<PricingConfig, 'free' | 'payg' | 'plans' | 'addons' | 'business'>
 
 export default function Landing() {
   const router = useRouter()
@@ -310,7 +310,11 @@ export default function Landing() {
             </div>
             <div className="plan">
               <h3>{t.pricing.business}</h3>
-              <div className="price">{t.pricing.businessPrice}</div>
+              <div className="price">
+                <span className="pricefrom">{t.pricing.from}</span> {fmtMoney(perMonth(offer.business.starter), currency, 0)}
+                <span>{t.pricing.perMonth}</span>
+              </div>
+              <div className="billednote">{fmt(t.pricing.businessSeats, { seats: offer.business.starter.seats, price: fmtMoney(offer.business.seat.monthly[currency], currency, 0) })}</div>
               <div className="desc">{t.pricing.businessDesc}</div>
               <ul>
                 {t.pricing.businessFeatures.map(f => (

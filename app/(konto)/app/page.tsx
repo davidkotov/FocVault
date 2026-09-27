@@ -199,7 +199,7 @@ export default function AppPage() {
   const [proofId, setProofId] = useState<string | null>(null)
   const [versionRules, setVersionRules] = useState({ days: 30, max: 10 })
   const [versionPurge, setVersionPurge] = useState<Record<string, string>>({})
-  const [joinInvite, setJoinInvite] = useState<{ token: string; owner: string } | null>(null)
+  const [joinInvite, setJoinInvite] = useState<{ token: string; owner: string; team: boolean } | null>(null)
 
   useEffect(() => {
     if (status !== 'ready') return
@@ -207,7 +207,7 @@ export default function AppPage() {
     if (!token) return
     api
       .familyInviteInfo(token)
-      .then(i => setJoinInvite({ token, owner: i.ownerLabel }))
+      .then(i => setJoinInvite({ token, owner: i.ownerLabel, team: i.kind === 'business' }))
       .catch(e => {
         sessionStorage.removeItem('fv_join')
         setError(errText(e))
@@ -521,7 +521,7 @@ export default function AppPage() {
     notes: t.nav.notes,
     '2fa': t.nav.totp,
     passkeys: t.nav.passkeys,
-    familyFolder: t.nav.familyFolder,
+    familyFolder: account?.plan === 'business' ? t.team.folder : t.nav.familyFolder,
     storageApi: sApi.nav
   }
 
@@ -597,10 +597,10 @@ export default function AppPage() {
                     <SendIcon />
                     {t.nav.send}
                   </button>
-                  {account.plan === 'family' && (
+                  {(account.plan === 'family' || account.plan === 'business') && (
                     <button className="small trashbtn familybtn" onClick={() => setView('familyFolder')}>
                       <FamilyIcon />
-                      {t.nav.familyFolder}
+                      {account.plan === 'business' ? t.team.folder : t.nav.familyFolder}
                     </button>
                   )}
                   {paidPlan || (vault.trash?.length ?? 0) > 0 ? (
@@ -702,12 +702,12 @@ export default function AppPage() {
 
           {view === 'storageApi' && account.plan === 'business' && <StorageApiView />}
 
-          {view === 'familyFolder' && account.plan === 'family' && (
+          {view === 'familyFolder' && (account.plan === 'family' || account.plan === 'business') && (
             <>
               <button className="small backbtn" onClick={() => setView('cloud')}>
                 ← {t.trash.back}
               </button>
-              <FamilyFolderView freeBytes={freeBytes} />
+              <FamilyFolderView freeBytes={freeBytes} team={account.plan === 'business'} />
             </>
           )}
 
@@ -735,8 +735,8 @@ export default function AppPage() {
 
           {joinInvite && (
             <ConfirmDialog
-              title={t.family.joinTitle}
-              body={fmt(t.family.joinBody, { owner: joinInvite.owner })}
+              title={joinInvite.team ? t.team.joinTitle : t.family.joinTitle}
+              body={fmt(joinInvite.team ? t.team.joinBody : t.family.joinBody, { owner: joinInvite.owner })}
               confirmLabel={t.family.join}
               cancelLabel={t.family.decline}
               danger={false}
@@ -751,7 +751,7 @@ export default function AppPage() {
                 try {
                   await api.familyJoin(inv.token)
                   await refreshAccount()
-                  setNotice(fmt(t.family.joined, { owner: inv.owner }))
+                  setNotice(fmt(inv.team ? t.team.joined : t.family.joined, { owner: inv.owner }))
                 } catch (e) {
                   setError(errText(e))
                 }

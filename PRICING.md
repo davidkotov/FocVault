@@ -26,6 +26,18 @@ Aufschlag +607 % bzw. Marge ≈ 86 % (30 CHF/TB bei 4.24 CHF Kosten mit Fil One;
 Alle Werte sind im Admin unter **Preisbuch** änderbar und wirken sofort (Quota, Auswertung).
 Einheiten dezimal (1 TB = 1000 GB), wie Fil One, Dropbox und MEGA.
 
+## 1b. Business (seit 09/2026)
+
+| Stufe | Monatlich CHF · EUR · USD | Jährlich | Speicher | Nutzer inkl. | weiterer Nutzer |
+|---|---|---|---|---|---|
+| Business Starter | 49 · 49 € · $55 | 490 · 490 € · $550 | 3 TB | 5 | 8 CHF · 8 € · $9 / Monat |
+| Business | 129 · 129 € · $139 | 1 290 · 1 290 € · $1 390 | 10 TB | 10 | 8 CHF · 8 € · $9 / Monat |
+| Enterprise | ab 490 · 490 € · $529 | Vertrag | ab 50 TB | ab 50 | nach Vereinbarung |
+
+Marge bei vollem Speicher (Filecoin direkt, 3.87 CHF/TB): Starter 76 %, Business 70 %; Nutzerplätze fast
+reine Marge. Typische Auslastung 30–50 % → 85–90 %. Mit zusätzlicher Fil-One-Kopie Business nur ~37 %,
+deshalb für Business Filecoin als Hauptablage.
+
 ## 2. Konkurrenz
 
 | Anbieter | Gratis | Einstieg | ~1–2 TB | E2E / Zero-Knowledge | Positionierung |

@@ -96,6 +96,16 @@ const de = {
     decline: 'Nicht jetzt',
     left: 'Du hast die Familie verlassen.'
   },
+  team: {
+    title: 'Team',
+    ownerLead: '{seats} Plätze in deinem Business-Abo. Jede Person hat ein eigenes Konto, eine eigene Passphrase und einen eigenen Tresor; gemeinsame Dateien liegen im Teamordner.',
+    memberLead: 'Du bist im Business-Team von {owner}. Dein Tresor bleibt privat – nur du kannst deine Dateien öffnen.',
+    folder: 'Teamordner',
+    folderLead: 'Dateien, die alle im Team sehen – Ende-zu-Ende-verschlüsselt mit einem gemeinsamen Schlüssel, den nur eure Geräte kennen. Eure übrigen Dateien bleiben privat.',
+    joinTitle: 'Team beitreten',
+    joinBody: '{owner} lädt dich in sein Business-Team ein. Du bekommst alle Business-Funktionen und nutzt den gemeinsamen Speicher; deine Dateien bleiben privat.',
+    joined: 'Willkommen im Team von {owner}!'
+  },
   familyFolder: {
     title: 'Familienordner',
     lead: 'Dateien, die alle in deiner Family sehen – Ende-zu-Ende-verschlüsselt mit einem gemeinsamen Schlüssel, den nur eure Geräte kennen. Deine übrigen Dateien bleiben privat.',
@@ -336,6 +346,16 @@ const en: typeof de = {
     joined: 'Welcome to the Family of {owner}!',
     decline: 'Not now',
     left: 'You left the family.'
+  },
+  team: {
+    title: 'Team',
+    ownerLead: '{seats} seats in your Business plan. Everyone has their own account, passphrase and vault; shared files live in the team folder.',
+    memberLead: 'You are in the Business team of {owner}. Your vault stays private – only you can open your files.',
+    folder: 'Team folder',
+    folderLead: 'Files everyone on the team can see – end-to-end encrypted with a shared key that only your devices know. Your other files stay private.',
+    joinTitle: 'Join team',
+    joinBody: '{owner} invites you to their Business team. You get every Business feature and use the shared storage; your files stay private.',
+    joined: 'Welcome to the team of {owner}!'
   },
   familyFolder: {
     title: 'Family folder',

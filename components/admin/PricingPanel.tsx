@@ -123,6 +123,30 @@ export default function PricingPanel({ onSaved }: { onSaved: () => void }) {
 
       <div className="card">
         <h3>
+          Business <span>Stufen, inklusive Nutzer, Preis je weiterem Nutzer</span>
+        </h3>
+        {(['starter', 'business'] as const).map(tier => (
+          <div key={tier} style={{ marginBottom: 14 }}>
+            <div className="formgrid">
+              <Num label={`${p.business[tier].label} Speicher`} unit="GB" step={500} value={p.business[tier].quotaGb} onChange={v => set(d => void (d.business[tier].quotaGb = v))} />
+              <Num label="Nutzer inklusive" step={1} value={p.business[tier].seats} onChange={v => set(d => void (d.business[tier].seats = v))} />
+            </div>
+            <MoneyRow label="monatlich" value={p.business[tier].monthly} onChange={(c, v) => set(d => void (d.business[tier].monthly[c] = v))} />
+            <MoneyRow label="jährlich" value={p.business[tier].yearly} step={1} onChange={(c, v) => set(d => void (d.business[tier].yearly[c] = v))} />
+            <Margin monthly={p.business[tier].monthly} yearly={p.business[tier].yearly} gb={p.business[tier].quotaGb} />
+          </div>
+        ))}
+        <MoneyRow label="Weiterer Nutzer / Monat" value={p.business.seat.monthly} onChange={(c, v) => set(d => void (d.business.seat.monthly[c] = v))} />
+        <MoneyRow label="Weiterer Nutzer / Jahr" value={p.business.seat.yearly} step={1} onChange={(c, v) => set(d => void (d.business.seat.yearly[c] = v))} />
+        <div className="formgrid">
+          <Num label="Enterprise ab Speicher" unit="GB" step={1000} value={p.business.enterprise.quotaGb} onChange={v => set(d => void (d.business.enterprise.quotaGb = v))} />
+          <Num label="Enterprise ab Nutzer" step={10} value={p.business.enterprise.seats} onChange={v => set(d => void (d.business.enterprise.seats = v))} />
+        </div>
+        <MoneyRow label="Enterprise ab / Monat" value={p.business.enterprise.fromMonthly} step={10} onChange={(c, v) => set(d => void (d.business.enterprise.fromMonthly[c] = v))} />
+      </div>
+
+      <div className="card">
+        <h3>
           Pay-as-you-go <span>{paygMarkup.toFixed(1)}× unsere Kosten ({backendName})</span>
         </h3>
         <MoneyRow label="Preis pro GB/Monat" value={p.payg.perGbMonth} step={0.001} onChange={(c, v) => set(d => void (d.payg.perGbMonth[c] = v))} />

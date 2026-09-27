@@ -41,6 +41,25 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Business in drei Stufen mit Nutzerplätzen, Schalter Privat/Business
+
+**Preisbuch (`business`):** Business Starter 49 CHF · 49 € · $55 (3 TB, 5 Nutzer), Business 129 CHF · 129 € ·
+$139 (10 TB, 10 Nutzer), Enterprise ab 490 CHF (ab 50 TB, 50 Nutzer, Vertrag); weiterer Nutzer 8 CHF · 8 € · $9
+pro Monat bzw. 80 CHF pro Jahr. Jahresabo = 10 Monatspreise. Alles im Admin-Preisbuch änderbar, mit Marge.
+**Konto (Migration v14):** `business_tier`, `seats`, `custom_quota_gb` (Enterprise). Quota nach Stufe,
+Mitglieder teilen sie. Weniger Plätze als Personen im Team lassen sich nicht buchen.
+**Team:** Der Family-Mechanismus gilt jetzt für Business-Teams (Einladungslinks, Plätze laut gebuchten
+Nutzern, gemeinsamer Speicher, Teamordner Ende-zu-Ende, Entfernen). Mitglieder erhalten Business (inkl.
+Speicher-API) und folgen dem Plan des Inhabers.
+**Stripe:** Produkte Business Starter/Business und „zusätzlicher Nutzer“ (Menge); Checkout mit beiden
+Positionen, Stufen-/Nutzerwechsel direkt am Abo (anteilig), Webhook setzt Stufe und Plätze.
+**Oberfläche:** „Pakete & Speicher“ mit Schalter Privat/Business; Business-Karten mit Nutzerauswahl
+(inklusive, +1/+3/+5/+20/+50) und Live-Preis, Enterprise mit Kontakt. Zusatzspeicher auch für Business.
+Startseite: Business „ab 49 CHF“ mit Nutzerhinweis.
+
+**Tests:** Vitest 101/101 (Stripe: Stufe + Nutzer als Positionen, Wechsel zu Starter entfernt Plätze;
+Team: Plätze, Mitglieder-Plan, gemeinsame Quota), Playwright 7/7.
+
 ### Speicher-API (S3) für Business, unlöschbare Backups, Aufbewahrungsregeln, 5-TiB-Dateien
 
 **S3-Server (`server/s3/*`, Migration v13):** Protokoll aus dem Backup-Programm nach `server/s3/protocol.ts`

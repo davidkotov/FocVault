@@ -58,4 +58,22 @@ describe('Family', () => {
     for (let i = 0; i < 5; i++) await createInvite(deps, owner)
     await expect(createInvite(deps, owner)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
   })
+
+  it('Business-Team: Plätze laut gebuchten Nutzern, Mitglieder erhalten Business, gemeinsame Quota der Stufe', async () => {
+    const deps = await testDeps()
+    const { session: owner } = await newAccount(deps, 'ceo@example.com')
+    const { session: dev } = await newAccount(deps, 'dev@example.com')
+    await changePlan(deps, owner, { plan: 'business', tier: 'starter', extraSeats: 1, interval: 'month', currency: 'EUR' })
+    const inv = await createInvite(deps, owner)
+    await joinFamily(deps, dev, inv.token)
+    const v = await familyView(deps, owner)
+    expect(v).toMatchObject({ kind: 'business', seats: 6 })
+    expect((await deps.db.query(`SELECT plan FROM accounts WHERE id = $1`, [dev.accountId]))[0].plan).toBe('business')
+    for (let i = 0; i < 4; i++) await createInvite(deps, owner) // 6 Plätze: Inhaber + 1 Mitglied + 4 offen
+    await expect(createInvite(deps, owner)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    // Auf 5 Plätze reduzieren passt (2 Personen)
+    await expect(changePlan(deps, owner, { plan: 'business', tier: 'starter', extraSeats: 0, interval: 'month', currency: 'EUR' })).resolves.toEqual({})
+    const { accountView } = await import('../accounts/service')
+    expect((await accountView(deps, dev.accountId)).quotaBytes).toBe(3000 * 1e9)
+  })
 })

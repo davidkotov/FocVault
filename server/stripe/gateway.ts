@@ -23,6 +23,7 @@ export interface SubscriptionItemLite {
   unitAmount: number
   interval: Recurring
   periodEnd: number | null
+  quantity: number
 }
 
 export interface SubscriptionLite {
@@ -47,6 +48,8 @@ export interface StripeGateway {
   checkoutSubscription(input: {
     customer: string
     price: PriceData
+    /** weitere Positionen, z. B. zusätzliche Nutzer */
+    extra?: Array<{ price: PriceData; quantity: number }>
     successUrl: string
     cancelUrl: string
     metadata: Record<string, string>
@@ -65,7 +68,8 @@ export interface StripeGateway {
   retrieveSubscription(id: string): Promise<SubscriptionLite>
   changeSubscriptionPlan(id: string, itemId: string, price: PriceData): Promise<SubscriptionLite>
   setCancelAtPeriodEnd(id: string, cancel: boolean): Promise<SubscriptionLite>
-  addItem(subscriptionId: string, price: PriceData, metadata: Record<string, string>): Promise<string>
+  addItem(subscriptionId: string, price: PriceData, metadata: Record<string, string>, quantity?: number): Promise<string>
+  setItemQuantity(itemId: string, quantity: number): Promise<void>
   removeItem(itemId: string): Promise<void>
   setupIntentPaymentMethod(setupIntentId: string): Promise<string | null>
   setDefaultPaymentMethod(customer: string, paymentMethod: string): Promise<void>
@@ -89,6 +93,7 @@ function toLite(s: any): SubscriptionLite {
     currency: i.price?.currency,
     unitAmount: i.price?.unit_amount ?? 0,
     interval: i.price?.recurring?.interval ?? 'month',
+    quantity: i.quantity ?? 1,
     // Neuere API-Versionen führen die Laufzeit pro Position
     periodEnd: i.current_period_end ?? null
   }))
@@ -142,7 +147,10 @@ export class LiveStripeGateway implements StripeGateway {
     const session = await this.s.checkout.sessions.create({
       mode: 'subscription',
       customer: input.customer,
-      line_items: [{ price_data: priceData(input.price) as any, quantity: 1 }],
+      line_items: [
+        { price_data: priceData(input.price) as any, quantity: 1 },
+        ...(input.extra ?? []).filter(e => e.quantity > 0).map(e => ({ price_data: priceData(e.price) as any, quantity: e.quantity }))
+      ],
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
       subscription_data: { metadata: input.metadata },
@@ -195,11 +203,15 @@ export class LiveStripeGateway implements StripeGateway {
     return toLite(await this.s.subscriptions.update(id, { cancel_at_period_end: cancel }))
   }
 
-  async addItem(subscriptionId: string, price: PriceData, metadata: Record<string, string>) {
+  async setItemQuantity(itemId: string, quantity: number) {
+    await this.s.subscriptionItems.update(itemId, { quantity, proration_behavior: 'create_prorations' } as any)
+  }
+
+  async addItem(subscriptionId: string, price: PriceData, metadata: Record<string, string>, quantity = 1) {
     const item = await this.s.subscriptionItems.create({
       subscription: subscriptionId,
       price_data: priceData(price) as any,
-      quantity: 1,
+      quantity,
       metadata,
       proration_behavior: 'create_prorations'
     } as any)

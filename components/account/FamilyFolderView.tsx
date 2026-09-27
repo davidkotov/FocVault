@@ -17,7 +17,7 @@ import { appMessages } from '@/lib/i18n/messages/app'
 import type { VaultEntry } from '@/lib/vault'
 
 /** Familienordner: gemeinsame Dateien aller Mitglieder, verschlüsselt mit dem Ordner-Schlüssel. */
-export default function FamilyFolderView({ freeBytes }: { freeBytes: number }) {
+export default function FamilyFolderView({ freeBytes, team = false }: { freeBytes: number; team?: boolean }) {
   const t = useMessages(appMessages)
   const m = t.familyFolder
   const errText = useErrorText()
@@ -37,10 +37,10 @@ export default function FamilyFolderView({ freeBytes }: { freeBytes: number }) {
   const head = (
     <div className="card">
       <h3>
-        {m.title}
+        {team ? t.team.folder : m.title}
         {space.state && <span>{fmt(m.members, { ready: withAccess, total: members.length })}</span>}
       </h3>
-      <p className="dim">{m.lead}</p>
+      <p className="dim">{team ? t.team.folderLead : m.lead}</p>
       {members.some(p => !p.generations.includes(space.state?.generation ?? 0)) && (
         <p className="hint">
           {members

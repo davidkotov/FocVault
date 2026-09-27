@@ -102,6 +102,8 @@ export interface AccountBilling {
   }
   /** Zahlungen laufen über Stripe */
   stripe: boolean
+  /** Business: Stufe und Nutzerplätze (member = Teil eines fremden Teams) */
+  business: { tier: 'starter' | 'business' | 'enterprise'; seats: number; includedSeats: number; extraSeats: number; member: boolean } | null
 }
 
 export interface RegisterInput {

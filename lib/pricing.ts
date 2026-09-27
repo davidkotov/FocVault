@@ -44,6 +44,13 @@ export interface PricingConfig {
   plans: { pro: PlanPrice; family: PlanPrice & { seats: number } }
   addons: AddonPack[]
   freeTier: { monthlyBudgetChf: number; inactiveWarnDays: number; inactiveDeleteDays: number }
+  /** Business: drei Stufen, Nutzerplätze (inklusive + zusätzlich pro Nutzer) */
+  business: {
+    starter: BusinessTier
+    business: BusinessTier
+    enterprise: { label: string; quotaGb: number; seats: number; fromMonthly: Money; contact: string }
+    seat: { monthly: Money; yearly: Money }
+  }
   /** Papierkorb für Abos (Pro/Family/Business): Tage bis zur endgültigen Löschung. Free löscht sofort. */
   trashDays: number
   /** Dateiversionen (Pro/Family): Aufbewahrung ältere Fassungen in Tagen, höchstens maxVersions je Datei */
@@ -58,6 +65,19 @@ export interface PricingConfig {
 }
 
 export type StorageBackend = 'filone' | 'foc' | 'both'
+
+export interface BusinessTier extends PlanPrice {
+  /** inklusive Nutzer */
+  seats: number
+}
+
+export type BusinessTierId = 'starter' | 'business' | 'enterprise'
+
+/** Monatspreis bzw. Jahrespreis einer Business-Stufe inklusive zusätzlicher Nutzer. */
+export function businessPrice(p: PricingConfig, tier: 'starter' | 'business', extraSeats: number, interval: Interval, currency: Currency): number {
+  const t = p.business[tier]
+  return round2(priceOf(t, interval, currency) + Math.max(0, extraSeats) * priceOf(p.business.seat, interval, currency))
+}
 
 export const DEFAULT_PRICING: PricingConfig = {
   v: 2,
@@ -95,6 +115,12 @@ export const DEFAULT_PRICING: PricingConfig = {
     { id: 'plus-2000', gb: 2000, monthly: { CHF: 17.9, EUR: 17.9, USD: 19.9 }, yearly: { CHF: 179, EUR: 179, USD: 199 } }
   ],
   freeTier: { monthlyBudgetChf: 1000, inactiveWarnDays: 365, inactiveDeleteDays: 540 },
+  business: {
+    starter: { label: 'Business Starter', quotaGb: 3000, seats: 5, monthly: { CHF: 49, EUR: 49, USD: 55 }, yearly: { CHF: 490, EUR: 490, USD: 550 } },
+    business: { label: 'Business', quotaGb: 10000, seats: 10, monthly: { CHF: 129, EUR: 129, USD: 139 }, yearly: { CHF: 1290, EUR: 1290, USD: 1390 } },
+    enterprise: { label: 'Enterprise', quotaGb: 50000, seats: 50, fromMonthly: { CHF: 490, EUR: 490, USD: 529 }, contact: 'business@focvault.app' },
+    seat: { monthly: { CHF: 8, EUR: 8, USD: 9 }, yearly: { CHF: 80, EUR: 80, USD: 90 } }
+  },
   trashDays: 30,
   versions: { days: 30, max: 10 },
   storage: { backend: 'filone', focUsdPerTibMonthPerCopy: 2.5, focCopies: 2 },

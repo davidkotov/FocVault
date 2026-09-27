@@ -3,8 +3,6 @@ import type { Plan } from '../../lib/api-types'
 import type { Db } from '../db'
 import { quotaAccountId } from '../family/service'
 
-/** Business: individuell – bis zur Vertragsanbindung eine großzügige Sicherheitsgrenze. */
-const BUSINESS_QUOTA_BYTES = 100 * 1e12
 
 export interface QuotaBreakdown {
   quotaBytes: number
@@ -22,18 +20,24 @@ export async function quotaFor(
   account: { id: string; plan: Plan; payg_enabled?: boolean; payg_cap_gb?: number | null },
   pricing: PricingConfig
 ): Promise<QuotaBreakdown> {
-  if (account.plan === 'business') {
-    return { quotaBytes: BUSINESS_QUOTA_BYTES, baseBytes: BUSINESS_QUOTA_BYTES, addonBytes: 0, paygBytes: 0 }
-  }
   if (account.plan === 'free') {
     const baseBytes = pricing.free.quotaGb * GB
     const capGb = account.payg_enabled ? Math.min(account.payg_cap_gb ?? pricing.payg.defaultCapGb, pricing.payg.maxCapGb) : 0
     const paygBytes = capGb * GB
     return { quotaBytes: baseBytes + paygBytes, baseBytes, addonBytes: 0, paygBytes }
   }
-  const baseBytes = (account.plan === 'pro' ? pricing.plans.pro.quotaGb : pricing.plans.family.quotaGb) * GB
-  // Family-Mitglieder teilen die Quota (inkl. Zusatzspeicher) des Inhabers
-  const quotaId = account.plan === 'family' ? await quotaAccountId(db, account.id) : account.id
+  // Family-/Team-Mitglieder teilen die Quota (inkl. Zusatzspeicher) des Inhabers
+  const quotaId = account.plan === 'family' || account.plan === 'business' ? await quotaAccountId(db, account.id) : account.id
+  let baseGb = account.plan === 'pro' ? pricing.plans.pro.quotaGb : pricing.plans.family.quotaGb
+  if (account.plan === 'business') {
+    const o = await db.query<{ business_tier: 'starter' | 'business' | 'enterprise' | null; custom_quota_gb: number | null }>(
+      'SELECT business_tier, custom_quota_gb FROM accounts WHERE id = $1',
+      [quotaId]
+    )
+    const tier = o[0]?.business_tier ?? 'business'
+    baseGb = o[0]?.custom_quota_gb ?? (tier === 'enterprise' ? pricing.business.enterprise.quotaGb : pricing.business[tier].quotaGb)
+  }
+  const baseBytes = baseGb * GB
   const rows = await db.query<{ bytes: number }>(
     `SELECT COALESCE(SUM(bytes), 0)::float8 AS bytes FROM account_addons WHERE account_id = $1 AND status = 'active'`,
     [quotaId]

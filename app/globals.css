@@ -2167,3 +2167,16 @@ a.linkbtn:hover { border-color: var(--accent-border); background: var(--accent-s
 .snippet summary { cursor: pointer; font-weight: 600; font-size: 14px; }
 .snippet .previewtext { height: auto; max-height: 260px; border: 1px solid var(--border); border-radius: 10px; margin: 8px 0; }
 .sharelink .row .mono { overflow-wrap: anywhere; }
+
+/* ---------- Privat / Business ---------- */
+.audienceswitch { display: flex; width: fit-content; margin: 6px auto 10px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); box-shadow: 0 1px 2px rgba(15, 20, 32, 0.05); }
+.audienceswitch button { border: none; background: transparent; border-radius: 9px; padding: 10px 26px; font-size: 14.5px; font-weight: 600; color: var(--text-dim); min-width: 140px; }
+.audienceswitch button:hover:not(:disabled) { background: var(--border-soft); color: var(--text); }
+.audienceswitch button.active { background: #0f1420; color: #fff; }
+.audiencelead { text-align: center; max-width: 720px; margin: 0 auto 8px; }
+.seatpick { margin: 4px 0 0; }
+.seatpick select { width: 100%; }
+.planbtn { display: block; }
+.planbtn button { width: 100%; }
+.pricefrom { font-size: 15px; font-weight: 600; color: var(--text-dim); }
+.audienceswitch button.active:hover:not(:disabled) { background: #0f1420; color: #fff; }

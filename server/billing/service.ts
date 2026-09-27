@@ -59,11 +59,13 @@ interface AccountRow {
   payg_cap_gb: number | null
   currency: Currency
   billing_interval: Interval
+  business_tier: 'starter' | 'business' | 'enterprise' | null
+  seats: number | null
 }
 
 async function loadAccount(deps: Deps, accountId: string): Promise<AccountRow> {
   const rows = await deps.db.query<AccountRow>(
-    'SELECT id, plan, payg_enabled, payg_cap_gb, currency, billing_interval FROM accounts WHERE id = $1',
+    'SELECT id, plan, payg_enabled, payg_cap_gb, currency, billing_interval, business_tier, seats FROM accounts WHERE id = $1',
     [accountId]
   )
   if (!rows[0]) throw new ApiError('NOT_FOUND', 'Konto nicht gefunden.')
@@ -77,12 +79,13 @@ export interface PublicOffer {
   addons: PricingConfig['addons']
   trashDays: number
   versions: PricingConfig['versions']
+  business: PricingConfig['business']
   purchasesEnabled: boolean
 }
 
 export async function offer(deps: Deps): Promise<PublicOffer> {
   const p = await getPricing(deps.db)
-  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, trashDays: p.trashDays, versions: p.versions, purchasesEnabled: purchasesEnabled() }
+  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, trashDays: p.trashDays, versions: p.versions, business: p.business, purchasesEnabled: purchasesEnabled() }
 }
 
 /** Währung wählen (nur solange kein Abo/Zusatzspeicher läuft – sonst Wechsel beim Planwechsel). */
@@ -95,6 +98,20 @@ export async function setCurrency(deps: Deps, session: SessionInfo, currency: Cu
   await deps.db.query('UPDATE accounts SET currency = $2 WHERE id = $1', [account.id, currency])
 }
 
+export interface PlanChange {
+  plan: 'free' | 'pro' | 'family' | 'business'
+  interval: Interval
+  currency: Currency
+  tier?: 'starter' | 'business'
+  extraSeats?: number
+}
+
+/** Speicher einer Plan-Wahl in GB (Business nach Stufe). */
+export function planQuotaGb(pricing: PricingConfig, input: PlanChange): number {
+  if (input.plan === 'business') return pricing.business[input.tier ?? 'business'].quotaGb
+  return input.plan === 'pro' ? pricing.plans.pro.quotaGb : pricing.plans.family.quotaGb
+}
+
 /**
  * Planwechsel (Self-Service; ohne Stripe nur im Entwicklungsmodus).
  * Downgrade auf Free nur, wenn die Daten in die Free-Quota passen – Zusatzspeicher endet dann.
@@ -102,7 +119,7 @@ export async function setCurrency(deps: Deps, session: SessionInfo, currency: Cu
 export async function changePlan(
   deps: Deps,
   session: SessionInfo,
-  input: { plan: 'free' | 'pro' | 'family'; interval: Interval; currency: Currency },
+  input: PlanChange,
   ctx: StripeContext = DEV_CONTEXT
 ): Promise<BillingResult> {
   if (await isFamilyMember(deps.db, session.accountId)) {
@@ -129,19 +146,22 @@ export async function changePlan(
       await tx.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1`, [account.id])
     })
   } else {
-    const newQuota = (input.plan === 'pro' ? pricing.plans.pro.quotaGb : pricing.plans.family.quotaGb) * GB
+    const newQuota = planQuotaGb(pricing, input) * GB
     const addonRows = await deps.db.query<{ bytes: number }>(
       `SELECT COALESCE(SUM(bytes), 0)::float8 AS bytes FROM account_addons WHERE account_id = $1 AND status = 'active'`,
       [account.id]
     )
     const used = await usedBytes(deps.db, account.id)
     if (used > newQuota + Number(addonRows[0]?.bytes ?? 0)) {
-      throw new ApiError('BAD_REQUEST', `Du nutzt ${formatBytes(used)} – das passt nicht in ${input.plan === 'pro' ? 'Pro' : 'Family'}.`)
+      throw new ApiError('BAD_REQUEST', `Du nutzt ${formatBytes(used)} – das passt nicht in dieses Paket.`)
     }
+    const tier = input.plan === 'business' ? (input.tier ?? 'business') : null
+    const seats = tier ? pricing.business[tier].seats + (input.extraSeats ?? 0) : null
+    if (seats !== null) await assertSeatsFit(deps, account.id, seats)
     await deps.db.tx(async tx => {
       await tx.query(
-        `UPDATE accounts SET plan = $2, billing_interval = $3, currency = $4, payg_enabled = false WHERE id = $1`,
-        [account.id, input.plan, input.interval, input.currency]
+        `UPDATE accounts SET plan = $2, billing_interval = $3, currency = $4, payg_enabled = false, business_tier = $5, seats = $6 WHERE id = $1`,
+        [account.id, input.plan, input.interval, input.currency, tier, seats]
       )
       // Zusatzspeicher folgt Währung und Intervall des Abos (Preis neu aus dem Preisbuch).
       const addons = await tx.query<{ id: string; pack_id: string | null }>(
@@ -165,10 +185,17 @@ export async function changePlan(
   return {}
 }
 
+/** Weniger Plätze buchen geht nur, wenn die bestehenden Mitglieder hineinpassen. */
+async function assertSeatsFit(deps: Deps, accountId: string, seats: number): Promise<void> {
+  const r = await deps.db.query<{ n: number }>('SELECT count(*)::float8 AS n FROM family_members WHERE owner_account_id = $1', [accountId])
+  const members = Number(r[0]?.n ?? 0) + 1
+  if (members > seats) throw new ApiError('BAD_REQUEST', `Dein Team hat ${members} Personen – bitte mindestens ${members} Nutzer wählen.`)
+}
+
 export async function buyAddon(deps: Deps, session: SessionInfo, packId: string): Promise<BillingResult> {
   const account = await loadAccount(deps, session.accountId)
-  if (account.plan !== 'pro' && account.plan !== 'family') {
-    throw new ApiError('PLAN_REQUIRED', 'Zusatzspeicher gibt es für Pro- und Family-Abos.')
+  if (account.plan !== 'pro' && account.plan !== 'family' && account.plan !== 'business') {
+    throw new ApiError('PLAN_REQUIRED', 'Zusatzspeicher gibt es für Pro-, Family- und Business-Abos.')
   }
   if (await isFamilyMember(deps.db, account.id)) {
     throw new ApiError('PLAN_REQUIRED', 'Zusatzspeicher für die Familie bucht der Family-Inhaber.')
@@ -325,9 +352,15 @@ export async function accountBilling(deps: Deps, accountId: string, stored: numb
   )
   const cur = account.currency
   const interval = account.billing_interval
-  const planItem = account.plan === 'pro' ? pricing.plans.pro : account.plan === 'family' ? pricing.plans.family : null
-  const planPrice = planItem ? priceOf(planItem, interval, cur) : 0
-  const planMonthly = planItem ? monthlyEquivalent(planItem, interval, cur) : 0
+  const member = await isFamilyMember(deps.db, account.id)
+  const tier = account.plan === 'business' ? (account.business_tier ?? 'business') : null
+  const selfTier = tier === 'starter' || tier === 'business' ? tier : null
+  const included = selfTier ? pricing.business[selfTier].seats : tier === 'enterprise' ? pricing.business.enterprise.seats : 0
+  const extraSeats = tier ? Math.max(0, (account.seats ?? included) - included) : 0
+  const planItem = member ? null : account.plan === 'pro' ? pricing.plans.pro : account.plan === 'family' ? pricing.plans.family : selfTier ? pricing.business[selfTier] : null
+  const seatPrice = selfTier && !member ? extraSeats * priceOf(pricing.business.seat, interval, cur) : 0
+  const planPrice = (planItem ? priceOf(planItem, interval, cur) : 0) + seatPrice
+  const planMonthly = (planItem ? monthlyEquivalent(planItem, interval, cur) : 0) + (selfTier && !member ? extraSeats * monthlyEquivalent(pricing.business.seat, interval, cur) : 0)
   const addonsMonthly = addons.reduce((n, a) => n + Number(a.price) / (a.billing_interval === 'year' ? 12 : 1), 0)
   const est = paygEstimate(pricing, stored, cur)
   const paygMonthly = account.plan === 'free' && account.payg_enabled ? est.amount : 0
@@ -377,7 +410,8 @@ export async function accountBilling(deps: Deps, accountId: string, stored: numb
       cancelAtPeriodEnd: !!sub[0]?.cancel_at_period_end,
       hasPaymentAccount: !!sub[0]?.stripe_customer_id
     },
-    stripe: !!stripeGateway()
+    stripe: !!stripeGateway(),
+    business: tier ? { tier, seats: account.seats ?? included, includedSeats: included, extraSeats, member } : null
   }
 }
 

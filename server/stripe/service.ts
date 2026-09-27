@@ -6,6 +6,7 @@ import type { SessionInfo } from '../auth/sessions'
 import type { Db } from '../db'
 import { audit, type Deps } from '../deps'
 import { getPricing } from '../billing/settings'
+import { planQuotaGb, type PlanChange } from '../billing/service'
 import { ApiError } from '../shared/errors'
 import { uuidv7 } from '../shared/ids'
 import { syncFamilyAfterPlanChange } from '../family/service'
@@ -24,12 +25,15 @@ export interface StripeContext {
   locale: 'de' | 'en'
 }
 
-type ProductKey = 'pro' | 'family' | 'addon' | 'payg'
+type ProductKey = 'pro' | 'family' | 'addon' | 'payg' | 'business_starter' | 'business' | 'seat'
 const PRODUCT_NAMES: Record<ProductKey, string> = {
   pro: 'FocVault Pro',
   family: 'FocVault Family',
   addon: 'FocVault Zusatzspeicher',
-  payg: 'FocVault Pay-as-you-go'
+  payg: 'FocVault Pay-as-you-go',
+  business_starter: 'FocVault Business Starter',
+  business: 'FocVault Business',
+  seat: 'FocVault Business – zusätzlicher Nutzer'
 }
 
 const cur = (c: Currency) => c.toLowerCase() as Cur
@@ -85,9 +89,21 @@ async function ensureCustomer(db: Db, gw: StripeGateway, acc: BillingAccount): P
   return (await loadBillingAccount(db, acc.id)).stripe_customer_id ?? id
 }
 
-function planPrice(p: PricingConfig, products: Record<ProductKey, string>, plan: 'pro' | 'family', interval: Interval, currency: Currency): PriceData {
+function planPrice(p: PricingConfig, products: Record<ProductKey, string>, input: PlanChange): PriceData {
+  const { interval, currency } = input
+  if (input.plan === 'business') {
+    const tier = input.tier ?? 'business'
+    return { currency: cur(currency), unitAmount: cents(priceOf(p.business[tier], interval, currency)), product: products[tier === 'starter' ? 'business_starter' : 'business'], interval }
+  }
+  const plan = input.plan as 'pro' | 'family'
   return { currency: cur(currency), unitAmount: cents(priceOf(p.plans[plan], interval, currency)), product: products[plan], interval }
 }
+
+function seatPrice(p: PricingConfig, products: Record<ProductKey, string>, interval: Interval, currency: Currency): PriceData {
+  return { currency: cur(currency), unitAmount: cents(priceOf(p.business.seat, interval, currency)), product: products.seat, interval }
+}
+
+const PLAN_PRODUCTS: ProductKey[] = ['pro', 'family', 'business_starter', 'business']
 
 const returnUrl = (ctx: StripeContext, q: string) => `${ctx.origin}/${ctx.locale}/app?view=plans&${q}`
 
@@ -96,7 +112,7 @@ export async function stripeChangePlan(
   deps: Deps,
   gw: StripeGateway,
   session: SessionInfo,
-  input: { plan: 'free' | 'pro' | 'family'; interval: Interval; currency: Currency },
+  input: PlanChange,
   ctx: StripeContext
 ): Promise<string | null> {
   const acc = await loadBillingAccount(deps.db, session.accountId)
@@ -111,21 +127,22 @@ export async function stripeChangePlan(
     return null
   }
 
-  const quota = pricing.plans[input.plan].quotaGb * GB
+  const quota = planQuotaGb(pricing, input) * GB
   const used = await usedBytes(deps.db, acc.id)
   const addons = await deps.db.query<{ bytes: number }>(
     `SELECT COALESCE(SUM(bytes), 0)::float8 AS bytes FROM account_addons WHERE account_id = $1 AND status = 'active'`,
     [acc.id]
   )
   if (used > quota + Number(addons[0]?.bytes ?? 0)) {
-    throw new ApiError('BAD_REQUEST', `Du nutzt ${formatBytes(used)} – das passt nicht in ${input.plan === 'pro' ? 'Pro' : 'Family'}.`)
+    throw new ApiError('BAD_REQUEST', `Du nutzt ${formatBytes(used)} – das passt nicht in dieses Paket.`)
   }
   const products = await productIds(deps.db, gw)
-  const price = planPrice(pricing, products, input.plan, input.interval, input.currency)
+  const price = planPrice(pricing, products, input)
+  const extraSeats = input.plan === 'business' ? Math.max(0, input.extraSeats ?? 0) : 0
 
   if (hasSub) {
     const sub = await gw.retrieveSubscription(acc.stripe_subscription_id!)
-    const planItem = sub.items.find(i => i.product === products.pro || i.product === products.family)
+    const planItem = sub.items.find(i => PLAN_PRODUCTS.some(k => products[k] === i.product))
     if (!planItem) throw new ApiError('INTERNAL', 'Abo ohne Paket-Position.')
     if (planItem.currency !== price.currency) {
       throw new ApiError('BAD_REQUEST', 'Die Währung eines laufenden Abos lässt sich nicht wechseln. Bitte zuerst kündigen und danach neu abschließen.')
@@ -134,7 +151,13 @@ export async function stripeChangePlan(
     if (hasAddons && planItem.interval !== price.interval) {
       throw new ApiError('BAD_REQUEST', 'Mit Zusatzspeicher ist ein Wechsel zwischen Monat und Jahr erst nach dem Kündigen des Zusatzspeichers möglich.')
     }
-    const updated = await gw.changeSubscriptionPlan(sub.id, planItem.id, price)
+    let updated = await gw.changeSubscriptionPlan(sub.id, planItem.id, price)
+    // Nutzerplätze als eigene Position (Menge) nachführen
+    const seatItem = updated.items.find(i => i.product === products.seat)
+    if (extraSeats > 0 && seatItem) await gw.setItemQuantity(seatItem.id, extraSeats)
+    else if (extraSeats > 0) await gw.addItem(sub.id, seatPrice(pricing, products, input.interval, input.currency), { accountId: acc.id, kind: 'seats' }, extraSeats)
+    else if (seatItem) await gw.removeItem(seatItem.id)
+    if (extraSeats > 0 || seatItem) updated = await gw.retrieveSubscription(sub.id)
     await applySubscription(deps, gw, updated, input.plan)
     await audit(deps.db, acc.id, 'user', 'billing.plan_changed', { ...input, via: 'stripe' })
     return null
@@ -144,6 +167,7 @@ export async function stripeChangePlan(
   return gw.checkoutSubscription({
     customer,
     price,
+    extra: extraSeats > 0 ? [{ price: seatPrice(pricing, products, input.interval, input.currency), quantity: extraSeats }] : [],
     successUrl: returnUrl(ctx, 'checkout=success'),
     cancelUrl: returnUrl(ctx, 'checkout=cancelled'),
     metadata: { accountId: acc.id, plan: input.plan },
@@ -234,17 +258,29 @@ export async function applySubscription(deps: Deps, gw: StripeGateway, sub: Subs
   const accountId = await accountForCustomer(deps.db, sub.customer, sub.metadata.accountId)
   if (!accountId) return
   const products = await productIds(deps.db, gw)
-  const planItem = sub.items.find(i => i.product === products.pro || i.product === products.family)
+  const planItem = sub.items.find(i => PLAN_PRODUCTS.some(k => products[k] === i.product))
+  const seatItem = sub.items.find(i => i.product === products.seat)
   const periodEnd = sub.periodEnd ? new Date(sub.periodEnd * 1000).toISOString() : null
 
   if (ACTIVE.has(sub.status) && planItem) {
-    const plan: Plan = planItem.product === products.family ? 'family' : planItem.product === products.pro ? 'pro' : (planHint ?? 'pro')
+    const plan: Plan =
+      planItem.product === products.family
+        ? 'family'
+        : planItem.product === products.pro
+          ? 'pro'
+          : planItem.product === products.business || planItem.product === products.business_starter
+            ? 'business'
+            : (planHint ?? 'pro')
+    const pricing = await getPricing(deps.db)
+    const tier = plan === 'business' ? (planItem.product === products.business_starter ? 'starter' : 'business') : null
+    const seats = tier ? pricing.business[tier].seats + (seatItem?.quantity ?? 0) : null
     await deps.db.tx(async tx => {
       await tx.query(
         `UPDATE accounts SET plan = $2, billing_interval = $3, currency = $4, stripe_customer_id = $5, stripe_subscription_id = $6,
-                subscription_status = $7, current_period_end = $8, cancel_at_period_end = $9, payg_enabled = false
+                subscription_status = $7, current_period_end = $8, cancel_at_period_end = $9, payg_enabled = false,
+                business_tier = $10, seats = $11
           WHERE id = $1`,
-        [accountId, plan, planItem.interval, planItem.currency.toUpperCase(), sub.customer, sub.id, sub.status, periodEnd, sub.cancelAtPeriodEnd]
+        [accountId, plan, planItem.interval, planItem.currency.toUpperCase(), sub.customer, sub.id, sub.status, periodEnd, sub.cancelAtPeriodEnd, tier, seats]
       )
       // Zusatzspeicher, die in Stripe nicht mehr existieren, beenden
       const itemIds = sub.items.filter(i => i.product === products.addon).map(i => i.id)

@@ -5,7 +5,14 @@ const interval = z.enum(['month', 'year'])
 
 export const buyAddonSchema = z.object({ packId: z.string().regex(/^[a-z0-9-]{1,40}$/) })
 export const paygSchema = z.object({ enabled: z.boolean(), capGb: z.number().int().min(1).max(1_000_000).optional() })
-export const changePlanSchema = z.object({ plan: z.enum(['free', 'pro', 'family']), interval, currency })
+export const changePlanSchema = z.object({
+  plan: z.enum(['free', 'pro', 'family', 'business']),
+  interval,
+  currency,
+  /** Business: Stufe (Enterprise nur per Vertrag) und zusätzliche Nutzer */
+  tier: z.enum(['starter', 'business']).optional(),
+  extraSeats: z.number().int().min(0).max(1000).optional()
+})
 export const currencySchema = z.object({ currency })
 export const grantAddonSchema = z.object({
   gb: z.number().int().min(1).max(1_000_000),

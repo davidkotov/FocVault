@@ -15,7 +15,7 @@ function fakeStripe() {
   const charges: Array<{ amount: number; currency: string }> = []
   let n = 0
   let hasPm = false
-  const item = (p: PriceData) => ({ id: `si_${++n}`, product: p.product, currency: p.currency, unitAmount: p.unitAmount, interval: p.interval, periodEnd: 1_900_000_000 })
+  const item = (p: PriceData, quantity = 1) => ({ id: `si_${++n}`, product: p.product, currency: p.currency, unitAmount: p.unitAmount, interval: p.interval, periodEnd: 1_900_000_000, quantity })
   const gw: StripeGateway = {
     async createCustomer() {
       calls.push('customer')
@@ -28,7 +28,7 @@ function fakeStripe() {
       calls.push('checkout')
       // „Kunde bezahlt“: Abo entsteht in Stripe
       const id = `sub_${++n}`
-      subs.set(id, { id, customer: input.customer, status: 'active', cancelAtPeriodEnd: false, periodEnd: 1_900_000_000, metadata: input.metadata, items: [item(input.price)] })
+      subs.set(id, { id, customer: input.customer, status: 'active', cancelAtPeriodEnd: false, periodEnd: 1_900_000_000, metadata: input.metadata, items: [item(input.price), ...(input.extra ?? []).map(e => item(e.price, e.quantity))] })
       return `https://checkout.stripe.test/${id}`
     },
     async checkoutSetup(input) {
@@ -53,8 +53,11 @@ function fakeStripe() {
       subs.get(id)!.cancelAtPeriodEnd = cancel
       return structuredClone(subs.get(id)!)
     },
-    async addItem(subId, price) {
-      const it = item(price)
+    async setItemQuantity(itemId, quantity) {
+      for (const s of subs.values()) s.items = s.items.map(i => (i.id === itemId ? { ...i, quantity } : i))
+    },
+    async addItem(subId, price, _meta, quantity = 1) {
+      const it = item(price, quantity)
       subs.get(subId)!.items.push(it)
       return it.id
     },
@@ -189,6 +192,28 @@ describe('Stripe-Abrechnung', () => {
     }
     expect(await closePaygMonth(deps, s.gw, new Date('2026-10-01T03:00:00Z'))).toEqual({ charged: 1, carried: 0 })
     expect(s.charges).toEqual([{ amount: 382, currency: 'chf' }])
+  })
+
+  it('Business: Stufe und zusätzliche Nutzer als Abo-Positionen, Wechsel zu Starter entfernt die Plätze', async () => {
+    const deps = await testDeps()
+    const s = fakeStripe()
+    setStripeGatewayForTests(s.gw)
+    const { session } = await newAccount(deps, 'startup@example.com')
+    const r = await changePlan(deps, session, { plan: 'business', tier: 'business', extraSeats: 3, interval: 'month', currency: 'CHF' }, CTX)
+    const subId = r.redirectUrl!.split('/').pop()!
+    expect(s.subs.get(subId)!.items.map(i => [i.product, i.unitAmount, i.quantity])).toEqual([
+      ['prod_business', 12900, 1],
+      ['prod_seat', 800, 3]
+    ])
+    await handleStripeEvent(deps, s.gw, event('customer.subscription.created', { id: subId }))
+    expect((await deps.db.query(`SELECT plan, business_tier, seats FROM accounts WHERE id = $1`, [session.accountId]))[0]).toMatchObject({
+      plan: 'business',
+      business_tier: 'business',
+      seats: 13
+    })
+    await changePlan(deps, session, { plan: 'business', tier: 'starter', extraSeats: 0, interval: 'month', currency: 'CHF' }, CTX)
+    expect(s.subs.get(subId)!.items.map(i => i.product)).toEqual(['prod_business_starter'])
+    expect((await deps.db.query(`SELECT business_tier, seats FROM accounts WHERE id = $1`, [session.accountId]))[0]).toMatchObject({ business_tier: 'starter', seats: 5 })
   })
 
   it('Webhook-Signatur: gültig wird akzeptiert, manipuliert oder falsches Secret abgelehnt', () => {

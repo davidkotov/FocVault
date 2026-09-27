@@ -35,6 +35,12 @@ export const pricingSchema = z.object({
     inactiveWarnDays: z.number().int().min(30).max(3650),
     inactiveDeleteDays: z.number().int().min(60).max(3650)
   }),
+  business: z.object({
+    starter: z.object({ label: z.string().min(1).max(40), quotaGb: gb, seats: z.number().int().min(1).max(10000), ...priced }),
+    business: z.object({ label: z.string().min(1).max(40), quotaGb: gb, seats: z.number().int().min(1).max(10000), ...priced }),
+    enterprise: z.object({ label: z.string().min(1).max(40), quotaGb: gb, seats: z.number().int().min(1).max(100000), fromMonthly: moneySchema, contact: z.string().email() }),
+    seat: z.object(priced)
+  }),
   trashDays: z.number().int().min(1).max(365),
   versions: z.object({ days: z.number().int().min(1).max(365), max: z.number().int().min(1).max(100) }),
   storage: z.object({

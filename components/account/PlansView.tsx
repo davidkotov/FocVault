@@ -30,6 +30,9 @@ export default function PlansView() {
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmFree, setConfirmFree] = useState(false)
+  const [segment, setSegment] = useState<'private' | 'business'>(account?.plan === 'business' ? 'business' : 'private')
+  // gewählte Zusatz-Nutzer je Stufe (im Elternteil, damit die Auswahl Re-Renders übersteht)
+  const [seatChoice, setSeatChoice] = useState<Record<'starter' | 'business', number | undefined>>({ starter: undefined, business: undefined })
 
   // Rückkehr von Stripe: Hinweis zeigen und Konto neu laden (der Webhook kann ein paar Sekunden brauchen).
   useEffect(() => {
@@ -96,6 +99,83 @@ export default function PlansView() {
   const perGbMoney = (amount: number, c: Currency) => fmtMoney(amount, c, Math.round(amount * 1000) % 10 === 0 ? 2 : 3)
   const cur = viewCurrency
   const pct = account.quotaBytes > 0 ? Math.min(100, (account.usedBytes / account.quotaBytes) * 100) : 0
+
+  const biz = b.business
+  const BizCard = ({ tier }: { tier: 'starter' | 'business' }) => {
+    const t = offer.business[tier]
+    const text = m.biz[tier]
+    const isCurrentTier = account.plan === 'business' && biz?.tier === tier && b.interval === interval && b.currency === cur
+    const extra = seatChoice[tier] ?? (isCurrentTier ? (biz?.extraSeats ?? 0) : 0)
+    const setExtra = (n: number) => setSeatChoice(c => ({ ...c, [tier]: n }))
+    const unit = interval === 'year' ? offer.business.seat.yearly[cur] / 12 : offer.business.seat.monthly[cur]
+    const base = interval === 'year' ? t.yearly[cur] / 12 : t.monthly[cur]
+    const perMonth = base + extra * unit
+    const yearlyTotal = t.yearly[cur] + extra * offer.business.seat.yearly[cur]
+    const unchanged = isCurrentTier && extra === (biz?.extraSeats ?? 0)
+    const vars = { tb: tb(t.quotaGb), seats: t.seats }
+    return (
+      <div className={`plancard ${tier === 'business' ? 'featured' : ''} ${isCurrentTier ? 'current' : ''}`}>
+        {tier === 'business' && <span className="plantag">{m.popular}</span>}
+        <h4>{text.name}</h4>
+        <p className="dim">{text.tagline}</p>
+        <div className="planprice">
+          <strong>{fmtMoney(perMonth, cur)}</strong>
+          <span>{m.perMonth}</span>
+        </div>
+        <div className="planbilled">
+          {interval === 'year' ? fmt(m.billedYearly, { amount: fmtMoney(yearlyTotal, cur) }) : fmt(m.biz.perUser, { price: fmtMoney(unit, cur) })}
+        </div>
+        <label className="field seatpick">
+          <span>{m.biz.users}</span>
+          <select value={extra} onChange={e => setExtra(Number(e.target.value))} disabled={!!busy}>
+            {[0, 1, 3, 5, 20, 50].map(n => (
+              <option key={n} value={n}>
+                {t.seats + n} {n === 0 ? `(${fmt(m.biz.usersIncluded, { n: t.seats })})` : `(${fmt(m.biz.extraUsers, { n })})`}
+              </option>
+            ))}
+          </select>
+        </label>
+        <ul>
+          {text.features.map(f => (
+            <li key={f}>{fmt(f, vars)}</li>
+          ))}
+        </ul>
+        <button
+          className={unchanged ? '' : 'primary'}
+          disabled={unchanged || !!busy || !offer.purchasesEnabled || !!biz?.member}
+          onClick={() =>
+            void run(tier, () => api.changePlan('business', interval, cur, { tier, extraSeats: extra }), isCurrentTier ? fmt(m.biz.seatsSaved, { n: t.seats + extra }) : fmt(m.planChanged, { plan: text.name }))
+          }
+        >
+          {busy === tier ? '…' : unchanged ? m.current : isCurrentTier ? m.save : account.plan === 'business' ? m.switchTo : m.upgrade}
+        </button>
+      </div>
+    )
+  }
+
+  const EnterpriseCard = () => {
+    const e = offer.business.enterprise
+    return (
+      <div className={`plancard ${biz?.tier === 'enterprise' ? 'current' : ''}`}>
+        <h4>{m.biz.enterprise.name}</h4>
+        <p className="dim">{m.biz.enterprise.tagline}</p>
+        <div className="planprice">
+          <span>{m.biz.from}</span>
+          <strong>{fmtMoney(e.fromMonthly[cur], cur, 0)}</strong>
+          <span>{m.perMonth}</span>
+        </div>
+        <div className="planbilled">{m.biz.custom}</div>
+        <ul>
+          {m.biz.enterprise.features.map(f => (
+            <li key={f}>{fmt(f, { tb: tb(e.quotaGb), seats: e.seats })}</li>
+          ))}
+        </ul>
+        <a className="planbtn" href={`mailto:${e.contact}?subject=FocVault%20Enterprise`}>
+          <button className="full">{biz?.tier === 'enterprise' ? m.current : m.biz.contact}</button>
+        </a>
+      </div>
+    )
+  }
 
   const PlanCard = ({ plan }: { plan: 'free' | PaidPlan }) => {
     const isCurrent =
@@ -205,6 +285,16 @@ export default function PlansView() {
         </div>
       )}
 
+      <div className="audienceswitch" role="tablist" aria-label={`${m.segment.private} / ${m.segment.business}`}>
+        {(['private', 'business'] as const).map(sg => (
+          <button key={sg} role="tab" aria-selected={segment === sg} className={segment === sg ? 'active' : ''} onClick={() => setSegment(sg)}>
+            {sg === 'private' ? m.segment.private : m.segment.business}
+          </button>
+        ))}
+      </div>
+      {segment === 'business' && <p className="dim audiencelead">{m.biz.lead}</p>}
+      {biz?.member && <div className="notice">{m.biz.member}</div>}
+
       <div className="plancontrols">
         <div className="segmented" role="group" aria-label={m.yearly}>
           {(['month', 'year'] as const).map(i => (
@@ -231,11 +321,19 @@ export default function PlansView() {
         </label>
       </div>
 
-      <div className="plancards">
-        <PlanCard plan="free" />
-        <PlanCard plan="pro" />
-        <PlanCard plan="family" />
-      </div>
+      {segment === 'private' ? (
+        <div className="plancards">
+          <PlanCard plan="free" />
+          <PlanCard plan="pro" />
+          <PlanCard plan="family" />
+        </div>
+      ) : (
+        <div className="plancards">
+          <BizCard tier="starter" />
+          <BizCard tier="business" />
+          <EnterpriseCard />
+        </div>
+      )}
       <p className="hint" style={{ marginBottom: 18 }}>
         {m.vatNote} {!offer.purchasesEnabled ? m.stripeSoon : b.stripe ? m.stripe.secure : m.devNote}
       </p>
@@ -254,7 +352,7 @@ export default function PlansView() {
         />
       )}
 
-      {isFree && (
+      {isFree && segment === 'private' && (
         <div className="card">
           <h3>
             {m.payg.title} <span className="badge ok">{m.payg.badge}</span>
@@ -349,7 +447,7 @@ export default function PlansView() {
         </div>
       )}
 
-      {!isFree && (account.plan === 'pro' || account.plan === 'family') && (
+      {!isFree && !biz?.member && (account.plan === 'pro' || account.plan === 'family' || account.plan === 'business') && (
         <div className="card">
           <h3>{m.addons.title}</h3>
           <p className="dim" style={{ marginBottom: 12 }}>

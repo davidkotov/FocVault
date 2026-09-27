@@ -10,6 +10,7 @@ const de = {
   savePct: '−{pct} %',
   current: 'Aktueller Plan',
   choose: 'Wählen',
+  save: 'Speichern',
   upgrade: 'Upgrade',
   switchTo: 'Wechseln',
   downgrade: 'Zu Free wechseln',
@@ -33,6 +34,35 @@ const de = {
     name: 'Family',
     tagline: 'Für bis zu {seats} Personen – jede mit eigenem Tresor.',
     features: ['{tb} TB gemeinsamer Speicher', 'Bis zu {seats} Mitglieder', 'Alle Module für alle', 'Zusatzspeicher jederzeit buchbar']
+  },
+  segment: { private: 'Privat', business: 'Business' },
+  biz: {
+    lead: 'Für Startups, KMU und Konzerne: gemeinsamer Speicher, eigene Tresore für alle im Team, S3-Speicher-API für Server-Backups und unlöschbare Backups.',
+    users: 'Nutzer',
+    usersIncluded: '{n} inklusive',
+    extraUsers: '+{n} zusätzlich',
+    perUser: '{price} je weiterem Nutzer',
+    moreUsers: '100+ Nutzer? Enterprise anfragen',
+    contact: 'Kontakt aufnehmen',
+    from: 'ab',
+    custom: 'individuell',
+    starter: {
+      name: 'Business Starter',
+      tagline: 'Für Startups und kleine Teams.',
+      features: ['{tb} TB gemeinsamer Speicher', '{seats} Nutzer inklusive', 'S3-Speicher-API & unlöschbare Backups', 'Teamordner, Passwörter, 2FA']
+    },
+    business: {
+      name: 'Business',
+      tagline: 'Für wachsende Firmen und Agenturen.',
+      features: ['{tb} TB gemeinsamer Speicher', '{seats} Nutzer inklusive', 'Aufbewahrungsregeln (täglich/monatlich/jährlich)', 'Filecoin-Nachweise für Audits']
+    },
+    enterprise: {
+      name: 'Enterprise',
+      tagline: 'Für Konzerne, Hoster und Behörden.',
+      features: ['Ab {tb} TB, frei skalierbar', 'Ab {seats} Nutzer, Mengenrabatt', 'SLA, Vertrag, Rechnung', 'Datenresidenz CH/EU, dedizierter Support']
+    },
+    member: 'Du bist Teil eines Business-Teams – das Abo verwaltet der Inhaber.',
+    seatsSaved: 'Nutzer angepasst: {n} insgesamt.'
   },
   payg: {
     title: 'Pay-as-you-go',
@@ -110,6 +140,7 @@ const en: typeof de = {
   savePct: '−{pct}%',
   current: 'Current plan',
   choose: 'Choose',
+  save: 'Save',
   upgrade: 'Upgrade',
   switchTo: 'Switch',
   downgrade: 'Switch to Free',
@@ -133,6 +164,35 @@ const en: typeof de = {
     name: 'Family',
     tagline: 'For up to {seats} people – each with their own vault.',
     features: ['{tb} TB shared storage', 'Up to {seats} members', 'All modules for everyone', 'Add storage any time']
+  },
+  segment: { private: 'Personal', business: 'Business' },
+  biz: {
+    lead: 'For startups, SMEs and enterprises: shared storage, a private vault for everyone on the team, an S3 storage API for server backups, and immutable backups.',
+    users: 'Users',
+    usersIncluded: '{n} included',
+    extraUsers: '+{n} additional',
+    perUser: '{price} per additional user',
+    moreUsers: '100+ users? Ask about Enterprise',
+    contact: 'Contact us',
+    from: 'from',
+    custom: 'custom',
+    starter: {
+      name: 'Business Starter',
+      tagline: 'For startups and small teams.',
+      features: ['{tb} TB shared storage', '{seats} users included', 'S3 storage API & immutable backups', 'Team folder, passwords, 2FA']
+    },
+    business: {
+      name: 'Business',
+      tagline: 'For growing companies and agencies.',
+      features: ['{tb} TB shared storage', '{seats} users included', 'Retention rules (daily/monthly/yearly)', 'Filecoin proofs for audits']
+    },
+    enterprise: {
+      name: 'Enterprise',
+      tagline: 'For corporations, hosting providers and public sector.',
+      features: ['From {tb} TB, scales freely', 'From {seats} users, volume pricing', 'SLA, contract, invoice', 'Data residency CH/EU, dedicated support']
+    },
+    member: 'You are part of a Business team – the owner manages the subscription.',
+    seatsSaved: 'Users updated: {n} in total.'
   },
   payg: {
     title: 'Pay-as-you-go',

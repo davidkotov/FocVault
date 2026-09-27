@@ -85,7 +85,9 @@ const de = {
     familyCta: 'Family wählen',
     business: 'Business / Custom',
     businessPrice: 'Individuell',
-    businessDesc: 'Teams, Compliance-Anforderungen, dedizierte Kapazität.',
+    from: 'ab',
+    businessSeats: '{seats} Nutzer inklusive, weitere {price}',
+    businessDesc: 'Starter, Business und Enterprise – für Teams, Server-Backups und Compliance.',
     businessFeatures: ['S3-Speicher-API für Server- & Datenbank-Backups', 'Unlöschbare Backups (Object Lock) & Aufbewahrungsregeln', 'Öffentlich prüfbare Speicherbeweise auf Filecoin', 'Datenresidenz CH/EU, SLA & Audit-Logs'],
     businessCta: 'Kontakt',
     vat: 'Preise inkl. MWST.'
@@ -226,7 +228,9 @@ const en: typeof de = {
     familyCta: 'Choose Family',
     business: 'Business / custom',
     businessPrice: 'Custom',
-    businessDesc: 'Teams, compliance requirements, dedicated capacity.',
+    from: 'from',
+    businessSeats: '{seats} users included, more at {price}',
+    businessDesc: 'Starter, Business and Enterprise – for teams, server backups and compliance.',
     businessFeatures: ['S3 storage API for server & database backups', 'Immutable backups (Object Lock) & retention rules', 'Publicly verifiable storage proofs on Filecoin', 'Data residency CH/EU, SLA & audit logs'],
     businessCta: 'Contact us',
     vat: 'Prices include VAT.'

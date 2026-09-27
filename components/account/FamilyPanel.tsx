@@ -46,12 +46,18 @@ export default function FamilyPanel({ freeGb }: { freeGb: number }) {
   }
 
   const used = view.members.length + view.invites.length
+  const team = view.kind === 'business'
+  const tm = t.team
   return (
     <div className="card">
       <h3>
-        {m.title} <span>{fmt(m.seatsUsed, { used: view.members.length, seats: view.seats })}</span>
+        {team ? tm.title : m.title} <span>{fmt(m.seatsUsed, { used: view.members.length, seats: view.seats })}</span>
       </h3>
-      <p className="dim">{view.role === 'owner' ? fmt(m.ownerLead, { seats: view.seats }) : fmt(m.memberLead, { owner: view.ownerLabel ?? '' })}</p>
+      <p className="dim">
+        {view.role === 'owner'
+          ? fmt(team ? tm.ownerLead : m.ownerLead, { seats: view.seats })
+          : fmt(team ? tm.memberLead : m.memberLead, { owner: view.ownerLabel ?? '' })}
+      </p>
       {error && <div className="errorbox">{error}</div>}
 
       <div className="trashlist">

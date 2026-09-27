@@ -441,6 +441,17 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       ALTER TABLE object_pieces DROP CONSTRAINT object_pieces_cipher_bytes_check;
       ALTER TABLE object_pieces ADD CONSTRAINT object_pieces_cipher_bytes_check CHECK (cipher_bytes >= 0);
     `
+  },
+  {
+    version: 14,
+    name: 'business_tiers_seats',
+    sql: `
+      -- Business in drei Stufen; Nutzerplätze (inklusive + zusätzlich gebuchte).
+      ALTER TABLE accounts ADD COLUMN business_tier text CHECK (business_tier IN ('starter', 'business', 'enterprise'));
+      ALTER TABLE accounts ADD COLUMN seats integer CHECK (seats IS NULL OR seats BETWEEN 1 AND 100000);
+      -- Enterprise: individuelle Quota (vom Admin gesetzt)
+      ALTER TABLE accounts ADD COLUMN custom_quota_gb integer CHECK (custom_quota_gb IS NULL OR custom_quota_gb > 0);
+    `
   }
 ]
 
