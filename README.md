@@ -28,10 +28,12 @@ wie gespeichert wird.
 └─────────────────────────────────────────────────────┘
 ```
 
-**Abgrenzung zu fil.one/S3-Diensten:** fil.one ist S3-Objektstorage für Teams
-(Buckets, API-Keys, Terabyte-Pipelines). FocVault ist die Consumer-Privacy-Cloud
-darüber: Identity-Layer, E2EE, komfortable Oberfläche, kein Mindestbetrag.
-Keine Überlappung – wir sind die App-Schicht, sie die Infrastruktur-Schicht.
+**Rolle von Fil One (fil.one):** Fil One ist S3-kompatibler Object Storage auf
+Filecoin (EU-Region, tägliche CID-Verifikation) und unser **Storage-Lieferant**.
+FocVault ist die Consumer-Privacy-Cloud darüber: Identity-Layer, E2EE, komfortable
+Oberfläche, Abrechnung in CHF – wir sind die App-Schicht, Fil One die
+Infrastruktur-Schicht. Der aktuelle MVP-Code speichert noch direkt über das
+Synapse SDK (Wallet-bezahlt); die Umstellung ist in `ARCHITECTURE.md` beschrieben.
 
 **Roadmap (Personal Cloud OS):**
 
