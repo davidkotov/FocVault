@@ -28,14 +28,18 @@ export async function adminStats(deps: Deps): Promise<AdminStats> {
       stored: number
       objects: number
     }>(
-      `SELECT a.id, a.email, a.plan, a.status, a.created_at,
+      `SELECT a.id,
+              COALESCE(a.email, a.label, (SELECT w.address FROM auth_wallets w WHERE w.account_id = a.id LIMIT 1), '—') AS email,
+              a.plan, a.status, a.created_at,
               COALESCE(SUM(o.cipher_bytes) FILTER (WHERE o.state = 'stored'), 0)::float8 AS stored,
               (count(o.id) FILTER (WHERE o.state = 'stored'))::float8 AS objects
          FROM accounts a LEFT JOIN objects o ON o.owner_account_id = a.id
         GROUP BY a.id ORDER BY a.created_at DESC LIMIT 100`
     ),
     deps.db.query<{ at: Date; kind: string; email: string | null }>(
-      `SELECT e.at, e.kind, a.email FROM audit_events e LEFT JOIN accounts a ON a.id = e.account_id
+      `SELECT e.at, e.kind,
+              COALESCE(a.email, a.label, (SELECT w.address FROM auth_wallets w WHERE w.account_id = a.id LIMIT 1)) AS email
+         FROM audit_events e LEFT JOIN accounts a ON a.id = e.account_id
         ORDER BY e.id DESC LIMIT 40`
     )
   ])

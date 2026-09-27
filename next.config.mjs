@@ -15,9 +15,11 @@ const csp = [
   `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
+  // Reown AppKit lädt eigene Fonts
+  "font-src 'self' data: https://fonts.reown.com",
   `connect-src 'self' https: wss:${isDev ? ' ws: http://localhost:*' : ''}`,
-  "frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org",
+  // Reown: Verify-API und der Iframe der eingebetteten E-Mail-/Social-Wallets
+  "frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://secure.walletconnect.com https://secure.walletconnect.org https://secure.reown.com",
   "worker-src 'self' blob:",
   "media-src 'self' blob:",
   "object-src 'none'",
@@ -43,6 +45,19 @@ const nextConfig = {
   experimental: {
     // Zur Laufzeit aus node_modules laden statt bündeln (PGlite lädt WASM per Dateipfad).
     serverComponentsExternalPackages: ['@electric-sql/pglite', 'pg', '@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner']
+  },
+  // Reown/WalletConnect: optionale Node-Abhängigkeiten nicht bündeln (laut Reown-Doku für Next.js)
+  webpack: config => {
+    config.externals.push('pino-pretty', 'lokijs', 'encoding')
+    // @wagmi/connectors → Base Account → Coinbase CDP-SDK importiert x402-Zahlungsmodule als
+    // optionale, nicht installierte Abhängigkeiten. FocVault nutzt weder Base-Account-Zahlungen
+    // noch x402 → leeres Modul statt Build-Fehler. React-Native-Storage (MetaMask-SDK) ebenso.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@x402': false,
+      '@react-native-async-storage/async-storage': false
+    }
+    return config
   },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }]

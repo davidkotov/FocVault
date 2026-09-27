@@ -12,7 +12,7 @@ const SESSION_DAYS = 30
 export interface SessionInfo {
   sessionId: string
   accountId: string
-  email: string
+  email: string | null
   plan: Plan
   strongAuthAt: number
 }
@@ -39,7 +39,7 @@ export async function findSession(db: Db, token: string): Promise<SessionInfo | 
     account_id: string
     strong_auth_at: Date
     last_seen_at: Date
-    email: string
+    email: string | null
     plan: Plan
     status: string
   }>(

@@ -53,7 +53,7 @@ function UnlockScreen() {
       >
         <h2>Tresor entsperren</h2>
         <p className="lead">
-          Angemeldet als <strong>{account?.email}</strong>. Dein Schlüssel wird nur im Arbeitsspeicher gehalten und nach 30
+          Angemeldet als <strong>{account?.label}</strong>. Dein Schlüssel wird nur im Arbeitsspeicher gehalten und nach 30
           Minuten Inaktivität verworfen.
         </p>
         {error && <div className="errorbox">{error}</div>}
@@ -371,9 +371,17 @@ export default function AppPage() {
                 <div className="card">
                   <h3>Konto</h3>
                   <div className="stat">
-                    <span className="k">E-Mail</span>
-                    <span className="v">{account.email}</span>
+                    <span className="k">{account.email ? 'E-Mail' : 'Konto'}</span>
+                    <span className="v">{account.email ?? account.label}</span>
                   </div>
+                  {account.wallets.map(w => (
+                    <div className="stat" key={w}>
+                      <span className="k">Login per Reown</span>
+                      <span className="v" style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
+                        {w.slice(0, 10)}…{w.slice(-6)}
+                      </span>
+                    </div>
+                  ))}
                   <div className="stat">
                     <span className="k">Plan</span>
                     <span className="v">{tier}</span>

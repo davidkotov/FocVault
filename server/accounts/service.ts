@@ -4,7 +4,7 @@ import { audit, type Deps } from '../deps'
 import { isUniqueViolation } from '../db'
 import { ApiError } from '../shared/errors'
 import { b64uDecode, b64uEncode, hmacSha256 } from '../shared/bytes'
-import { isAdminEmail, serverSecret } from '../shared/env'
+import { isAdminIdentity, serverSecret } from '../shared/env'
 import { uuidv7 } from '../shared/ids'
 import { burnVerification, hashSecret, verifySecret, type SecretHashParams } from '../auth/passwords'
 import { rateLimit } from '../auth/ratelimit'
@@ -192,13 +192,19 @@ export async function changePassphrase(
 export async function accountView(deps: Deps, accountId: string, extraKeks: KekType[] = []): Promise<AccountView> {
   const rows = await deps.db.query<{
     id: string
-    email: string
+    email: string | null
+    label: string | null
     email_verified_at: Date | null
     plan: Plan
     created_at: Date
-  }>('SELECT id, email, email_verified_at, plan, created_at FROM accounts WHERE id = $1', [accountId])
+  }>('SELECT id, email, label, email_verified_at, plan, created_at FROM accounts WHERE id = $1', [accountId])
   const a = rows[0]
   if (!a) throw new ApiError('NOT_FOUND', 'Konto nicht gefunden.')
+  const wallets = (
+    await deps.db.query<{ address: string }>('SELECT address FROM auth_wallets WHERE account_id = $1 ORDER BY created_at', [
+      accountId
+    ])
+  ).map(w => w.address)
   const keys = await deps.db.query<{
     kek_type: KekType
     mk_iv: Uint8Array
@@ -216,6 +222,8 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
   return {
     id: a.id,
     email: a.email,
+    label: a.email ?? a.label ?? (wallets[0] ? `${wallets[0].slice(0, 6)}…${wallets[0].slice(-4)}` : 'Konto'),
+    wallets,
     emailVerified: !!a.email_verified_at,
     plan: a.plan,
     quotaBytes: quotaFor(a.plan),
@@ -223,6 +231,6 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
     createdAt: new Date(a.created_at).toISOString(),
     kdf: pass.kdf_params,
     envelopes,
-    isAdmin: isAdminEmail(a.email)
+    isAdmin: isAdminIdentity(a.email, wallets)
   }
 }

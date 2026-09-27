@@ -15,7 +15,7 @@ export default function AccountMenu() {
         title={syncError ? `Nicht synchronisiert: ${syncError}` : syncing ? 'Wird synchronisiert…' : 'Synchronisiert'}
       >
         <span className={`syncdot ${syncError ? 'err' : syncing ? 'busy' : ''}`} />
-        <span className="mail">{account.email}</span>
+        <span className="mail">{account.label}</span>
         <span className={`badge ${account.plan === 'free' ? '' : 'pro'}`}>{PLAN_LABEL[account.plan]}</span>
       </span>
       {syncError && (

@@ -26,7 +26,12 @@ export type Plan = 'free' | 'pro' | 'family' | 'business'
 
 export interface AccountView {
   id: string
-  email: string
+  /** null bei Konten, die per Reown (Wallet/Social) erstellt wurden */
+  email: string | null
+  /** Anzeigename: E-Mail, Reown-Hinweis oder gekürzte Wallet-Adresse */
+  label: string
+  /** verknüpfte Wallet-Adressen (lowercase) */
+  wallets: string[]
   emailVerified: boolean
   plan: Plan
   quotaBytes: number

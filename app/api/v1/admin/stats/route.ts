@@ -9,6 +9,6 @@ export const dynamic = 'force-dynamic'
 export const GET = route(async req => {
   const d = await deps()
   const session = await requireSession(req, d.db)
-  requireAdmin(session)
+  await requireAdmin(d.db, session)
   return json(await adminStats(d))
 })

@@ -40,9 +40,34 @@ export function adminEmails(): string[] {
     .filter(Boolean)
 }
 
-/** Admin = in ADMIN_EMAILS. Ohne Liste in Dev: jedes Konto (nur lokal, zum Ausprobieren). */
-export function isAdminEmail(email: string): boolean {
-  const list = adminEmails()
-  if (list.length === 0) return !isProd
-  return list.includes(email.toLowerCase())
+export function adminAddresses(): string[] {
+  return (process.env.ADMIN_ADDRESSES ?? '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+/**
+ * Admin = E-Mail in ADMIN_EMAILS oder Wallet-Adresse in ADMIN_ADDRESSES.
+ * Sind beide Listen leer: in Dev jedes Konto (nur lokal, zum Ausprobieren), in Production keins.
+ */
+export function isAdminIdentity(email: string | null, wallets: string[]): boolean {
+  const emails = adminEmails()
+  const addresses = adminAddresses()
+  if (emails.length === 0 && addresses.length === 0) return !isProd
+  return (!!email && emails.includes(email.toLowerCase())) || wallets.some(w => addresses.includes(w.toLowerCase()))
+}
+
+/**
+ * Erlaubte Origins für die Wallet-Anmeldung (SIWE-Domain-Bindung). Production: APP_ORIGIN
+ * (kommagetrennt, z. B. https://foc-vault.vercel.app). Ohne Angabe nur in Dev: Origin der Anfrage.
+ */
+export function allowedOrigins(requestOrigin: string): string[] {
+  const list = (process.env.APP_ORIGIN ?? '')
+    .split(',')
+    .map(s => s.trim().replace(/\/$/, ''))
+    .filter(Boolean)
+  if (list.length) return list
+  if (isProd) throw new Error('APP_ORIGIN fehlt (Production).')
+  return [requestOrigin]
 }

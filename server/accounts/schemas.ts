@@ -48,4 +48,25 @@ export const passphraseSchema = z.object({
   envelope: envelopeSchema.refine(e => e.kekType === 'passphrase', { message: 'Passphrase-Envelope erwartet' })
 })
 
+export const walletLoginSchema = z.object({
+  message: z.string().min(20).max(2000),
+  signature: z.string().regex(/^0x[0-9a-fA-F]+$/, 'Hex-Signatur erwartet').max(20_000)
+})
+
+export const walletRegisterSchema = z
+  .object({
+    registrationToken: z.string().min(10).max(300),
+    label: z.string().trim().max(120).optional(),
+    authKey: b64u(32),
+    recoveryAuthKey: b64u(32),
+    kdf: kdfSchema,
+    envelopes: z.array(envelopeSchema).length(2)
+  })
+  .refine(v => new Set(v.envelopes.map(e => e.kekType)).size === 2, {
+    message: 'Passphrase- und Recovery-Envelope erforderlich',
+    path: ['envelopes']
+  })
+
+export const recoverySessionSchema = z.object({ recoveryAuthKey: b64u(32) })
+
 export const planSchema = z.object({ plan: z.enum(['free', 'pro', 'family', 'business']) })

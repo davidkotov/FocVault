@@ -65,6 +65,17 @@ export const api = {
     call<AccountView>('POST', '/auth/recovery', { email, recoveryAuthKey }),
   logout: () => call<{ ok: true }>('POST', '/auth/logout'),
 
+  walletNonce: () => call<{ nonce: string }>('POST', '/auth/wallet/nonce'),
+  walletVerify: (message: string, signature: string) =>
+    call<
+      | { status: 'existing'; account: AccountView }
+      | { status: 'new'; registrationToken: string; address: string }
+    >('POST', '/auth/wallet/verify', { message, signature }),
+  walletRegister: (input: Omit<RegisterInput, 'email'> & { registrationToken: string; label?: string }) =>
+    call<AccountView>('POST', '/auth/wallet/register', input),
+  recoveryWithSession: (recoveryAuthKey: string) =>
+    call<AccountView>('POST', '/account/recovery', { recoveryAuthKey }),
+
   async account(): Promise<AccountView | null> {
     const res = await send('/account?optional=1', { method: 'GET' })
     if (res.status === 204) return null

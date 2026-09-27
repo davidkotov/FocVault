@@ -1910,3 +1910,6 @@ select {
 .eventlist li { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border-soft); }
 .eventlist time { color: var(--text-mute); font-family: var(--mono); font-size: 12px; min-width: 128px; }
 .envbadges { display: flex; gap: 8px; flex-wrap: wrap; }
+.ordivider { display: flex; align-items: center; gap: 12px; color: var(--text-mute); font-size: 12px; margin: 20px 0; text-transform: uppercase; letter-spacing: 0.06em; }
+.ordivider::before, .ordivider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.reownbtn { padding: 12px 16px; font-size: 15px; }

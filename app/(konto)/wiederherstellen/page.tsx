@@ -16,9 +16,14 @@ import {
   unwrapMasterKeyRaw
 } from '@/features/keys/kdf'
 
+/**
+ * Zwei Wege: angemeldet (z. B. per Reown) → nur Recovery-Kit + neue Passphrase;
+ * nicht angemeldet → E-Mail + Recovery-Kit (E-Mail-Konten).
+ */
 export default function RecoverPage() {
   const router = useRouter()
-  const { enter } = useAccount()
+  const { status, account, enter } = useAccount()
+  const signedIn = (status === 'locked' || status === 'ready') && !!account
   const [email, setEmail] = useState('')
   const [words, setWords] = useState('')
   const [pass, setPass] = useState('')
@@ -28,21 +33,21 @@ export default function RecoverPage() {
 
   const count = normalizeRecoveryWords(words).split(' ').filter(Boolean).length
   const wordsOk = count === 24 && isValidRecoveryWords(words)
-  const ready = !!email && wordsOk && passphraseReady(pass, pass2)
+  const ready = (signedIn || !!email) && wordsOk && passphraseReady(pass, pass2)
 
   const submit = async () => {
     setBusy(true)
     setError(null)
     try {
-      const normalized = email.trim().toLowerCase()
       const rec = await deriveFromRecovery(words)
-      const view = await api.recovery(normalized, rec.authKey)
+      const view = signedIn
+        ? await api.recoveryWithSession(rec.authKey)
+        : await api.recovery(email.trim().toLowerCase(), rec.authKey)
       const env = view.envelopes.find(e => e.kekType === 'recovery')
       if (!env) throw new Error('Recovery-Schlüssel nicht gefunden.')
       const raw = await unwrapMasterKeyRaw(env, rec.kek)
       try {
-        const change = await buildPassphraseChange(raw, pass)
-        const updated = await api.setPassphrase(change)
+        const updated = await api.setPassphrase(await buildPassphraseChange(raw, pass))
         await enter(updated, await importMasterKey(raw))
       } finally {
         raw.fill(0)
@@ -52,6 +57,14 @@ export default function RecoverPage() {
       setError(errorMessage(e, 'Wiederherstellung fehlgeschlagen.'))
       setBusy(false)
     }
+  }
+
+  if (status === 'loading') {
+    return (
+      <AuthShell>
+        <Working label="Lade …" />
+      </AuthShell>
+    )
   }
 
   return (
@@ -64,14 +77,22 @@ export default function RecoverPage() {
       >
         <h2>Tresor wiederherstellen</h2>
         <p className="lead">
+          {signedIn ? (
+            <>
+              Angemeldet als <strong>{account.label}</strong>.{' '}
+            </>
+          ) : null}
           Mit deinem Recovery-Kit setzt du eine neue Passphrase. Deine Dateien bleiben erhalten – alle anderen Geräte werden
           abgemeldet.
+          {!signedIn && ' Konto per Google, Apple oder Wallet? Dann zuerst dort anmelden und hier fortfahren.'}
         </p>
         {error && <div className="errorbox">{error}</div>}
-        <div className="field">
-          <label htmlFor="email">E-Mail</label>
-          <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
-        </div>
+        {!signedIn && (
+          <div className="field">
+            <label htmlFor="email">E-Mail</label>
+            <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+        )}
         <div className="field">
           <label htmlFor="words">Recovery-Kit (24 Wörter)</label>
           <textarea
@@ -98,7 +119,7 @@ export default function RecoverPage() {
           </button>
         )}
         <div className="authlinks">
-          <Link href="/anmelden">Zurück zur Anmeldung</Link>
+          <Link href={signedIn ? '/app' : '/anmelden'}>{signedIn ? 'Zurück zur App' : 'Zurück zur Anmeldung'}</Link>
         </div>
       </form>
     </AuthShell>

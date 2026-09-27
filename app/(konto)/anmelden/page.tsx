@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import AuthShell, { Working } from '@/components/account/AuthShell'
+import RegistrationFlow, { type RegistrationMode } from '@/components/account/RegistrationFlow'
+import SocialEntry from '@/components/account/SocialEntry'
 import { useAccount } from '@/features/account/AccountProvider'
 import { api, errorMessage } from '@/features/api/client'
 import { deriveFromPassphrase, unwrapMasterKey } from '@/features/keys/kdf'
@@ -15,10 +17,12 @@ export default function LoginPage() {
   const [pass, setPass] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [setup, setSetup] = useState<Extract<RegistrationMode, { kind: 'wallet' }> | null>(null)
+  const [setupStep, setSetupStep] = useState('form')
 
   useEffect(() => {
-    if (status === 'ready' || status === 'locked') router.replace('/app')
-  }, [status, router])
+    if (!setup && (status === 'ready' || status === 'locked')) router.replace('/app')
+  }, [status, router, setup])
 
   const submit = async () => {
     setBusy(true)
@@ -38,16 +42,26 @@ export default function LoginPage() {
     }
   }
 
+  if (setup) {
+    // Neue Reown-Identität: Tresor direkt hier einrichten.
+    return (
+      <AuthShell wide={setupStep !== 'form'}>
+        <RegistrationFlow mode={setup} onStepChange={setSetupStep} />
+      </AuthShell>
+    )
+  }
+
   return (
     <AuthShell>
+      <h2>Anmelden</h2>
+      <p className="lead">Deine Passphrase entsperrt den Tresor danach direkt auf diesem Gerät.</p>
+      <SocialEntry onNew={r => setSetup({ kind: 'wallet', registrationToken: r.registrationToken, address: r.address, label: r.label })} />
       <form
         onSubmit={e => {
           e.preventDefault()
           if (!busy && email && pass) void submit()
         }}
       >
-        <h2>Anmelden</h2>
-        <p className="lead">Deine Passphrase entsperrt den Tresor direkt auf diesem Gerät.</p>
         {error && <div className="errorbox">{error}</div>}
         <div className="field">
           <label htmlFor="email">E-Mail</label>
@@ -55,18 +69,12 @@ export default function LoginPage() {
         </div>
         <div className="field">
           <label htmlFor="pass">Passphrase</label>
-          <input
-            id="pass"
-            type="password"
-            autoComplete="current-password"
-            value={pass}
-            onChange={e => setPass(e.target.value)}
-          />
+          <input id="pass" type="password" autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} />
         </div>
         {busy ? (
           <Working label="Schlüssel wird abgeleitet …" />
         ) : (
-          <button className="primary full" type="submit" disabled={!email || !pass}>
+          <button className="full" type="submit" disabled={!email || !pass}>
             Anmelden
           </button>
         )}

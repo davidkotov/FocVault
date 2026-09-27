@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 export const PATCH = route(async (req, ctx) => {
   const d = await deps()
   const session = await requireSession(req, d.db)
-  requireAdmin(session)
+  await requireAdmin(d.db, session)
   const { plan } = await readJson(req, planSchema)
   await setPlan(d, session, param(ctx, 'id'), plan)
   return json({ ok: true })

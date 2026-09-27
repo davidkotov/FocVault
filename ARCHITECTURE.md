@@ -741,7 +741,7 @@ Kein `main`-Direkt-Push; Feature-Branches `feat/<phase>-<thema>`.
 
 | # | Frage | Empfehlung | Entscheider |
 |---|---|---|---|
-| E1 | Wallet-Login weiterhin anbieten? | **Ja, optional** (bestehende Nutzer, Web3-Community), aber nie als einzige KEK ohne Recovery-Kit | Partner |
+| E1 | Wallet-Login weiterhin anbieten? | **Entschieden (27.09.):** Login per **Reown AppKit** (Google, Apple, E-Mail, 80+ Wallets) als Identität via SIWE; Tresorschlüssel bleibt Passphrase + Recovery-Kit. E-Mail + Passphrase bleibt als Alternative | ✅ |
 | E2 | Passkey-PRF als Unlock (Browser-Support noch lückenhaft) | Ja mit Feature-Detection; Passphrase bleibt Pflicht-KEK | Tech |
 | E3 | Backend in Phase 1 als Next Route Handlers auf Vercel `fra1` vs. sofort eigener Dienst | **Route Handlers** (Tempo), Herauslösen in Phase 3 | Tech |
 | E4 | Postgres-Anbieter (Neon EU vs. Supabase EU vs. eigener auf Hetzner) | Neon EU (Branching für Staging), Wechsel jederzeit via Drizzle | Tech |

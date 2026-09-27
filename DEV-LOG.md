@@ -41,6 +41,37 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Login per Reown (Google, Apple, E-Mail, Wallets) – Entscheidung E1
+
+**Prinzip:** Reown liefert die **Identität**, nicht den Tresorschlüssel. Nach dem Reown-Login wird
+eine SIWE-Nachricht (EIP-4361) signiert, unser Server prüft sie und legt die Session an. Neue
+Nutzer legen danach Passphrase + Recovery-Kit an; bestehende entsperren mit der Passphrase.
+Grund: Signaturen eingebetteter Social-/E-Mail-Wallets sind nicht garantiert deterministisch
+(Audit M14) – ein daraus abgeleiteter Schlüssel würde Nutzer aussperren.
+
+- `app/providers.tsx`: Reown AppKit + WagmiAdapter (Filecoin Calibration/Mainnet; E-Mail, Google,
+  Apple, GitHub, Discord, X, 80+ Wallets; eingebettete Wallets als EOA). Ohne Project-ID wie bisher.
+- Server: Migration v2 (`auth_wallets`, `auth_nonces`, `accounts.email` optional, `accounts.label`),
+  `server/auth/wallet.ts` (Einmal-Nonce, Domain-/URI-Bindung, Netz, Alter, EOA- und
+  Smart-Account-Signaturprüfung, HMAC-signiertes Registrierungs-Token, Recovery mit Session),
+  Routen `/api/v1/auth/wallet/{nonce,verify,register}`, `/api/v1/account/recovery`.
+- Admin auch über `ADMIN_ADDRESSES`; SIWE-Domain in Production über `APP_ORIGIN` (nicht `Host`).
+- UI: Reown-Button auf `/anmelden` und `/registrieren`, gemeinsamer `RegistrationFlow`,
+  Wiederherstellung mit Session (nur Kit + neue Passphrase), Anzeige über `label` statt E-Mail.
+
+**Abhängigkeiten:** wagmi 2.12.11 → **2.19.5** (Pflicht für AppKit, deckt Audit H5 teilweise ab).
+Stolperfalle: `@reown/appkit-adapter-wagmi` führt `@wagmi/connectors` optional als `>=5.9.9`
+→ npm zog 8.2.0 (gehört zu wagmi v3, verlangt `@wagmi/core@3.6.5`) → Browser-Build brach mit
+„`./tempo` not exported“. `--legacy-peer-deps` verschluckte den Konflikt. Fix: `@wagmi/connectors`
+fest auf **6.2.0**. Zusätzlich webpack-Alias `@x402` → leer (optionale Zahlungsmodule des
+Coinbase-SDK, von uns nicht genutzt). `tsc` erkennt solche Bundle-Fehler nicht – deshalb nach
+Paket-Updates immer Seiten im Browser prüfen.
+
+**Tests:** Vitest 57/57 (neu: 5 Wallet-Tests mit echten Signaturen – Registrierung/Login, Replay,
+fremde Domain, falsches Netz, alte Nachricht, gefälschte Signatur, manipuliertes Token, Recovery),
+Playwright-E2E grün, Reown-Fenster öffnet ohne Konsolenfehler. Echte Google-/Apple-Logins lassen
+sich nicht headless testen → manuell prüfen.
+
 ### Phase 1 – Konten, Backend, Fil-One-Storage (ARCHITECTURE §15)
 
 **Was man auf localhost sieht:** `/registrieren` (4 Schritte inkl. Recovery-Kit und Wortprüfung),

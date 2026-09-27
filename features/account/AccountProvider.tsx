@@ -23,6 +23,8 @@ interface AccountContextValue {
   bootError: string | null
   /** Nach Registrierung/Login/Recovery: Session besteht, Master-Key ist entsperrt. */
   enter: (view: AccountView, masterKey: CryptoKey) => Promise<void>
+  /** Session besteht (z. B. nach Reown-Login), Tresor noch gesperrt. */
+  signIn: (view: AccountView) => void
   unlock: (passphrase: string) => Promise<void>
   lock: () => void
   logout: () => Promise<void>
@@ -86,6 +88,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setVault(idx.container)
     setSyncError(null)
     setStatus('ready')
+  }, [])
+
+  const signIn = useCallback((view: AccountView) => {
+    accountRef.current = view
+    setAccount(view)
+    setStatus('locked')
   }, [])
 
   const unlock = useCallback(
@@ -190,6 +198,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       syncError,
       bootError,
       enter,
+      signIn,
       unlock,
       lock,
       logout,
@@ -197,7 +206,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       mutate,
       retrySync: () => void flush()
     }),
-    [status, account, masterKey, vault, syncing, syncError, bootError, enter, unlock, lock, logout, refreshAccount, mutate, flush]
+    [status, account, masterKey, vault, syncing, syncError, bootError, enter, signIn, unlock, lock, logout, refreshAccount, mutate, flush]
   )
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>

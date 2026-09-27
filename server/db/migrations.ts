@@ -108,6 +108,31 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       );
       CREATE INDEX audit_events_account ON audit_events (account_id, at);
     `
+  },
+  {
+    version: 2,
+    name: 'wallet_login_reown',
+    sql: `
+      -- Login per Reown (Wallet, E-Mail-/Social-Wallet): E-Mail wird optional.
+      ALTER TABLE accounts ALTER COLUMN email DROP NOT NULL;
+      -- Anzeigename (z. B. E-Mail-Hinweis aus Reown oder gekürzte Adresse), nicht verifiziert, nicht eindeutig.
+      ALTER TABLE accounts ADD COLUMN label text;
+
+      CREATE TABLE auth_wallets (
+        address text PRIMARY KEY CHECK (address ~ '^0x[0-9a-f]{40}$'),
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_login_at timestamptz
+      );
+      CREATE INDEX auth_wallets_account ON auth_wallets (account_id);
+
+      -- SIWE-Nonces: einmalig, 10 Minuten gültig (Schutz vor Replay).
+      CREATE TABLE auth_nonces (
+        nonce text PRIMARY KEY,
+        expires_at timestamptz NOT NULL,
+        used_at timestamptz
+      );
+    `
   }
 ]
 
