@@ -41,6 +41,21 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Dashboard im Stil der Mockups
+
+Gemeinsames Gerüst: Seitenleiste mit Gruppen Tresor / Business / API-Module, aktiver Eintrag dunkel,
+Speicher-Widget mit „Verwalten“; Kopfzeile mit Suche (Kürzel-Hinweis), „Tresor entsperrt“, ruhigere
+Konto-Knöpfe; Seitentitel mit Beschreibung und Hauptaktion; Karten-Titel linksbündig ohne Punkt.
+**Meine Cloud:** Kennzahlen (Belegt mit Aufteilung, auf Filecoin gesichert, aktive Links, Papierkorb),
+schmale Ablagezone, Listenansicht (Standard) oder Kacheln – gleiche Elemente, Drag & Drop unverändert.
+**Konto & Sicherheit:** Sicherheitsstatus mit Ring und nächster Empfehlung. **Passwörter:** Ordner | Liste |
+Details (Kopieren, Anzeigen, Stärke, Webseite). **Notizen:** Suche und Tags links. **2FA:** Kacheln mit
+grossem Code (Klick kopiert) und Countdown-Ring. **Geteilte Tresore:** Liste links, Tresor rechts.
+**Admin-Konsole:** Kennzahlen oben. **Speicher-API:** Modul-Katalog (S3, Backup-Programm, Webhooks, SSO).
+Mockups liegen unter `public/mockups/dash/` (nicht im Repo).
+
+**Tests:** Vitest 121/121, Playwright 14/14 (1 Worker).
+
 ### Neue Landingpage (/v2), /sicherheit, Rechtsseiten, Team, Icons statt Emojis
 
 **/v2** (Entwurf zum Vergleich, die alte Landing bleibt unter /): Hero mit Dashboard-Vorschau, Alpen-Sektion

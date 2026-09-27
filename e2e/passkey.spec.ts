@@ -53,7 +53,7 @@ test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async 
   await page.getByRole('button', { name: '+ Passkey hinzufügen' }).click()
   await page.getByLabel('Zur Bestätigung deine Passphrase').fill(PASS)
   await page.getByRole('button', { name: 'Einrichten' }).click()
-  await expect(page.getByText(/Passkey eingerichtet/)).toBeVisible()
+  await expect(page.locator('.notice', { hasText: /Passkey eingerichtet/ })).toBeVisible()
   await expect(page.locator('.trashrow').filter({ has: page.locator('.sicon') })).toHaveCount(1)
 
   // Sperren → mit Passkey entsperren (ohne Passphrase)
@@ -62,5 +62,5 @@ test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async 
   await page.getByRole('button', { name: /Mit Passkey entsperren/ }).click()
   await expect(page.getByRole('heading', { name: 'Tresor entsperren' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Meine Cloud', exact: true }).click()
-  await expect(page.getByText('Dateien speichern')).toBeVisible()
+  await expect(page.getByText('Dateien hierher ziehen')).toBeVisible()
 })

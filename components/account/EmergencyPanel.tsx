@@ -61,7 +61,7 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
   const waitLabel = (h: number) => m.waits[h] ?? `${Math.round(h / 24)} d`
 
   return (
-    <div className="card emergency">
+    <div className="card emergency" id="emergency-card">
       <h3>{m.title}</h3>
       <p className="dim">{m.lead}</p>
       {error && <div className="errorbox">{error}</div>}

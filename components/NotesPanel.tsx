@@ -182,6 +182,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
       {error && <div className="errorbox">{error}</div>}
       {expiring.length > 0 && !form && <div className="notice warn">{fmt(m.expiringSoon, { n: expiring.length })}</div>}
 
+      <div className={`noteslayout${entries.length > 0 && !form ? '' : ' single'}`}>
       {entries.length > 0 && !form && (
         <div className="notetools">
           <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={m.search} aria-label={m.search} />
@@ -272,6 +273,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
       )}
 
       {!form && entries.length > 0 && shown.length === 0 && <p className="dim">{m.noMatch}</p>}
+      </div>
       {entries.length === 0 && !form && <p className="dim">{m.empty}</p>}
 
       {form ? (

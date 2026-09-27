@@ -206,6 +206,15 @@ const P: Record<string, JSX.Element> = {
       <path d="M8 8h.01M8 12h.01M8 16h.01M16 12h.01M16 16h.01" />
     </>
   ),
+  list: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
+  grid: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </>
+  ),
   checkbox: (
     <>
       <rect x="4" y="4" width="16" height="16" rx="3" />

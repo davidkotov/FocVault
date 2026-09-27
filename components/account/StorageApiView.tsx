@@ -65,6 +65,27 @@ export default function StorageApiView() {
 
   return (
     <>
+      <div className="apimods">
+        {(
+          [
+            ['database', m.modS3, m.modS3Sub, 'ok', m.stActive],
+            ['terminal', m.modCli, m.modCliSub, 'ok', m.stAvailable],
+            ['activity', m.modHooks, m.modHooksSub, '', m.stSoon],
+            ['sso', m.modSso, m.modSsoSub, 'blue', 'Enterprise']
+          ] as const
+        ).map(([i, t, d, cls, st], n) => (
+          <div className={`apimod${n === 0 ? ' on' : ''}`} key={t}>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span className="pwavatar">
+                <Icon name={i} size={18} />
+              </span>
+              <span className={`badge ${cls}`}>{st}</span>
+            </div>
+            <strong>{t}</strong>
+            <span className="hint">{d}</span>
+          </div>
+        ))}
+      </div>
       {msg && <div className={msg.ok ? 'notice' : 'errorbox'}>{msg.text}</div>}
       <div className="card">
         <h3>{m.title}</h3>

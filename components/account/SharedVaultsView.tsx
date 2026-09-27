@@ -158,7 +158,25 @@ export default function SharedVaultsView() {
   const del = (id: string) => void run(() => c.deleteSecret(current.id, id))
 
   return (
-    <>
+    <div className="vaultsplit">
+      <aside className="vaultside">
+        {vaults.map(v => (
+          <button key={v.id} type="button" className={`vaultrow${v.id === current.id ? ' on' : ''}`} onClick={() => (setOpenId(v.id), setTab('passwords'), setAudit(null))}>
+            <span className="vaulticon" aria-hidden="true">
+              <Icon name="vault" size={18} />
+            </span>
+            <span className="vaultmain">
+              <strong>{v.data ? v.data.name || '—' : m.waiting}</strong>
+              <span className="hint">
+                {v.data ? `${fmt(m.items, { n: v.data.secrets.length })} · ` : ''}
+                {fmt(m.people, { n: v.state.members.length })}
+              </span>
+            </span>
+            <span className={`badge role-${v.role}`}>{m.roles[v.role]}</span>
+          </button>
+        ))}
+      </aside>
+      <div className="vaultmaincol">
       <div className="card">
         <div className="vaulthead">
           <button className="small" onClick={() => setOpenId(null)}>
@@ -408,6 +426,7 @@ export default function SharedVaultsView() {
           }}
         />
       )}
-    </>
+      </div>
+    </div>
   )
 }

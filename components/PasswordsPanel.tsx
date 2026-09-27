@@ -72,6 +72,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
   const [folderFilter, setFolderFilter] = useState<string>('all')
   const [genOpen, setGenOpen] = useState(false)
   const [genOpts, setGenOpts] = useState<GenOptions>(DEFAULT_GEN)
+  const [selId, setSelId] = useState<string | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
 
   const folders = useMemo(() => {
@@ -117,6 +118,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
     })
   }, [entries, search, folderFilter, healthFilter, weak, reused, leaked])
 
+  const sel = filtered.find(e => e.id === selId) ?? filtered[0]
   const countFor = (folder: string) => entries.filter(e => (e.folder ?? '') === folder).length
 
   const startNew = () => {
@@ -215,6 +217,11 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
       <h3>
         {heading ?? m.heading}
         <span>{fmt(m.subtitle, { n: entries.length })}</span>
+        {!readOnly && !form && (
+          <button className="primary small" onClick={startNew}>
+            {m.newButton}
+          </button>
+        )}
       </h3>
 
       {entries.length > 0 && (
@@ -264,8 +271,9 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
         </div>
       )}
 
+      <div className={`pwlayout${folders.length ? '' : ' nofolders'}`}>
       {folders.length > 0 && (
-        <div className="chipsrow">
+        <div className="chipsrow pwfolders">
           <button
             className={folderFilter === 'all' ? 'chip active' : 'chip'}
             onClick={() => setFolderFilter('all')}
@@ -283,7 +291,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
       {filtered.length > 0 && (
         <div className="seclist">
           {filtered.map(s => (
-            <div className="secrow" key={s.id}>
+            <div className={`secrow${sel?.id === s.id ? ' selected' : ''}`} key={s.id} onClick={() => setSelId(s.id)}>
               <div className="secmain">
                 <div className="sectitle">
                   {s.title}
@@ -331,11 +339,9 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
         </div>
       )}
 
-      {entries.length === 0 && !form && (
-        <p className="dim">{m.empty}</p>
-      )}
-
-      {form ? (
+      {entries.length === 0 && !form && <p className="dim pwempty">{m.empty}</p>}
+      <div className="pwdetail" hidden={entries.length === 0 && !form}>
+        {form ? (
         <form className="secform" onSubmit={submit}>
           <h4>{form.id ? m.editTitle : m.newTitle}</h4>
           <div className="secfields">
@@ -413,13 +419,75 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
             <button type="button" onClick={() => setForm(null)}>{c.cancel}</button>
           </div>
         </form>
-      ) : (
-        !readOnly && (
-          <div className="row" style={{ marginTop: 14 }}>
-            <button className="primary" onClick={startNew}>{m.newButton}</button>
-          </div>
-        )
-      )}
+        ) : sel ? (
+          <>
+            <div className="pwdhead">
+              <span className="pwavatar">{sel.title.slice(0, 2).toUpperCase()}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong>{sel.title}</strong>
+                <span className="hint">{[sel.folder, sel.url].filter(Boolean).join(' · ') || m.noExtra}</span>
+              </div>
+              {!readOnly && (
+                <button className="small" onClick={() => startEdit(sel)}>
+                  {c.edit}
+                </button>
+              )}
+            </div>
+            {sel.username && (
+              <div className="pwfield">
+                <span className="k">{m.username}</span>
+                <b>{sel.username}</b>
+                <button className="linkish" onClick={() => void copyText(sel.username ?? '')}>
+                  {c.copy}
+                </button>
+              </div>
+            )}
+            {sel.password && (
+              <div className="pwfield">
+                <span className="k">{m.password}</span>
+                <span className="mono">{revealed[sel.id] ? sel.password : '••••••••••••••••'}</span>
+                <span className="row" style={{ gap: 10 }}>
+                  <button className="linkish" onClick={() => setRevealed(r => ({ ...r, [sel.id]: !r[sel.id] }))}>
+                    {revealed[sel.id] ? m.hide : m.show}
+                  </button>
+                  <button className="linkish" onClick={() => void copyText(sel.password ?? '')}>
+                    {c.copy}
+                  </button>
+                </span>
+              </div>
+            )}
+            {sel.password && (
+              <div className="pwfield">
+                <span className="k">{m.strength}</span>
+                <div>
+                  <div className="pwstrength">
+                    <b style={{ width: `${((strength(sel.password) + 1) / 5) * 100}%`, background: strength(sel.password) >= 3 ? '#148a52' : strength(sel.password) >= 2 ? '#b07a00' : '#c43b3b' }} />
+                  </div>
+                  <span className="hint">
+                    {m.strengths[strength(sel.password)]} · {fmt(m.charCount, { n: sel.password.length })}
+                    {leaked.has(sel.id) ? ` · ${h.badgeLeaked}` : ''}
+                    {reused.has(sel.id) ? ` · ${h.badgeReused}` : ''}
+                  </span>
+                </div>
+                <span />
+              </div>
+            )}
+            {sel.url && (
+              <div className="pwfield">
+                <span className="k">{m.website}</span>
+                <a href={/^https?:\/\//.test(sel.url) ? sel.url : `https://${sel.url}`} target="_blank" rel="noreferrer noopener">
+                  {sel.url}
+                </a>
+                <span />
+              </div>
+            )}
+          </>
+        ) : (
+          entries.length > 0 && <p className="dim">{m.pick}</p>
+        )}
+      </div>
+      </div>
+
     </div>
   )
 }

@@ -70,7 +70,7 @@ export default function AccountUpload({ masterKey, freeBytes, onStored, onError,
   }
 
   return (
-    <div className="card">
+    <div className="card uploadcard">
       <h3>
         {m.title}
         <span className="dim">{fmt(m.free, { size: formatBytes(freeBytes) })}</span>
@@ -87,13 +87,18 @@ export default function AccountUpload({ masterKey, freeBytes, onStored, onError,
         onDragLeave={() => setDrag(false)}
         onDrop={onDrop}
       >
-        <div className="big">⬆</div>
-        <div>
-          <strong>{m.drop}</strong> {m.orClick}
+        <div className="big">
+          <svg className="icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M12 16V4M7 9l5-5 5 5M4 20h16" />
+          </svg>
         </div>
-        <div style={{ marginTop: 6, fontSize: 13 }}>
-          {m.info}
+        <div className="droptext">
+          <div>
+            <strong>{m.drop}</strong> {m.orClick}
+          </div>
+          <div className="dropinfo">{m.info}</div>
         </div>
+        <span className="dropfree">{fmt(m.free, { size: formatBytes(freeBytes) })}</span>
         <input
           ref={inputRef}
           type="file"

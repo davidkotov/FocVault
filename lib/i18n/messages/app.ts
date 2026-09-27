@@ -1,10 +1,52 @@
 const de = {
+  secstatus: {
+    titleAll: 'Dein Konto ist bestmöglich geschützt',
+    titleGood: 'Dein Sicherheitsstatus ist gut',
+    titleImprove: 'Dein Konto lässt sich noch besser schützen',
+    recovery: 'Recovery-Kit erstellt',
+    autolock: 'Automatische Sperre nach {n} Min.',
+    passkey: 'Passkey eingerichtet',
+    emergency: 'Notfallkontakt bestätigt',
+    escrow: 'Firmen-Notfallzugriff hinterlegt',
+    addPasskey: 'Passkey hinzufügen',
+    upgradePasskey: 'Passkeys mit Pro',
+    addEmergency: 'Notfallkontakt einrichten',
+    upgradeEmergency: 'Notfallzugang mit Pro'
+  },
+  kpi: {
+    used: 'Belegt',
+    usedOf: 'von {quota} · inkl. Versionen und Papierkorb',
+    filecoin: 'Auf Filecoin gesichert',
+    securing: '{n} werden gerade gesichert',
+    allSecured: 'Alle Dateien gesichert',
+    links: 'Aktive Links',
+    linksSub: 'Secure Send verwalten',
+    trash: 'Papierkorb'
+  },
+  pages: {
+    cloud: 'Deine Dateien – im Browser verschlüsselt, in der EU und auf Filecoin gesichert.',
+    send: 'Deine Secure-Send-Links – mit Ablauf, Download-Limit und jederzeit widerrufbar.',
+    trash: 'Gelöschte Dateien bleiben hier, bis die Frist abläuft.',
+    plans: 'Dein Paket, dein Verbrauch und Zusatzspeicher – transparent und jederzeit änderbar.',
+    account: 'Anmeldung, Schlüssel und Notfallzugang an einem Ort.',
+    passwords: 'Logins und Zugänge – Ende-zu-Ende-verschlüsselt in deinem Tresor.',
+    notes: 'Checklisten, Dokumente und Geheimnisse – mit Vorlagen und Anhängen.',
+    '2fa': 'Einmal-Codes direkt im Tresor – synchron auf allen deinen Geräten.',
+    passkeys: 'Entsperren mit Face ID, Touch ID, Windows Hello oder Sicherheitsschlüssel.',
+    familyFolder: 'Gemeinsame Dateien mit eigenem Schlüssel.',
+    storageApi: 'Schnittstellen für Server, Backups und Automatisierung.',
+    sharedVaults: 'Passwörter, Notizen und 2FA im Team – jeder Tresor mit eigenem Schlüssel und Rechten pro Person.',
+    emergency: 'Nur lesen – freigegeben über den Notfallzugang.',
+    teamAdmin: 'Rollen, Richtlinien, Protokoll, Notfallzugriff und SSO für dein Team.'
+  },
   nav: {
     cloud: 'Meine Cloud',
     send: 'Secure Send',
     plans: 'Pakete & Speicher',
     account: 'Konto & Sicherheit',
-    more: 'Weitere Module',
+    more: 'Tresor',
+    unlocked: 'Tresor entsperrt',
+    manage: 'Verwalten',
     passwords: 'Passwörter',
     notes: 'Notizen',
     totp: '2FA-Authenticator',
@@ -31,6 +73,9 @@ const de = {
     logout: 'Abmelden'
   },
   files: {
+    view: 'Ansicht',
+    viewList: 'Liste',
+    viewGrid: 'Kacheln',
     title: 'Meine Dateien',
     count: '{n} Dateien · {size}',
     empty: 'Noch keine Dateien in deiner Cloud. Oben hochladen – Dateien landen automatisch im passenden Ordner.',
@@ -199,6 +244,7 @@ const de = {
     local: 'Wird nur in deinem Browser entschlüsselt.'
   },
   upload: {
+    button: 'Hochladen',
     title: 'Dateien speichern',
     free: '{size} frei',
     drop: 'Dateien hierher ziehen',
@@ -268,12 +314,54 @@ const de = {
 }
 
 const en: typeof de = {
+  secstatus: {
+    titleAll: 'Your account is protected as well as it can be',
+    titleGood: 'Your security status is good',
+    titleImprove: 'Your account can be protected even better',
+    recovery: 'Recovery kit created',
+    autolock: 'Auto-lock after {n} min',
+    passkey: 'Passkey set up',
+    emergency: 'Emergency contact confirmed',
+    escrow: 'Company emergency access escrowed',
+    addPasskey: 'Add passkey',
+    upgradePasskey: 'Passkeys with Pro',
+    addEmergency: 'Set up emergency contact',
+    upgradeEmergency: 'Emergency access with Pro'
+  },
+  kpi: {
+    used: 'Used',
+    usedOf: 'of {quota} · incl. versions and trash',
+    filecoin: 'Secured on Filecoin',
+    securing: '{n} being secured',
+    allSecured: 'All files secured',
+    links: 'Active links',
+    linksSub: 'Manage Secure Send',
+    trash: 'Trash'
+  },
+  pages: {
+    cloud: 'Your files – encrypted in the browser, stored in the EU and on Filecoin.',
+    send: 'Your Secure Send links – with expiry, download limit, revocable any time.',
+    trash: 'Deleted files stay here until the retention period ends.',
+    plans: 'Your plan, usage and extra storage – transparent and changeable any time.',
+    account: 'Sign-in, keys and emergency access in one place.',
+    passwords: 'Logins and credentials – end-to-end encrypted in your vault.',
+    notes: 'Checklists, documents and secrets – with templates and attachments.',
+    '2fa': 'One-time codes right in your vault – synced across your devices.',
+    passkeys: 'Unlock with Face ID, Touch ID, Windows Hello or a security key.',
+    familyFolder: 'Shared files with their own key.',
+    storageApi: 'Interfaces for servers, backups and automation.',
+    sharedVaults: 'Passwords, notes and 2FA in your team – each vault with its own key and per-person permissions.',
+    emergency: 'Read only – released via emergency access.',
+    teamAdmin: 'Roles, policies, audit log, emergency access and SSO for your team.'
+  },
   nav: {
     cloud: 'My cloud',
     send: 'Secure Send',
     plans: 'Plans & storage',
     account: 'Account & security',
-    more: 'More modules',
+    more: 'Vault',
+    unlocked: 'Vault unlocked',
+    manage: 'Manage',
     passwords: 'Passwords',
     notes: 'Notes',
     totp: '2FA authenticator',
@@ -300,6 +388,9 @@ const en: typeof de = {
     logout: 'Sign out'
   },
   files: {
+    view: 'View',
+    viewList: 'List',
+    viewGrid: 'Tiles',
     title: 'My files',
     count: '{n} files · {size}',
     empty: 'No files in your cloud yet. Upload above – files are sorted into the right folder automatically.',
@@ -468,6 +559,7 @@ const en: typeof de = {
     local: 'Decrypted only in your browser.'
   },
   upload: {
+    button: 'Upload',
     title: 'Store files',
     free: '{size} free',
     drop: 'Drag files here',

@@ -23,6 +23,7 @@ import { ensureKeypair } from '@/features/emergency/client'
 import { vaultsMessages } from '@/lib/i18n/messages/vaults'
 import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
 import TeamAdminView from '@/components/account/TeamAdminView'
+import SecurityStatus from '@/components/account/SecurityStatus'
 import { Icon } from '@/components/site/Icons'
 import TeamNotices, { TeamEscrowCard } from '@/components/account/TeamNotices'
 import SendView from '@/components/account/SendView'
@@ -272,6 +273,14 @@ export default function AppPage() {
   const [planSegment, setPlanSegment] = useState<'private' | 'business' | undefined>(undefined)
   const space = useFamilySpace(false)
   const [onFilecoin, setOnFilecoin] = useState<Record<string, { copies: number }>>({})
+  const [activeLinks, setActiveLinks] = useState<number | null>(null)
+  useEffect(() => {
+    if (status !== 'ready' || view !== 'cloud') return
+    api
+      .listShares()
+      .then(r => setActiveLinks(r.shares.filter(x => x.active).length))
+      .catch(() => undefined)
+  }, [status, view])
   useEffect(() => {
     if (status !== 'ready') return
     const load = () => api.filecoinStatus().then(r => setOnFilecoin(r.objects)).catch(() => undefined)
@@ -708,6 +717,19 @@ export default function AppPage() {
       <div className="main">
         <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
         <div className="content">
+          <div className="pagehead">
+            <div>
+              <h1>{titles[view]}</h1>
+              {(t.pages as Record<string, string>)[view] && <p>{(t.pages as Record<string, string>)[view]}</p>}
+            </div>
+            {view === 'cloud' && (
+              <div className="pageactions">
+                <button className="primary" onClick={() => (document.querySelector('[data-testid="upload-input"]') as HTMLInputElement | null)?.click()}>
+                  <Icon name="cloud" size={16} className="inlineicon" /> {t.upload.button}
+                </button>
+              </div>
+            )}
+          </div>
           {error && (
             <div className="errorbox" onClick={() => setError(null)}>
               {error}
@@ -730,6 +752,52 @@ export default function AppPage() {
 
           {view === 'cloud' && (
             <>
+              {(() => {
+                const trashBytes = (vault.trash ?? []).reduce((n, f) => n + f.size, 0)
+                const verBytes = vault.files.reduce((n, f) => n + (f.versions ?? []).reduce((m, v) => m + (v.size ?? 0), 0), 0)
+                const pct = (b: number) => (account.quotaBytes > 0 ? Math.min(100, (b / account.quotaBytes) * 100) : 0)
+                const withObj = vault.files.filter(f => f.objectId)
+                const secured = withObj.filter(f => (onFilecoin[f.objectId!]?.copies ?? 0) > 0).length
+                return (
+                  <div className="kpis">
+                    <div className="kpi">
+                      <div className="k">
+                        <Icon name="cloud" size={14} /> {t.kpi.used}
+                      </div>
+                      <div className="v">{formatBytes(account.usedBytes)}</div>
+                      <div className="kbar">
+                        <b style={{ width: `${pct(Math.max(0, account.usedBytes - trashBytes - verBytes))}%`, background: '#0b1220' }} />
+                        <b style={{ width: `${pct(verBytes)}%`, background: '#8a93a3' }} />
+                        <b style={{ width: `${pct(trashBytes)}%`, background: '#cfd6e0' }} />
+                      </div>
+                      <div className="s">{fmt(t.kpi.usedOf, { quota: formatBytes(account.quotaBytes) })}</div>
+                    </div>
+                    <div className="kpi">
+                      <div className="k">
+                        <Icon name="proof" size={14} /> {t.kpi.filecoin}
+                      </div>
+                      <div className="v">
+                        {fmtNumber(secured)} / {fmtNumber(withObj.length)}
+                      </div>
+                      <div className="s">{withObj.length - secured > 0 ? fmt(t.kpi.securing, { n: withObj.length - secured }) : t.kpi.allSecured}</div>
+                    </div>
+                    <button className="kpi" onClick={() => setView('send')}>
+                      <div className="k">
+                        <Icon name="send" size={14} /> {t.kpi.links}
+                      </div>
+                      <div className="v">{activeLinks ?? '–'}</div>
+                      <div className="s">{t.kpi.linksSub}</div>
+                    </button>
+                    <button className="kpi" onClick={() => setView(paidPlan ? 'trash' : 'plans')}>
+                      <div className="k">
+                        <Icon name="trash" size={14} /> {t.kpi.trash}
+                      </div>
+                      <div className="v">{fmtNumber((vault.trash ?? []).length)}</div>
+                      <div className="s">{formatBytes(trashBytes)}</div>
+                    </button>
+                  </div>
+                )
+              })()}
               <AccountUpload masterKey={masterKey} freeBytes={freeBytes} onStored={e => void onStored(e)} onError={msg => setError(msg)} />
               {dl && (
                 <div className="dlbar">
@@ -1082,6 +1150,12 @@ export default function AppPage() {
           )}
           {view === 'account' && (
             <>
+              <SecurityStatus
+                onAction={target => {
+                  if (target === 'plans') return setView('plans')
+                  document.getElementById(target === 'passkeys' ? 'passkeys-card' : 'emergency-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }}
+              />
               <FamilyPanel freeGb={freeGb} />
               <div className="grid2">
                 <div className="card">

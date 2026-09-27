@@ -53,7 +53,7 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await page.getByRole('button', { name: 'Konto erstellen' }).click()
   // Argon2id + erster Seitenaufbau im Dev-Server können dauern
   await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 })
-  await expect(page.getByText('Dateien speichern')).toBeVisible()
+  await expect(page.getByText('Dateien hierher ziehen')).toBeVisible()
 
   // 2) Upload (im Browser verschlüsselt, frame2)
   await page.getByTestId('upload-input').setInputFiles({ name: fileName, mimeType: 'application/octet-stream', buffer: content })

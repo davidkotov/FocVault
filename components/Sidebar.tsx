@@ -191,13 +191,12 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
           <div className="quotabar">
             <div className={pct >= 100 ? 'full' : ''} style={{ width: `${pct}%` }} />
           </div>
-          {tier === 'FREE' ? (
-            <button className="primary small" style={{ width: '100%' }} onClick={() => go(showPlans ? 'plans' : 'account')}>
-              {m.upgrade}
+          <div className="lbl" style={{ marginTop: 8, marginBottom: 0 }}>
+            <span>{tier === 'FREE' ? 'Free' : fmt(m.active, { plan: tierLabel })}</span>
+            <button className="linkish quotalink" onClick={() => go(showPlans ? 'plans' : 'account')}>
+              {tier === 'FREE' ? m.upgrade : m.manage}
             </button>
-          ) : (
-            <span className="badge pro">{fmt(m.active, { plan: tierLabel })}</span>
-          )}
+          </div>
         </div>
       </nav>
     </aside>

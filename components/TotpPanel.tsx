@@ -128,22 +128,32 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
       </h3>
 
       {entries.length > 0 && (
-        <div className="seclist">
+        <div className="seclist totpgrid">
           {entries.map(s => {
             const period = s.period ?? 30
             const rem = live.remaining[s.id] ?? period
             const pct = Math.max(0, Math.min(100, (rem / period) * 100))
             return (
-              <div className="secrow" key={s.id}>
+              <div className="secrow totpcard" key={s.id}>
+                <span className="pwavatar">{s.title.slice(0, 2).toUpperCase()}</span>
                 <div className="secmain">
                   <div className="sectitle">{s.title}</div>
                   <div className="secmeta">{s.issuer || 'TOTP'}</div>
                 </div>
                 <div className="totpcode-box">
-                  <span className="totpcode">{live.codes[s.id] ?? '···'}</span>
-                  <div className="totpbar">
-                    <div className={pct < 15 ? 'totpbar-fill warn' : 'totpbar-fill'} style={{ width: `${pct}%` }} />
-                  </div>
+                  <button
+                    type="button"
+                    className="totpcode linkish"
+                    title={c.copy}
+                    onClick={() => void navigator.clipboard?.writeText(live.codes[s.id] ?? '').catch(() => undefined)}
+                  >
+                    {(live.codes[s.id] ?? '······').replace(/^(\d{3})(\d{3})$/, '$1 $2')}
+                  </button>
+                  <svg className="totpring" viewBox="0 0 36 36" aria-label={`${rem} s`}>
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="#eef0f4" strokeWidth="3.5" />
+                    <circle cx="18" cy="18" r="15" fill="none" stroke={pct < 20 ? '#c43b3b' : '#0090ff'} strokeWidth="3.5" strokeLinecap="round" transform="rotate(-90 18 18)" strokeDasharray="94.2" strokeDashoffset={94.2 * (1 - pct / 100)} />
+                    <text x="18" y="22" textAnchor="middle" fontSize="10" fontWeight="700" fill="#0b1220">{rem}</text>
+                  </svg>
                 </div>
                 {!readOnly && <div className="secactions">
                   <button className="iconbtn" title={c.edit} onClick={() => setForm({ id: s.id, title: s.title, secret: s.secretBase32 ?? '', otpauth: '' })}>

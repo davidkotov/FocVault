@@ -58,6 +58,13 @@ function tileColor(folder: string): string {
 
 export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote, selected, onToggleSelect, onSelectAll, dragIds }: Props) {
   const [active, setActive] = useState<string>('all')
+  const [layout, setLayout] = useState<'list' | 'grid'>(() =>
+    typeof window !== 'undefined' && window.localStorage.getItem('fv_fileview') === 'grid' ? 'grid' : 'list'
+  )
+  const pickLayout = (l: 'list' | 'grid') => {
+    setLayout(l)
+    window.localStorage.setItem('fv_fileview', l)
+  }
   const t = useMessages(appMessages)
   const { fmtDate } = useI18n()
 
@@ -80,6 +87,14 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
             </button>
           )}
           <span>{fmt(t.files.count, { n: entries.length, size: formatBytes(entries.reduce((s, e) => s + e.size, 0)) })}</span>
+          <div className="seg viewseg" role="group" aria-label={t.files.view}>
+            <button type="button" className={layout === 'list' ? 'on' : ''} aria-pressed={layout === 'list'} title={t.files.viewList} onClick={() => pickLayout('list')}>
+              <Icon name="list" size={15} />
+            </button>
+            <button type="button" className={layout === 'grid' ? 'on' : ''} aria-pressed={layout === 'grid'} title={t.files.viewGrid} onClick={() => pickLayout('grid')}>
+              <Icon name="grid" size={15} />
+            </button>
+          </div>
           {headerAction}
         </div>
       </h3>
@@ -105,7 +120,7 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
       {entries.length > 0 && filtered.length === 0 && <p className="dim">{t.files.noMatch}</p>}
 
       {filtered.length > 0 && (
-        <div className="filegrid">
+        <div className={`filegrid${layout === 'list' ? ' aslist' : ''}`}>
           {filtered.map(e => (
             <div
               className={`filecard ${selected?.has(e.id) ? 'selected' : ''}`}

@@ -17,7 +17,7 @@ export default function Topbar({ title, search, onSearchChange, showSearch, righ
   const m = useMessages(appMessages)
   return (
     <div className="topbar">
-      <h1>{title}</h1>
+      <h1 className="topbartitle">{title}</h1>
       {showSearch && (
         <div className="search">
           <svg className="icon" viewBox="0 0 24 24" width="16" height="16">
@@ -25,8 +25,16 @@ export default function Topbar({ title, search, onSearchChange, showSearch, righ
             <path d="M21 21l-4.3-4.3" />
           </svg>
           <input placeholder={m.search} value={search ?? ''} onChange={e => onSearchChange?.(e.target.value)} />
+          <kbd>/</kbd>
         </div>
       )}
+      <span className="lockpill">
+        <svg className="icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <rect x="5" y="11" width="14" height="9" rx="2" />
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </svg>
+        {m.nav.unlocked}
+      </span>
       {right}
     </div>
   )

@@ -156,7 +156,34 @@ export default function TeamAdminView() {
   const admins = view.members.filter(x => x.role !== 'member').length
   const tabs: Tab[] = ['members', 'policies', 'audit', 'recovery', 'sso']
 
+  const compliant = view.members.filter(x => x.compliant).length
+  const pending = view.recovery?.requests.filter(q => q.status === 'pending').length ?? 0
   return (
+    <>
+    <div className="kpis">
+      <div className="kpi">
+        <div className="k">{m.kpi.people}</div>
+        <div className="v">{view.members.length}</div>
+        <div className="s">{m.roles[view.role]}</div>
+      </div>
+      <div className="kpi">
+        <div className="k">{m.kpi.compliant}</div>
+        <div className="v">
+          {compliant} / {view.members.length}
+        </div>
+        <div className="s">{compliant === view.members.length ? m.ok : `${view.members.length - compliant} ${m.kpi.open}`}</div>
+      </div>
+      <div className="kpi">
+        <div className="k">{m.kpi.recovery}</div>
+        <div className="v">{view.recovery ? `${view.members.filter(x => x.escrowed).length} / ${view.members.length}` : '–'}</div>
+        <div className="s">{pending ? `${pending} ${m.kpi.pending}` : view.recovery ? m.kpi.escrowed : m.kpi.noKey}</div>
+      </div>
+      <div className="kpi">
+        <div className="k">{m.kpi.policies}</div>
+        <div className="v">{[view.policy.passkeyRequired, view.policy.recoveryRequired, !view.policy.allowShareLinks || !!view.policy.maxShareDays].filter(Boolean).length + 2}</div>
+        <div className="s">{m.kpi.policiesSub}</div>
+      </div>
+    </div>
     <div className="card teamadmin">
       <h3>
         {m.title} <span>{m.roles[view.role]}</span>
@@ -519,5 +546,6 @@ export default function TeamAdminView() {
         </>
       )}
     </div>
+    </>
   )
 }

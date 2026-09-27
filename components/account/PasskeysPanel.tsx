@@ -55,7 +55,7 @@ export default function PasskeysPanel() {
   }
 
   return (
-    <div className="card">
+    <div className="card" id="passkeys-card">
       <h3>
         {m.title} <span>{account.passkeys.length}</span>
       </h3>
