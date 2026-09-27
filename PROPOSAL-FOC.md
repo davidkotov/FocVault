@@ -7,7 +7,7 @@ Sichtbarkeit im FOC/Filecoin-Ökosystem (FilOzone, FIL-Builders, Filecoin Founda
 
 1. **Öffentliches GitHub-Repo** – die Listings verlinken Source; ohne Repo kein Eintrag.
    `focvault` auf GitHub pushen (ohne `.env.local`, siehe .gitignore – ist vorbereitet).
-2. **Stabile Demo-URL** – aktuell `http://179.43.188.2:3000` (Calibration Testnet).
+2. **Stabile Demo-URL** – aktuell https://foc-vault.vercel.app (Calibration Testnet).
    Besser vor dem PR: kostenloses HTTPS-Deployment (Vercel) + eigene Domain.
 
 ## A) Eintrag für die Community-Projects-Seite (PR-Inhalt)
