@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 
 test('Neue Landing, Sicherheitsseite mit Live-Verschlüsselung, Rechtsseiten, Team', async ({ page }) => {
   test.setTimeout(120_000)
-  await page.goto('/v2')
+  await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Verschlüsselt, bevor sie dein Gerät verlassen')
   await expect(page.getByRole('heading', { name: /Matterhorn/ })).toBeVisible()
   await expect(page.locator('.v2module')).toHaveCount(17)

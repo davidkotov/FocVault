@@ -2709,3 +2709,23 @@ mark.legalph { background: #fff1c7; color: #6b4a00; padding: 0 3px; border-radiu
 .upgradeicon .sicon { color: var(--accent); }
 .vaulticon { color: #0070cc; }
 .sharefile-icon .sicon { color: #4b5566; }
+
+/* ================= Buttons: Kontur statt Vollfläche (sachlicher, „tech“) ================= */
+button.primary {
+  background: var(--card);
+  color: var(--text);
+  border: 1.5px solid var(--accent);
+  border-radius: 999px;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent-dark);
+  color: var(--accent-dark);
+}
+button.primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.v2btn { background: #fff; color: #0b1220; border: 1.5px solid var(--accent); border-radius: 999px; }
+.v2store.live { background: #fff; color: #0b1220; border: 1.5px solid var(--accent); }
+.v2chips .on, .chip.active { background: #0b1220; border-color: #0b1220; color: #fff; }
+.landing button { border-radius: 999px; }
+.landing .v2filter button, .landing .faqitem button, .landing .segmented button { border-radius: 999px; }
+.landing .faqitem button { border-radius: 0; }

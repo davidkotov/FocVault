@@ -1,5 +1,7 @@
-import LandingV2 from '@/components/site/LandingV2'
+import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 
-export default function LandingV2Page() {
-  return <LandingV2 />
+/** /v2 ist jetzt die Startseite. */
+export default function LandingV2Redirect() {
+  redirect(`/${headers().get('x-fv-locale') ?? 'de'}`)
 }
