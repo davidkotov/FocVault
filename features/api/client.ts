@@ -17,10 +17,10 @@ import type { FocSettings } from '@/server/foc/config'
 import type { FocAdminStatus } from '@/server/foc/service'
 import type { FocSyncResult } from '@/server/foc/sync'
 import type { PublicShare, ShareSummary } from '@/server/shares/service'
-import type { FilecoinFileStatus } from '@/server/foc/proofs'
+import type { FilecoinFileStatus, ProofCertificate } from '@/server/foc/proofs'
 import type { FamilyView } from '@/server/family/service'
 
-export type { FamilyView, FilecoinFileStatus, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
+export type { FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
 /** Weiterleitung zu Stripe (Checkout, Kundenportal) */
 export interface Redirect {
@@ -168,6 +168,7 @@ export const api = {
   familyInviteInfo: (token: string) => call<{ ownerLabel: string; expiresAt: string }>('GET', `/family/join?token=${encodeURIComponent(token)}`),
   familyJoin: (token: string) => call<AccountView>('POST', '/family/join', { token }),
   familyRemove: (accountId: string) => call<{ ok: true }>('DELETE', `/family/members/${encodeURIComponent(accountId)}`),
+  proof: (objectId: string) => call<ProofCertificate>('GET', `/objects/${encodeURIComponent(objectId)}/proof`),
   filecoinStatus: () => call<FilecoinFileStatus>('GET', '/objects/filecoin'),
   createShare: (input: { objectId: string; meta: string; expiresInHours: number | null; maxDownloads: number | null }) =>
     call<ShareSummary>('POST', '/shares', input),

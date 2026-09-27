@@ -95,6 +95,23 @@ const de = {
     decline: 'Nicht jetzt',
     left: 'Du hast die Familie verlassen.'
   },
+  proof: {
+    title: 'Nachweis auf Filecoin',
+    lead: 'Diese Datei liegt verschlüsselt in {copies} Kopien bei unabhängigen Speicheranbietern. Die Anbieter müssen laufend kryptografisch beweisen, dass sie die Daten noch haben (Proof of Data Possession) – öffentlich überprüfbar, ohne dass jemand den Inhalt sieht.',
+    network: 'Netz',
+    since: 'Gesichert seit',
+    parts: 'Verschlüsselte Teile',
+    copy: 'Kopie {n}',
+    provider: 'Anbieter #{id}',
+    dataset: 'Datensatz #{id}',
+    openDataset: 'Beweise ansehen',
+    piece: 'Filecoin-Piece',
+    download: 'Zertifikat herunterladen (JSON)',
+    close: 'Schließen',
+    loading: 'Lade Nachweis …',
+    mainnet: 'Filecoin Mainnet',
+    calibration: 'Filecoin Calibration (Testnetz)'
+  },
   versions: {
     badge: '{n} Versionen',
     badgeOne: '1 Version',
@@ -283,6 +300,23 @@ const en: typeof de = {
     joined: 'Welcome to the Family of {owner}!',
     decline: 'Not now',
     left: 'You left the family.'
+  },
+  proof: {
+    title: 'Proof on Filecoin',
+    lead: 'This file is stored encrypted in {copies} copies with independent storage providers. Providers must continuously prove cryptographically that they still hold the data (Proof of Data Possession) – publicly verifiable without anyone seeing the content.',
+    network: 'Network',
+    since: 'Secured since',
+    parts: 'Encrypted parts',
+    copy: 'Copy {n}',
+    provider: 'Provider #{id}',
+    dataset: 'Data set #{id}',
+    openDataset: 'View proofs',
+    piece: 'Filecoin piece',
+    download: 'Download certificate (JSON)',
+    close: 'Close',
+    loading: 'Loading proof …',
+    mainnet: 'Filecoin Mainnet',
+    calibration: 'Filecoin Calibration (testnet)'
   },
   versions: {
     badge: '{n} versions',

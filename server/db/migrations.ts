@@ -335,6 +335,14 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
         revoked_at timestamptz
       );
     `
+  },
+  {
+    version: 11,
+    name: 'foc_member_hash',
+    sql: `
+      -- SHA-256 jedes gesicherten Ciphertext-Teils: Grundlage des Nachweises (Zertifikat).
+      ALTER TABLE foc_members ADD COLUMN sha256 bytea;
+    `
   }
 ]
 

@@ -41,6 +41,19 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Nachweis auf Filecoin (Proof-Zertifikat) und Explorer-Links
+
+Klick auf „Filecoin ✓“ an einer Datei öffnet den Nachweis: Netz, gesichert seit, Anzahl verschlüsselter
+Teile, jede Kopie mit Anbieter und Datensatz samt Link „Beweise ansehen“ in den öffentlichen PDP-Explorer
+(`pdp.filecoin.cloud/{netz}/dataset/{id}`), das Filecoin-Piece (PieceCID) und ein herunterladbares
+Zertifikat (JSON) mit SHA-256 jedes Ciphertext-Teils, Byte-Bereich im Paket, Abruf-URL je Anbieter und
+Prüfanleitung (Migration v11: `foc_members.sha256`, beim Bündeln berechnet). Der Nachweis verrät keine
+Inhalte. Admin-FOC-Tab: Datensätze, PDP- und Filecoin-Pay-Explorer verlinkt.
+URL-Schema aus dem Explorer-Router geprüft (`/:network/dataset/:id`, `/:network/piece/:cid`).
+
+**Tests:** Vitest 87/87 (Zertifikat: SHA-256 stimmt mit den echten Bytes, Bereiche, Explorer-Link,
+kein Zugriff für fremde Konten), Playwright 6/6.
+
 ### Family: gemeinsamer Speicher, eigene Tresore
 
 Migration v10 (`families`, `family_members`, `family_invites`), `server/family/service.ts`.

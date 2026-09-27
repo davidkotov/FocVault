@@ -9,7 +9,8 @@ import { DEFAULT_FOC, openSecret, sealSecret, setFocSettings } from './config'
 import { evaluateHealth } from './health'
 import { FocBackedProvider } from './provider'
 import { runFocSync, type FocBackend, type PackCopy } from './sync'
-import { filecoinStatus } from './proofs'
+import { filecoinStatus, proofCertificate } from './proofs'
+import { createHash } from 'node:crypto'
 import type { FocChainStatus } from './chain'
 
 /** Attrappe eines Filecoin-Anbieters: liefert gespeicherte Pakete mit HTTP-Range aus. */
@@ -108,6 +109,11 @@ describe('Filecoin Onchain Cloud', () => {
     expect(r.packed).toMatchObject({ keys: 2, bytes: 3700, copies: 2 })
     expect(fake.uploads()).toBe(1)
     expect((await filecoinStatus(deps.db, session.accountId)).objects[created.objectId]).toMatchObject({ copies: 2 })
+    const cert = await proofCertificate(deps.db, session.accountId, created.objectId)
+    expect(cert?.pieces.map(p => p.sha256)).toEqual([d0, d1].map(d => createHash('sha256').update(d).digest('hex')))
+    expect(cert?.pieces[1].pack).toMatchObject({ offset: 3000, length: 700 })
+    expect(cert?.pieces[0].copies[0].explorer).toBe('https://pdp.filecoin.cloud/calibration/dataset/101')
+    expect(await proofCertificate(deps.db, '00000000-0000-7000-8000-000000000000', created.objectId)).toBeNull()
     expect((await runFocSync(deps.db, deps.storage, { backend: fake.backend, force: true })).packed).toBeUndefined()
 
     // schnelle Kopie entfernen → Lesen kommt aus dem Paket (HTTP Range)

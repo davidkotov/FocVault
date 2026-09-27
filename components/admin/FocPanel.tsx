@@ -363,7 +363,29 @@ export default function FocPanel() {
         {!form.enabled && (!c.sessionKey?.authorized || !c.approval?.approved) && (
           <p className="hint">Einschalten geht, sobald Schritt 2 (Freigabe) und Schritt 3 (Schlüssel) erledigt sind.</p>
         )}
-        {st.dataSets.length > 0 && <p className="hint">Datensätze: {st.dataSets.join(', ')}</p>}
+        <p className="hint">
+          {st.dataSets.length > 0 && (
+            <>
+              Datensätze:{' '}
+              {st.dataSets.map((id, i) => (
+                <span key={id}>
+                  {i > 0 && ', '}
+                  <a href={`https://pdp.filecoin.cloud/${form.network}/dataset/${id}`} target="_blank" rel="noreferrer">
+                    #{id} ↗
+                  </a>
+                </span>
+              ))}{' '}
+              ·{' '}
+            </>
+          )}
+          <a href={`https://pdp.filecoin.cloud/${form.network}`} target="_blank" rel="noreferrer">
+            PDP-Explorer ↗
+          </a>{' '}
+          ·{' '}
+          <a href={`https://pay.filecoin.cloud/${form.network}`} target="_blank" rel="noreferrer">
+            Filecoin-Pay-Explorer ↗
+          </a>
+        </p>
       </div>
     </>
   )

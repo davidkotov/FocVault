@@ -15,6 +15,8 @@ interface Props {
   onShare: (entry: VaultEntry) => void
   /** Rechts in der Kopfzeile, z. B. der Papierkorb-Button */
   headerAction?: ReactNode
+  /** Nachweis auf Filecoin anzeigen */
+  onProof?: (entry: VaultEntry) => void
   /** Versionen einer Datei anzeigen */
   onVersions?: (entry: VaultEntry) => void
   /** Klick auf Vorschaubild/Name */
@@ -43,7 +45,7 @@ function tileColor(folder: string): string {
   }
 }
 
-export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onFilecoin, headerAction, deleteNote }: Props) {
+export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote }: Props) {
   const [active, setActive] = useState<string>('all')
   const t = useMessages(appMessages)
   const { fmtDate } = useI18n()
@@ -117,9 +119,14 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                   </button>
                 )}
                 {e.objectId && onFilecoin?.[e.objectId] && (
-                  <span className="focbadge" title={fmt(t.files.onFilecoinTitle, { copies: onFilecoin[e.objectId].copies })}>
+                  <button
+                    type="button"
+                    className="focbadge"
+                    title={fmt(t.files.onFilecoinTitle, { copies: onFilecoin[e.objectId].copies })}
+                    onClick={() => onProof?.(e)}
+                  >
                     {t.files.onFilecoin}
-                  </span>
+                  </button>
                 )}
               </div>
               <div className="fileactions">

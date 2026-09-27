@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { Db } from '../db'
 import type { StorageProvider } from '../storage/provider'
 import { audit } from '../deps'
@@ -201,12 +201,12 @@ async function packAndUpload(db: Db, storage: StorageProvider, s: FocSettings, b
   }
   if (!chosen.length) return undefined
   const buf = new Uint8Array(Math.max(planned, MIN_PIECE))
-  const members: Array<{ key: string; offset: number; length: number }> = []
+  const members: Array<{ key: string; offset: number; length: number; sha256: Buffer }> = []
   let off = 0
   for (const c of chosen) {
     const got = await readInto(storage, c.key, buf, off, c.bytes)
     if (got !== c.bytes) continue // fehlt oder Größe passt nicht → später erneut
-    members.push({ key: c.key, offset: off, length: got })
+    members.push({ key: c.key, offset: off, length: got, sha256: createHash('sha256').update(buf.subarray(off, off + got)).digest() })
     off += got
   }
   if (!members.length) return undefined
@@ -220,10 +220,10 @@ async function packAndUpload(db: Db, storage: StorageProvider, s: FocSettings, b
       [packId, s.network, pack.byteLength, pieceCid, JSON.stringify(copies)]
     )
     await tx.query(
-      `INSERT INTO foc_members (storage_key, pack_id, byte_offset, byte_length)
-       SELECT k, $1, o, l FROM unnest($2::text[], $3::bigint[], $4::bigint[]) AS t(k, o, l)
+      `INSERT INTO foc_members (storage_key, pack_id, byte_offset, byte_length, sha256)
+       SELECT k, $1, o, l, decode(h, 'hex') FROM unnest($2::text[], $3::bigint[], $4::bigint[], $5::text[]) AS t(k, o, l, h)
        ON CONFLICT (storage_key) DO NOTHING`,
-      [packId, members.map(m => m.key), members.map(m => m.offset), members.map(m => m.length)]
+      [packId, members.map(m => m.key), members.map(m => m.offset), members.map(m => m.length), members.map(m => m.sha256.toString('hex'))]
     )
   })
   await updateFocState(db, st => {

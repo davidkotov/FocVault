@@ -21,6 +21,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import PreviewModal from '@/components/account/PreviewModal'
 import VersionsDialog from '@/components/account/VersionsDialog'
 import FamilyPanel from '@/components/account/FamilyPanel'
+import ProofDialog from '@/components/account/ProofDialog'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
 import { ApiClientError, api } from '@/features/api/client'
@@ -164,6 +165,7 @@ export default function AppPage() {
   const [confirmDelete, setConfirmDelete] = useState<VaultEntry | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [versionsId, setVersionsId] = useState<string | null>(null)
+  const [proofId, setProofId] = useState<string | null>(null)
   const [versionRules, setVersionRules] = useState({ days: 30, max: 10 })
   const [versionPurge, setVersionPurge] = useState<Record<string, string>>({})
   const [joinInvite, setJoinInvite] = useState<{ token: string; owner: string } | null>(null)
@@ -551,6 +553,7 @@ export default function AppPage() {
                 onShare={e => setSharing(e)}
                 onPreview={e => setPreviewId(e.id)}
                 onVersions={e => setVersionsId(e.id)}
+                onProof={e => setProofId(e.id)}
                 onFilecoin={onFilecoin}
                 headerAction={
                   paidPlan || (vault.trash?.length ?? 0) > 0 ? (
@@ -603,6 +606,11 @@ export default function AppPage() {
                   onDownload={v => void onDownload({ ...entry, ...v, id: `${entry.id}:${v.objectId}`, versions: undefined })}
                 />
               )
+            })()}
+          {proofId &&
+            (() => {
+              const entry = vault.files.find(f => f.id === proofId)
+              return entry ? <ProofDialog entry={entry} onClose={() => setProofId(null)} /> : null
             })()}
           {view === 'send' && <SendView files={vault.files} />}
           {view === 'trash' && (
