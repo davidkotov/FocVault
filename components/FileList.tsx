@@ -65,6 +65,14 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
     setLayout(l)
     window.localStorage.setItem('fv_fileview', l)
   }
+  const [sort, setSort] = useState<'recent' | 'name' | 'size'>(() => {
+    const v = typeof window !== 'undefined' ? window.localStorage.getItem('fv_filesort') : null
+    return v === 'name' || v === 'size' ? v : 'recent'
+  })
+  const pickSort = (v: 'recent' | 'name' | 'size') => {
+    setSort(v)
+    window.localStorage.setItem('fv_filesort', v)
+  }
   const t = useMessages(appMessages)
   const { fmtDate } = useI18n()
 
@@ -74,7 +82,8 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
 
   const counts = new Map<string, number>()
   for (const e of bySearch) counts.set(e.folder, (counts.get(e.folder) ?? 0) + 1)
-  const filtered = active === 'all' ? bySearch : bySearch.filter(e => e.folder === active)
+  const inFolder = active === 'all' ? bySearch : bySearch.filter(e => e.folder === active)
+  const filtered = sort === 'recent' ? inFolder : [...inFolder].sort((a, b) => (sort === 'name' ? a.name.localeCompare(b.name) : b.size - a.size))
 
   return (
     <div className="card">
@@ -87,14 +96,6 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
             </button>
           )}
           <span>{fmt(t.files.count, { n: entries.length, size: formatBytes(entries.reduce((s, e) => s + e.size, 0)) })}</span>
-          <div className="seg viewseg" role="group" aria-label={t.files.view}>
-            <button type="button" className={layout === 'list' ? 'on' : ''} aria-pressed={layout === 'list'} title={t.files.viewList} onClick={() => pickLayout('list')}>
-              <Icon name="list" size={15} />
-            </button>
-            <button type="button" className={layout === 'grid' ? 'on' : ''} aria-pressed={layout === 'grid'} title={t.files.viewGrid} onClick={() => pickLayout('grid')}>
-              <Icon name="grid" size={15} />
-            </button>
-          </div>
           {headerAction}
         </div>
       </h3>
@@ -110,6 +111,23 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
               </button>
             )
           })}
+          <span style={{ flex: 1 }} />
+          <label className="sortpick">
+            <Icon name="list" size={14} />
+            <select value={sort} aria-label={t.files.sortLabel} onChange={e => pickSort(e.target.value as 'recent' | 'name' | 'size')}>
+              <option value="recent">{t.files.sortRecent}</option>
+              <option value="name">{t.files.sortName}</option>
+              <option value="size">{t.files.sortSize}</option>
+            </select>
+          </label>
+            <div className="seg viewseg" role="group" aria-label={t.files.view}>
+              <button type="button" className={layout === 'list' ? 'on' : ''} aria-pressed={layout === 'list'} title={t.files.viewList} onClick={() => pickLayout('list')}>
+                <Icon name="list" size={15} />
+              </button>
+              <button type="button" className={layout === 'grid' ? 'on' : ''} aria-pressed={layout === 'grid'} title={t.files.viewGrid} onClick={() => pickLayout('grid')}>
+                <Icon name="grid" size={15} />
+              </button>
+            </div>
         </div>
       )}
 

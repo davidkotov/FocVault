@@ -136,6 +136,8 @@ const P: Record<string, JSX.Element> = {
     </>
   ),
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  logout: <path d="M15 4h4v16h-4M10 17l5-5-5-5M15 12H3" />,
+  layers: <path d="m12 3 9 5-9 5-9-5zM3 13l9 5 9-5" />,
   file: (
     <>
       <path d="M6 2h8l6 6v14H6z" />

@@ -78,6 +78,12 @@ function fakeStripe() {
     async hasDefaultPaymentMethod() {
       return hasPm
     },
+    async listInvoices() {
+      return charges.map((c, i) => ({ id: `in_${i}`, date: new Date(0).toISOString(), amount: c.amount, currency: c.currency, status: 'paid', description: '', pdf: null }))
+    },
+    async defaultCard() {
+      return hasPm ? { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2028 } : null
+    },
     async chargeOnce(input) {
       charges.push({ amount: input.amount, currency: input.currency })
       return { invoiceId: `in_${++n}`, paid: true }

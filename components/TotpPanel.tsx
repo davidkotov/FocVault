@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { SecretEntry } from '@/lib/vault'
 import { generateTotp, generateBase32Secret, totpRemaining, parseOtpauth } from '@/lib/totp'
 import QrScanModal from '@/components/QrScanModal'
@@ -32,6 +33,9 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
   const [live, setLive] = useState<LiveState>({ codes: {}, remaining: {} })
   const [form, setForm] = useState<FormState | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
+  const [filter, setFilter] = useState('')
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => setSlot(document.getElementById('pageactions-slot')), [])
   const lastScan = useRef('')
 
   useEffect(() => {
@@ -120,16 +124,98 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
     setForm(null)
   }
 
+  const q = filter.trim().toLowerCase()
+  const shown = entries.filter(e => !q || [e.title, e.issuer].some(x => x?.toLowerCase().includes(q)))
+  const standalone = !heading
+  const actions = !readOnly && (
+    <>
+      <button
+        className="small"
+        onClick={() => {
+          if (!form) startNew()
+          setScanOpen(true)
+        }}
+      >
+        {m.scanQr}
+      </button>
+      <button className="primary small" onClick={startNew}>
+        {m.addButton}
+      </button>
+    </>
+  )
+
   return (
-    <div className="card">
-      <h3>
-        {heading ?? m.heading}
-        <span>{fmt(m.subtitle, { n: entries.length })}</span>
-      </h3>
+    <div className={standalone ? 'pwpage totppage' : 'card pwpage totppage'}>
+      {standalone && slot ? (
+        createPortal(actions, slot)
+      ) : (
+        <h3>
+          {heading ?? m.heading}
+          <span>{fmt(m.subtitle, { n: entries.length })}</span>
+          {actions}
+        </h3>
+      )}
+
+      {form && (
+        <div className="card totpform">
+          <form className="secform" onSubmit={submit}>
+            <h4>{form.id ? m.editTitle : m.addTitle}</h4>
+            <div className="secfields">
+              <label>
+                {m.otpauthLabel}
+                <div className="pwrow">
+                  <textarea rows={2} value={form.otpauth} onChange={e => setForm({ ...form, otpauth: e.target.value })} placeholder="otpauth://totp/Google:name@mail.com?secret=…" />
+                  <button type="button" className="small scanbtn" onClick={() => setScanOpen(true)}>
+                    <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
+                      <path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4" />
+                      <rect x="7" y="7" width="10" height="10" rx="2" />
+                    </svg>
+                    {m.scanQr}
+                  </button>
+                </div>
+              </label>
+              <div className="orline"><span>{m.orManual}</span></div>
+              <label>
+                {c.title} <span className="req">*</span>
+                <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={m.titlePlaceholder} />
+              </label>
+              <label>
+                {m.secret}
+                <div className="pwrow">
+                  <input
+                    value={form.secret}
+                    onChange={e => setForm({ ...form, secret: e.target.value.toUpperCase() })}
+                    placeholder="JBSWY3DPEHPK3PXP"
+                    className="mono"
+                  />
+                  <button type="button" className="small" onClick={() => setForm({ ...form, secret: generateBase32Secret() })}>
+                    {c.generate}
+                  </button>
+                </div>
+              </label>
+              <p className="dim" style={{ fontSize: 12.5 }}>
+                {m.autoHint}
+              </p>
+            </div>
+            <div className="row" style={{ marginTop: 14 }}>
+              <button className="primary" type="submit" disabled={!form.title.trim() || (!form.secret.trim() && !form.otpauth.trim())}>
+                {c.save}
+              </button>
+              <button type="button" onClick={() => setForm(null)}>{c.cancel}</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {entries.length > 0 && (
+        <div className="totptools">
+          <input className="searchinput" value={filter} onChange={e => setFilter(e.target.value)} placeholder={m.filter} aria-label={m.filter} />
+        </div>
+      )}
+
+      {shown.length > 0 && (
         <div className="seclist totpgrid">
-          {entries.map(s => {
+          {shown.map(s => {
             const period = s.period ?? 30
             const rem = live.remaining[s.id] ?? period
             const pct = Math.max(0, Math.min(100, (rem / period) * 100))
@@ -137,10 +223,8 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
               <div className="secrow totpcard" key={s.id}>
                 <span className="pwavatar">{s.title.slice(0, 2).toUpperCase()}</span>
                 <div className="secmain">
-                  <div className="sectitle">{s.title}</div>
-                  <div className="secmeta">{s.issuer || 'TOTP'}</div>
-                </div>
-                <div className="totpcode-box">
+                  <div className="sectitle">{s.issuer || s.title}</div>
+                  <div className="secmeta">{s.issuer && s.issuer !== s.title ? s.title : 'TOTP'}</div>
                   <button
                     type="button"
                     className="totpcode linkish"
@@ -149,6 +233,8 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
                   >
                     {(live.codes[s.id] ?? '······').replace(/^(\d{3})(\d{3})$/, '$1 $2')}
                   </button>
+                </div>
+                <div className="totpcode-box">
                   <svg className="totpring" viewBox="0 0 36 36" aria-label={`${rem} s`}>
                     <circle cx="18" cy="18" r="15" fill="none" stroke="#eef0f4" strokeWidth="3.5" />
                     <circle cx="18" cy="18" r="15" fill="none" stroke={pct < 20 ? '#c43b3b' : '#0090ff'} strokeWidth="3.5" strokeLinecap="round" transform="rotate(-90 18 18)" strokeDasharray="94.2" strokeDashoffset={94.2 * (1 - pct / 100)} />
@@ -174,64 +260,8 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
         </div>
       )}
 
-      {entries.length === 0 && !form && (
-        <p className="dim">{m.empty}</p>
-      )}
-
-      {form ? (
-        <form className="secform" onSubmit={submit}>
-          <h4>{form.id ? m.editTitle : m.addTitle}</h4>
-          <div className="secfields">
-            <label>
-              {m.otpauthLabel}
-              <div className="pwrow">
-                <textarea rows={2} value={form.otpauth} onChange={e => setForm({ ...form, otpauth: e.target.value })} placeholder="otpauth://totp/Google:name@mail.com?secret=…" />
-                <button type="button" className="small scanbtn" onClick={() => setScanOpen(true)}>
-                  <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
-                    <path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4" />
-                    <rect x="7" y="7" width="10" height="10" rx="2" />
-                  </svg>
-                  {m.scanQr}
-                </button>
-              </div>
-            </label>
-            <div className="orline"><span>{m.orManual}</span></div>
-            <label>
-              {c.title} <span className="req">*</span>
-              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={m.titlePlaceholder} />
-            </label>
-            <label>
-              {m.secret}
-              <div className="pwrow">
-                <input
-                  value={form.secret}
-                  onChange={e => setForm({ ...form, secret: e.target.value.toUpperCase() })}
-                  placeholder="JBSWY3DPEHPK3PXP"
-                  className="mono"
-                />
-                <button type="button" className="small" onClick={() => setForm({ ...form, secret: generateBase32Secret() })}>
-                  {c.generate}
-                </button>
-              </div>
-            </label>
-            <p className="dim" style={{ fontSize: 12.5 }}>
-              {m.autoHint}
-            </p>
-          </div>
-          <div className="row" style={{ marginTop: 14 }}>
-            <button className="primary" type="submit" disabled={!form.title.trim() || (!form.secret.trim() && !form.otpauth.trim())}>
-              {c.save}
-            </button>
-            <button type="button" onClick={() => setForm(null)}>{c.cancel}</button>
-          </div>
-        </form>
-      ) : (
-        !readOnly && (
-          <div className="row" style={{ marginTop: 14 }}>
-            <button className="primary" onClick={startNew}>{m.addButton}</button>
-          </div>
-        )
-      )}
+      {entries.length === 0 && !form && <p className="dim card pwempty">{m.empty}</p>}
+      {entries.length > 0 && <p className="hint">{m.tip}</p>}
 
       {scanOpen && <QrScanModal onDetected={handleScanResult} onClose={() => setScanOpen(false)} />}
     </div>

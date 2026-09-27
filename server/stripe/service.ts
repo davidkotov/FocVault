@@ -11,7 +11,7 @@ import { findAddon, planQuotaGb, type PlanChange } from '../billing/service'
 import { ApiError } from '../shared/errors'
 import { uuidv7 } from '../shared/ids'
 import { syncFamilyAfterPlanChange } from '../family/service'
-import { stripeTaxEnabled, type Cur, type PriceData, type StripeEventLite, type StripeGateway, type SubscriptionLite } from './gateway'
+import { stripeTaxEnabled, type CardLite, type Cur, type InvoiceLite, type PriceData, type StripeEventLite, type StripeGateway, type SubscriptionLite } from './gateway'
 
 /**
  * Abrechnung über Stripe:
@@ -515,4 +515,12 @@ export async function stripeCardSetupUrl(deps: Deps, gw: StripeGateway, session:
 export async function stripeHasPaymentMethod(deps: Deps, gw: StripeGateway, accountId: string): Promise<boolean> {
   const acc = await loadBillingAccount(deps.db, accountId)
   return acc.stripe_customer_id ? gw.hasDefaultPaymentMethod(acc.stripe_customer_id) : false
+}
+
+/** Rechnungen und hinterlegte Karte für die Paketübersicht. */
+export async function stripeInvoices(deps: Deps, gw: StripeGateway, accountId: string): Promise<{ invoices: InvoiceLite[]; card: CardLite | null }> {
+  const acc = await loadBillingAccount(deps.db, accountId)
+  if (!acc.stripe_customer_id) return { invoices: [], card: null }
+  const [invoices, card] = await Promise.all([gw.listInvoices(acc.stripe_customer_id, 12), gw.defaultCard(acc.stripe_customer_id)])
+  return { invoices, card }
 }

@@ -88,7 +88,7 @@ export interface StatusOverview {
 export async function statusOverview(deps: Deps, historyDays = 14): Promise<StatusOverview> {
   const since = new Date(Date.now() - DAYS * 86_400_000)
   const daily = await deps.db.query<{ component: string; day: string; total: number; ok: number; degraded: number }>(
-    `SELECT component, to_char(date_trunc('day', at), 'YYYY-MM-DD') AS day, count(*)::float8 AS total,
+    `SELECT component, to_char(date_trunc('day', at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, count(*)::float8 AS total,
             count(*) FILTER (WHERE ok)::float8 AS ok, count(*) FILTER (WHERE degraded)::float8 AS degraded
        FROM status_checks WHERE at >= $1 GROUP BY 1, 2`,
     [since.toISOString()]

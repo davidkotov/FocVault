@@ -41,6 +41,22 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Dashboard 1:1 nach Mockups: Kopfzeile, Suche, Pakete, Passwörter, Notizen, 2FA, Konto
+
+**Kopfzeile**: nur Suche, „Tresor entsperrt“, Sperren und Avatar; Avatar-Menü mit Konto, Pakete, Admin,
+Sprache und Abmelden. **Globale Suche** (⌘K oder `/`) über Dateien, Passwörter, Notizen und 2FA mit
+Pfeiltasten; Treffer springen in die passende Ansicht. **Pakete & Speicher**: Privat/Business im Seitenkopf,
+aktuelles Paket mit Aktionen (wechseln, Zahlungsrhythmus, kündigen), Pay-as-you-go-Karte, Zusatzspeicher als
+Kacheln inkl. „Individuell“, Paketvergleich als Tabelle (Business mit Nutzerzahl), **Rechnungen** und
+hinterlegte Karte aus Stripe (`GET /api/v1/billing/invoices`). **Passwörter**: Aktionen im Seitenkopf, eigener
+Passwort-Check, Ordnerleiste mit Zählern, Liste mit Kürzel und Stärke-Badge, Detail mit Kopieren, Öffnen und
+verknüpftem 2FA-Code (live). **Notizen**: Ablauf-Hinweis, Seitenleiste (Angeheftet, Vorlagen, Tags), Liste und
+Detailansicht, „Aus Vorlage“-Menü. **2FA**: Filter, Karten mit Code und Ring. **Konto**: Sicherheitsstatus
+oben, neue Karte „Anmeldung“. **Meine Cloud**: Sortierung, Zeilenaktionen bei Hover.
+Fix: Statusseite gruppierte Tage in lokaler statt UTC-Zeit (um Mitternacht falsch).
+
+**Tests:** Vitest 122/122, Playwright 14/14 (Tests an neue Menüs angepasst).
+
 ### Dashboard näher an den Mockups: Listen-Tabelle, Konto-Untermenü, Pakete-Übersicht
 
 **Meine Cloud**: Listenansicht als Tabelle mit Spaltenköpfen (Name, Grösse, Geändert, Sicherung), Badge

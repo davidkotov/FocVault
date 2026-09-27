@@ -112,7 +112,8 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await expectFileListed(page, fileName)
 
   // 5) Abmelden → neu anmelden (wie ein zweites Gerät)
-  await page.getByRole('button', { name: 'Abmelden' }).click()
+  await page.getByRole('button', { name: 'Kontomenü' }).click()
+  await page.getByRole('menuitem', { name: 'Abmelden' }).click()
   await expect(page).toHaveURL(/\/anmelden$/)
   await page.getByLabel('E-Mail').fill(email)
   await page.getByLabel('Passphrase').fill(PASS)
@@ -121,7 +122,8 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await expectFileListed(page, fileName)
 
   // 6) Passphrase „vergessen": Recovery mit 24 Wörtern, neue Passphrase
-  await page.getByRole('button', { name: 'Abmelden' }).click()
+  await page.getByRole('button', { name: 'Kontomenü' }).click()
+  await page.getByRole('menuitem', { name: 'Abmelden' }).click()
   await page.goto('/wiederherstellen')
   // keine E-Mail: das Konto wird über die aus den 24 Wörtern abgeleitete Kennung gefunden
   await page.getByLabel('Recovery-Kit (24 Wörter)').fill(words.join(' '))
@@ -134,7 +136,8 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await downloadAndCompare(page, fileName, content)
 
   // 7) Alte Passphrase gilt nicht mehr, neue schon
-  await page.getByRole('button', { name: 'Abmelden' }).click()
+  await page.getByRole('button', { name: 'Kontomenü' }).click()
+  await page.getByRole('menuitem', { name: 'Abmelden' }).click()
   await page.getByLabel('E-Mail').fill(email)
   await page.getByLabel('Passphrase').fill(PASS)
   await page.getByRole('button', { name: 'Anmelden', exact: true }).click()

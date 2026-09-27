@@ -12,7 +12,8 @@ test('Notizen: Vorlage, Checkliste, Tags, Anhang, Suche, per Secure Send teilen 
   await page.getByRole('button', { name: 'Notizen' }).click()
 
   // WLAN-Vorlage mit geheimem Passwort, Checkliste, Tag und Anhang
-  await page.getByRole('button', { name: /WLAN/ }).click()
+  await page.getByRole('button', { name: 'Aus Vorlage' }).click()
+  await page.getByRole('menuitem', { name: /WLAN/ }).click()
   await page.getByLabel('Titel').fill('WLAN Büro')
   await page.getByLabel('Netzwerkname (SSID)').fill('FocNet')
   await page.getByLabel('Passwort').fill('geheim-12345')
@@ -37,12 +38,13 @@ test('Notizen: Vorlage, Checkliste, Tags, Anhang, Suche, per Secure Send teilen 
   await page.getByLabel('Titel').fill('Einkauf')
   await page.getByRole('button', { name: 'Speichern' }).click()
   await page.getByPlaceholder('Notizen durchsuchen …').fill('focnet')
-  await expect(page.locator('.notecard')).toHaveCount(1)
+  await expect(page.locator('.noterow')).toHaveCount(1)
   await page.getByPlaceholder('Notizen durchsuchen …').fill('')
-  await page.locator('.notetools').getByRole('button', { name: '#IT' }).click()
-  await expect(page.locator('.notecard')).toHaveCount(1)
-  await page.locator('.notetools').getByRole('button', { name: 'Alle' }).click()
-  await expect(page.locator('.notecard')).toHaveCount(2)
+  await page.locator('.notetools').getByRole('button', { name: 'IT', exact: true }).click()
+  await expect(page.locator('.noterow')).toHaveCount(1)
+  await page.locator('.notetools').getByRole('button', { name: /^Alle/ }).click()
+  await expect(page.locator('.noterow')).toHaveCount(2)
+  await page.locator('.noterow', { hasText: 'WLAN Büro' }).click()
 
   // Anhang entschlüsselt herunterladen
   const [dl] = await Promise.all([page.waitForEvent('download'), card.getByRole('button', { name: 'router.txt' }).click()])

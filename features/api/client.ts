@@ -28,6 +28,7 @@ import type { StatusOverview } from '@/server/status/service'
 import type { PublicStats } from '@/server/status/public-stats'
 import type { SupportTicket } from '@/server/support/service'
 import type { CreditsView } from '@/server/credits/service'
+import type { CardLite, InvoiceLite } from '@/server/stripe/gateway'
 import type { TeamPolicy } from '@/lib/api-types'
 import type { RetentionRule, S3Overview } from '@/server/s3/service'
 
@@ -307,6 +308,7 @@ export const api = {
     business?: { tier: 'starter' | 'business'; extraSeats: number }
   ) => call<AccountView | Redirect>('PUT', '/billing/plan', { plan, interval, currency, ...(business ?? {}) }),
   billingPortal: () => call<Redirect>('POST', '/billing/portal'),
+  invoices: () => call<{ stripe: boolean; invoices: InvoiceLite[]; card: CardLite | null }>('GET', '/billing/invoices'),
   resumeSubscription: () => call<AccountView>('POST', '/billing/resume'),
   setCurrency: (currency: BillingCurrency) => call<AccountView>('PUT', '/billing/currency', { currency })
 }

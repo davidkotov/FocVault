@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SecretEntry } from '@/lib/vault'
 import { parseCsv, toCsv, downloadText } from '@/lib/csv'
-import { fmt, useMessages } from '@/features/i18n/I18nProvider'
+import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { createPortal } from 'react-dom'
+import { Icon } from '@/components/site/Icons'
+import { generateTotp } from '@/lib/totp'
+import { relativeDay } from '@/lib/i18n/relative'
 import { secretsMessages } from '@/lib/i18n/messages/secrets'
 import { reusedPasswords, strength } from '@/lib/password-health'
 import { checkBreaches } from '@/features/passwords/breach'
@@ -18,6 +22,10 @@ interface Props {
   readOnly?: boolean
   /** eigene Überschrift (z. B. im geteilten Tresor) */
   heading?: string
+  /** 2FA-Einträge, um verknüpfte Codes anzuzeigen */
+  totps?: SecretEntry[]
+  /** aus der globalen Suche: Eintrag vorauswählen */
+  initialSelect?: string
 }
 
 interface FormState {
@@ -63,7 +71,7 @@ async function copyText(text: string): Promise<void> {
   }
 }
 
-export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, readOnly = false, heading }: Props) {
+export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, readOnly = false, heading, initialSelect, totps = [] }: Props) {
   const { common: c, passwords: m } = useMessages(secretsMessages)
   const [form, setForm] = useState<FormState | null>(null)
   const [showPwForm, setShowPwForm] = useState(false)
@@ -72,7 +80,13 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
   const [folderFilter, setFolderFilter] = useState<string>('all')
   const [genOpen, setGenOpen] = useState(false)
   const [genOpts, setGenOpts] = useState<GenOptions>(DEFAULT_GEN)
-  const [selId, setSelId] = useState<string | null>(null)
+  const [selId, setSelId] = useState<string | null>(initialSelect ?? null)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => setSlot(document.getElementById('pageactions-slot')), [])
+  const { locale } = useI18n()
+  const relTime = (ts: number) => relativeDay(ts, locale)
+
   const importRef = useRef<HTMLInputElement>(null)
 
   const folders = useMemo(() => {
@@ -212,282 +226,355 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
     }
   }
 
-  return (
-    <div className="card">
-      <h3>
-        {heading ?? m.heading}
-        <span>{fmt(m.subtitle, { n: entries.length })}</span>
-        {!readOnly && !form && (
-          <button className="primary small" onClick={startNew}>
-            {m.newButton}
-          </button>
-        )}
-      </h3>
+  const okCount = entries.filter(e => e.password && !weak.has(e.id) && !reused.has(e.id) && !leaked.has(e.id)).length
+  const linkedTotp = (s: SecretEntry) => {
+    const host = hostOf(s.url)
+    const t = s.title.toLowerCase()
+    return totps.find(x => {
+      const i = (x.issuer || x.title || '').toLowerCase()
+      return !!i && (i === t || (!!host && host.includes(i)))
+    })
+  }
+  const badgeFor = (s: SecretEntry) =>
+    leaked.has(s.id) ? (
+      <span className="pwbadge bad" title={fmt(h.leakedTip, { n: (breaches?.get(s.id) ?? 0).toLocaleString() })}>
+        {h.badgeLeaked}
+      </span>
+    ) : weak.has(s.id) ? (
+      <span className="pwbadge warn">{h.badgeWeak}</span>
+    ) : reused.has(s.id) ? (
+      <span className="pwbadge warn" title={fmt(h.reusedTip, { n: reused.get(s.id)! })}>
+        {h.badgeReused}
+      </span>
+    ) : linkedTotp(s) ? (
+      <span className="strongbadge info">2FA</span>
+    ) : s.password ? (
+      <span className="strongbadge">{m.badgeStrong}</span>
+    ) : null
+  const selTotp = sel ? linkedTotp(sel) : undefined
+  const selCode = useTotpCode(selTotp)
 
+  const actions = !readOnly && (
+    <>
+      <button className="small" onClick={() => importRef.current?.click()}>
+        {m.import}
+      </button>
       {entries.length > 0 && (
-        <div className="searchrow">
-          <input
-            className="searchinput"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={m.searchPlaceholder}
-          />
-          <button className="small" onClick={exportCsv}>{m.exportCsv}</button>
-          {!readOnly && <button className="small" onClick={() => importRef.current?.click()}>{m.importCsv}</button>}
-          <input
-            ref={importRef}
-            type="file"
-            accept=".csv,text/csv"
-            hidden
-            onChange={e => {
-              const f = e.target.files?.[0]
-              if (f) void importCsv(f)
-              e.target.value = ''
-            }}
-          />
-        </div>
+        <button className="small" onClick={exportCsv}>
+          {m.export}
+        </button>
+      )}
+      {!form && (
+        <button className="primary small" onClick={startNew}>
+          {m.newButton}
+        </button>
+      )}
+      <input
+        ref={importRef}
+        type="file"
+        accept=".csv,text/csv"
+        hidden
+        onChange={e => {
+          const f = e.target.files?.[0]
+          if (f) void importCsv(f)
+          e.target.value = ''
+        }}
+      />
+    </>
+  )
+  const standalone = !heading
+  const CopyIcon = () => (
+    <svg className="icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+    </svg>
+  )
+
+  return (
+    <div className={standalone ? 'pwpage' : 'card pwpage'}>
+      {standalone && slot ? (
+        createPortal(actions, slot)
+      ) : (
+        <h3>
+          {heading ?? m.heading}
+          <span>{fmt(m.subtitle, { n: entries.length })}</span>
+          {actions}
+        </h3>
       )}
 
       {entries.some(e => e.password) && (
-        <div className="healthbar" aria-label={h.title}>
+        <div className="healthbar card" aria-label={h.title}>
+          <span className="hb-icon">
+            <Icon name="shield" size={18} />
+          </span>
           <strong>{h.title}</strong>
-          <button type="button" className={`chip${healthFilter === 'weak' ? ' active' : ''}${weak.size ? ' warn' : ' ok'}`} onClick={() => setHealthFilter(f => (f === 'weak' ? null : 'weak'))}>
-            {fmt(h.weak, { n: weak.size })}
-          </button>
-          <button type="button" className={`chip${healthFilter === 'reused' ? ' active' : ''}${reused.size ? ' warn' : ' ok'}`} onClick={() => setHealthFilter(f => (f === 'reused' ? null : 'reused'))}>
-            {fmt(h.reused, { n: reused.size })}
-          </button>
-          {breaches ? (
-            <button type="button" className={`chip${healthFilter === 'leaked' ? ' active' : ''}${leaked.size ? ' bad' : ' ok'}`} onClick={() => setHealthFilter(f => (f === 'leaked' ? null : 'leaked'))}>
-              {fmt(h.leaked, { n: leaked.size })}
+          <div className="hb-chips">
+            {breaches && (
+              <button type="button" className={`chip${healthFilter === 'leaked' ? ' active' : ''}${leaked.size ? ' bad' : ' ok'}`} onClick={() => setHealthFilter(f => (f === 'leaked' ? null : 'leaked'))}>
+                {fmt(h.leaked, { n: leaked.size })}
+              </button>
+            )}
+            <button type="button" className={`chip${healthFilter === 'weak' ? ' active' : ''}${weak.size ? ' warn' : ' ok'}`} onClick={() => setHealthFilter(f => (f === 'weak' ? null : 'weak'))}>
+              {fmt(h.weak, { n: weak.size })}
             </button>
-          ) : (
-            <button type="button" className="small" disabled={checking} onClick={() => void runBreachCheck()} title={h.checkHint}>
-              {checking ? `${h.checking}${checkProgress ? ` ${checkProgress}` : ''}` : h.check}
+            <button type="button" className={`chip${healthFilter === 'reused' ? ' active' : ''}${reused.size ? ' amber' : ' ok'}`} onClick={() => setHealthFilter(f => (f === 'reused' ? null : 'reused'))}>
+              {fmt(h.reused, { n: reused.size })}
             </button>
-          )}
+            <span className="chip ok static">{fmt(h.okCount, { n: okCount })}</span>
+          </div>
           <span className="hint">{breaches ? h.anonymousDone : h.checkHint}</span>
           {checkError && <span className="errortext">{checkError}</span>}
+          <button type="button" className="small" disabled={checking} onClick={() => void runBreachCheck()} title={h.checkHint}>
+            {checking ? `${h.checking}${checkProgress ? ` ${checkProgress}` : ''}` : breaches ? h.recheck : h.check}
+          </button>
         </div>
       )}
 
-      <div className={`pwlayout${folders.length ? '' : ' nofolders'}`}>
-      {folders.length > 0 && (
-        <div className="chipsrow pwfolders">
-          <button
-            className={folderFilter === 'all' ? 'chip active' : 'chip'}
-            onClick={() => setFolderFilter('all')}
-          >
-            {fmt(m.all, { n: entries.length })}
+      {entries.length === 0 && !form && <p className="dim pwempty card">{m.empty}</p>}
+
+      <div className="pwlayout" hidden={entries.length === 0 && !form}>
+        <nav className="pwfolders card" aria-label={m.folders}>
+          <button className={`pwnav${folderFilter === 'all' ? ' active' : ''}`} onClick={() => setFolderFilter('all')}>
+            <span>{m.allLabel}</span>
+            <em>{entries.length}</em>
           </button>
+          {folders.length > 0 && <div className="pwnav-label">{m.folders}</div>}
           {folders.map(f => (
-            <button key={f} className={folderFilter === f ? 'chip active' : 'chip'} onClick={() => setFolderFilter(f)}>
-              {f} ({countFor(f)})
+            <button key={f} className={`pwnav${folderFilter === f ? ' active' : ''}`} onClick={() => setFolderFilter(f)}>
+              <span>{f}</span>
+              <em>{countFor(f)}</em>
             </button>
           ))}
-        </div>
-      )}
+        </nav>
 
-      {filtered.length > 0 && (
-        <div className="seclist">
+        <div className="seclist card">
+          <div className="seclist-filter">
+            <input className="searchinput" value={search} onChange={e => setSearch(e.target.value)} placeholder={m.filter} aria-label={m.filter} />
+          </div>
           {filtered.map(s => (
             <div className={`secrow${sel?.id === s.id ? ' selected' : ''}`} key={s.id} onClick={() => setSelId(s.id)}>
+              <span className="pwavatar">{s.title.slice(0, 2).toUpperCase()}</span>
               <div className="secmain">
-                <div className="sectitle">
-                  {s.title}
-                  {leaked.has(s.id) && <span className="pwbadge bad" title={fmt(h.leakedTip, { n: (breaches?.get(s.id) ?? 0).toLocaleString() })}>{h.badgeLeaked}</span>}
-                  {weak.has(s.id) && <span className="pwbadge warn">{h.badgeWeak}</span>}
-                  {reused.has(s.id) && <span className="pwbadge warn" title={fmt(h.reusedTip, { n: reused.get(s.id)! })}>{h.badgeReused}</span>}
-                </div>
-                <div className="secmeta">
-                  {[s.username, s.url, s.folder].filter(Boolean).join(' · ') || m.noExtra}
-                </div>
+                <div className="sectitle">{s.title}</div>
+                <div className="secmeta">{s.username || hostOf(s.url) || s.folder || m.noExtra}</div>
               </div>
-              <div className="secpw">
-                {revealed[s.id] ? s.password || '—' : '••••••••••••'}
-                <button className="iconbtn" title={c.copy} onClick={() => void copyText(s.password ?? '')}>
-                  <svg className="icon" width="14" height="14" viewBox="0 0 24 24">
-                    <rect x="9" y="9" width="12" height="12" rx="2" />
-                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                  </svg>
-                </button>
-                {s.password && (
-                  <button className="iconbtn" title={revealed[s.id] ? m.hide : m.show} onClick={() => setRevealed(r => ({ ...r, [s.id]: !r[s.id] }))}>
-                    <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
-                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-              {!readOnly && <div className="secactions">
-                <button className="iconbtn" title={c.edit} onClick={() => startEdit(s)}>
-                  <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
-                    <path d="M12 20h9" />
-                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                  </svg>
-                </button>
-                <button className="iconbtn danger" title={c.delete} onClick={() => onDelete(s.id)}>
-                  <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
-                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                  </svg>
-                </button>
-              </div>}
+              {badgeFor(s)}
             </div>
           ))}
-          {filtered.length === 0 && <p className="dim">{m.noMatches}</p>}
+          {filtered.length === 0 && <p className="dim" style={{ padding: '12px 14px' }}>{m.noMatches}</p>}
         </div>
-      )}
 
-      {entries.length === 0 && !form && <p className="dim pwempty">{m.empty}</p>}
-      <div className="pwdetail" hidden={entries.length === 0 && !form}>
-        {form ? (
-        <form className="secform" onSubmit={submit}>
-          <h4>{form.id ? m.editTitle : m.newTitle}</h4>
-          <div className="secfields">
-            <label>
-              {c.title} <span className="req">*</span>
-              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={m.titlePlaceholder} autoFocus />
-            </label>
-            <label>
-              {m.username}
-              <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} placeholder="name@example.com" />
-            </label>
-            <label>
-              {m.password}
-              <div className="pwrow">
-                <input
-                  type={showPwForm ? 'text' : 'password'}
-                  value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder="••••••••"
-                />
-                <button type="button" className="iconbtn" title={showPwForm ? m.hide : m.reveal} onClick={() => setShowPwForm(v => !v)}>
-                  <svg className="icon" width="16" height="16" viewBox="0 0 24 24">
-                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                </button>
-                <button type="button" className="small" onClick={openGenerator}>{c.generate}</button>
-              </div>
-            </label>
-
-            {genOpen && (
-              <div className="genpanel">
-                <div className="gensplit">
-                  <label>
-                    {m.length}
+        <div className="pwdetail card">
+          {form ? (
+            <form className="secform" onSubmit={submit}>
+              <h4>{form.id ? m.editTitle : m.newTitle}</h4>
+              <div className="secfields">
+                <label>
+                  {c.title} <span className="req">*</span>
+                  <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={m.titlePlaceholder} autoFocus />
+                </label>
+                <label>
+                  {m.username}
+                  <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} placeholder="name@example.com" />
+                </label>
+                <label>
+                  {m.password}
+                  <div className="pwrow">
                     <input
-                      type="number"
-                      min={8}
-                      max={64}
-                      value={genOpts.len}
-                      onChange={e => changeGen({ len: Math.max(8, Math.min(64, Number(e.target.value) || 20)) })}
+                      type={showPwForm ? 'text' : 'password'}
+                      value={form.password}
+                      onChange={e => setForm({ ...form, password: e.target.value })}
+                      placeholder="••••••••"
                     />
-                  </label>
-                  <div className="genchecks">
-                    <span className="gencheck-label">{m.chars}</span>
-                    <label className="gencheck"><input type="checkbox" checked={genOpts.upper} onChange={e => changeGen({ upper: e.target.checked })} /> A–Z</label>
-                    <label className="gencheck"><input type="checkbox" checked={genOpts.lower} onChange={e => changeGen({ lower: e.target.checked })} /> a–z</label>
-                    <label className="gencheck"><input type="checkbox" checked={genOpts.digits} onChange={e => changeGen({ digits: e.target.checked })} /> 0–9</label>
-                    <label className="gencheck"><input type="checkbox" checked={genOpts.symbols} onChange={e => changeGen({ symbols: e.target.checked })} /> !@#$%</label>
+                    <button type="button" className="iconbtn" title={showPwForm ? m.hide : m.reveal} onClick={() => setShowPwForm(v => !v)}>
+                      <svg className="icon" width="16" height="16" viewBox="0 0 24 24">
+                        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                    <button type="button" className="small" onClick={openGenerator}>{c.generate}</button>
                   </div>
-                </div>
-                <div className="row" style={{ marginTop: 8 }}>
-                  <button type="button" className="small" onClick={() => doGenerate()}>{m.reroll}</button>
-                  <button type="button" className="small" onClick={() => void copyText(form.password ?? '')}>{c.copy}</button>
-                </div>
-              </div>
-            )}
+                </label>
 
-            <label>
-              {m.website}
-              <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://…" />
-            </label>
-            <label>
-              {m.folder}
-              <input value={form.folder} onChange={e => setForm({ ...form, folder: e.target.value })} placeholder={m.folderPlaceholder} list="pw-folders" />
-              <datalist id="pw-folders">
-                {folders.map(f => <option key={f} value={f} />)}
-              </datalist>
-            </label>
-          </div>
-          <div className="row" style={{ marginTop: 14 }}>
-            <button className="primary" type="submit" disabled={form.title.trim() === ''}>
-              {c.save}
-            </button>
-            <button type="button" onClick={() => setForm(null)}>{c.cancel}</button>
-          </div>
-        </form>
-        ) : sel ? (
-          <>
-            <div className="pwdhead">
-              <span className="pwavatar">{sel.title.slice(0, 2).toUpperCase()}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <strong>{sel.title}</strong>
-                <span className="hint">{[sel.folder, sel.url].filter(Boolean).join(' · ') || m.noExtra}</span>
-              </div>
-              {!readOnly && (
-                <button className="small" onClick={() => startEdit(sel)}>
-                  {c.edit}
-                </button>
-              )}
-            </div>
-            {sel.username && (
-              <div className="pwfield">
-                <span className="k">{m.username}</span>
-                <b>{sel.username}</b>
-                <button className="linkish" onClick={() => void copyText(sel.username ?? '')}>
-                  {c.copy}
-                </button>
-              </div>
-            )}
-            {sel.password && (
-              <div className="pwfield">
-                <span className="k">{m.password}</span>
-                <span className="mono">{revealed[sel.id] ? sel.password : '••••••••••••••••'}</span>
-                <span className="row" style={{ gap: 10 }}>
-                  <button className="linkish" onClick={() => setRevealed(r => ({ ...r, [sel.id]: !r[sel.id] }))}>
-                    {revealed[sel.id] ? m.hide : m.show}
-                  </button>
-                  <button className="linkish" onClick={() => void copyText(sel.password ?? '')}>
-                    {c.copy}
-                  </button>
-                </span>
-              </div>
-            )}
-            {sel.password && (
-              <div className="pwfield">
-                <span className="k">{m.strength}</span>
-                <div>
-                  <div className="pwstrength">
-                    <b style={{ width: `${((strength(sel.password) + 1) / 5) * 100}%`, background: strength(sel.password) >= 3 ? '#148a52' : strength(sel.password) >= 2 ? '#b07a00' : '#c43b3b' }} />
+                {genOpen && (
+                  <div className="genpanel">
+                    <div className="gensplit">
+                      <label>
+                        {m.length}
+                        <input
+                          type="number"
+                          min={8}
+                          max={64}
+                          value={genOpts.len}
+                          onChange={e => changeGen({ len: Math.max(8, Math.min(64, Number(e.target.value) || 20)) })}
+                        />
+                      </label>
+                      <div className="genchecks">
+                        <span className="gencheck-label">{m.chars}</span>
+                        <label className="gencheck"><input type="checkbox" checked={genOpts.upper} onChange={e => changeGen({ upper: e.target.checked })} /> A–Z</label>
+                        <label className="gencheck"><input type="checkbox" checked={genOpts.lower} onChange={e => changeGen({ lower: e.target.checked })} /> a–z</label>
+                        <label className="gencheck"><input type="checkbox" checked={genOpts.digits} onChange={e => changeGen({ digits: e.target.checked })} /> 0–9</label>
+                        <label className="gencheck"><input type="checkbox" checked={genOpts.symbols} onChange={e => changeGen({ symbols: e.target.checked })} /> !@#$%</label>
+                      </div>
+                    </div>
+                    <div className="row" style={{ marginTop: 8 }}>
+                      <button type="button" className="small" onClick={() => doGenerate()}>{m.reroll}</button>
+                      <button type="button" className="small" onClick={() => void copyText(form.password ?? '')}>{c.copy}</button>
+                    </div>
                   </div>
+                )}
+
+                <label>
+                  {m.website}
+                  <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://…" />
+                </label>
+                <label>
+                  {m.folder}
+                  <input value={form.folder} onChange={e => setForm({ ...form, folder: e.target.value })} placeholder={m.folderPlaceholder} list="pw-folders" />
+                  <datalist id="pw-folders">
+                    {folders.map(f => <option key={f} value={f} />)}
+                  </datalist>
+                </label>
+              </div>
+              <div className="row" style={{ marginTop: 14 }}>
+                <button className="primary" type="submit" disabled={form.title.trim() === ''}>
+                  {c.save}
+                </button>
+                <button type="button" onClick={() => setForm(null)}>{c.cancel}</button>
+              </div>
+            </form>
+          ) : sel ? (
+            <>
+              <div className="pwdhead">
+                <span className="pwavatar">{sel.title.slice(0, 2).toUpperCase()}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <strong>{sel.title}</strong>
                   <span className="hint">
-                    {m.strengths[strength(sel.password)]} · {fmt(m.charCount, { n: sel.password.length })}
-                    {leaked.has(sel.id) ? ` · ${h.badgeLeaked}` : ''}
-                    {reused.has(sel.id) ? ` · ${h.badgeReused}` : ''}
+                    {[sel.folder && fmt(m.inFolder, { f: sel.folder }), fmt(m.changed, { when: relTime(sel.updatedAt) })].filter(Boolean).join(' · ')}
                   </span>
                 </div>
-                <span />
+                {!readOnly && (
+                  <>
+                    <button className="small" onClick={() => startEdit(sel)}>
+                      {c.edit}
+                    </button>
+                    <div className="pwmore">
+                      <button className="iconbtn" aria-label={m.more} aria-expanded={moreOpen} onClick={() => setMoreOpen(o => !o)}>
+                        <svg className="icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="5" cy="12" r="1.3" />
+                          <circle cx="12" cy="12" r="1.3" />
+                          <circle cx="19" cy="12" r="1.3" />
+                        </svg>
+                      </button>
+                      {moreOpen && (
+                        <div className="pwmenu" role="menu">
+                          <button role="menuitem" onClick={() => { setMoreOpen(false); void copyText(sel.password ?? '') }}>
+                            {m.copyPassword}
+                          </button>
+                          <button role="menuitem" className="danger" title={c.delete} onClick={() => { setMoreOpen(false); onDelete(sel.id) }}>
+                            {c.delete}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
-            )}
-            {sel.url && (
-              <div className="pwfield">
-                <span className="k">{m.website}</span>
-                <a href={/^https?:\/\//.test(sel.url) ? sel.url : `https://${sel.url}`} target="_blank" rel="noreferrer noopener">
-                  {sel.url}
-                </a>
-                <span />
-              </div>
-            )}
-          </>
-        ) : (
-          entries.length > 0 && <p className="dim">{m.pick}</p>
-        )}
+              {sel.username && (
+                <div className="pwfield">
+                  <span className="k">{m.username}</span>
+                  <b>{sel.username}</b>
+                  <button className="linkish copybtn" onClick={() => void copyText(sel.username ?? '')}>
+                    <CopyIcon /> {c.copy}
+                  </button>
+                </div>
+              )}
+              {sel.password && (
+                <div className="pwfield">
+                  <span className="k">{m.password}</span>
+                  <span className="mono pwvalue">
+                    {revealed[sel.id] ? sel.password : '••••••••••••••••••••'}
+                    <button className="iconbtn" title={revealed[sel.id] ? m.hide : m.show} aria-label={revealed[sel.id] ? m.hide : m.show} onClick={() => setRevealed(r => ({ ...r, [sel.id]: !r[sel.id] }))}>
+                      <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
+                        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                  </span>
+                  <button className="linkish copybtn" onClick={() => void copyText(sel.password ?? '')}>
+                    <CopyIcon /> {c.copy}
+                  </button>
+                </div>
+              )}
+              {sel.password && (
+                <div className="pwfield">
+                  <span className="k">{m.strength}</span>
+                  <div>
+                    <div className="pwstrength">
+                      <b style={{ width: `${((strength(sel.password) + 1) / 5) * 100}%`, background: strength(sel.password) >= 3 ? '#148a52' : strength(sel.password) >= 2 ? '#b07a00' : '#c43b3b' }} />
+                    </div>
+                    <span className="hint">
+                      {m.strengths[strength(sel.password)]} · {fmt(m.charCount, { n: sel.password.length })}
+                      {leaked.has(sel.id) ? ` · ${h.badgeLeaked}` : breaches ? ` · ${h.notLeaked}` : ''}
+                      {reused.has(sel.id) ? ` · ${h.badgeReused}` : ''}
+                    </span>
+                  </div>
+                  <span />
+                </div>
+              )}
+              {sel.url && (
+                <div className="pwfield">
+                  <span className="k">{m.website}</span>
+                  <a href={/^https?:\/\//.test(sel.url) ? sel.url : `https://${sel.url}`} target="_blank" rel="noreferrer noopener">
+                    {hostOf(sel.url) || sel.url}
+                  </a>
+                  <a className="linkish" href={/^https?:\/\//.test(sel.url) ? sel.url : `https://${sel.url}`} target="_blank" rel="noreferrer noopener">
+                    {m.open}
+                  </a>
+                </div>
+              )}
+              {selTotp && (
+                <div className="pwfield">
+                  <span className="k">2FA</span>
+                  <span>{m.linked2fa}</span>
+                  <b className="mono pwcode">{selCode ? `${selCode.slice(0, Math.ceil(selCode.length / 2))} ${selCode.slice(Math.ceil(selCode.length / 2))}` : '…'}</b>
+                </div>
+              )}
+            </>
+          ) : (
+            entries.length > 0 && <p className="dim">{m.pick}</p>
+          )}
+        </div>
       </div>
-      </div>
-
     </div>
   )
+}
+
+function hostOf(url?: string): string {
+  if (!url) return ''
+  try {
+    return new URL(/^https?:\/\//.test(url) ? url : `https://${url}`).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
+/** Aktueller TOTP-Code eines verknüpften 2FA-Eintrags, aktualisiert jede Sekunde. */
+function useTotpCode(entry?: SecretEntry): string | null {
+  const [code, setCode] = useState<string | null>(null)
+  useEffect(() => {
+    if (!entry?.secretBase32) return setCode(null)
+    let alive = true
+    const tick = () =>
+      void generateTotp({ secret: entry.secretBase32!, digits: entry.digits, period: entry.period, algorithm: entry.algorithm })
+        .then(c => alive && setCode(c))
+        .catch(() => alive && setCode(null))
+    tick()
+    const t = setInterval(tick, 1000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [entry?.secretBase32, entry?.digits, entry?.period, entry?.algorithm])
+  return code
 }

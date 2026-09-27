@@ -1,4 +1,6 @@
 const de = {
+  pageCount: { passwords: '{n} Einträge', notes: '{n} Notizen', '2fa': '{n} Konten' },
+  signin: { title: 'Anmeldung', lead: 'Wie du dich anmeldest und entsperrst', login: 'Anmeldung mit', passphrase: 'Passphrase', argon: 'Argon2id', change: 'Ändern', passkeys: 'Passkeys', none: 'Noch keiner eingerichtet', manage: 'Verwalten', unlock: 'Ab Pro', autolock: 'Automatisch sperren', autolockValue: 'nach {n} Minuten Inaktivität' },
   accnav: { overview: 'Übersicht', credits: 'Guthaben', profile: 'Konto', passphrase: 'Passphrase', passkeys: 'Passkeys', emergency: 'Notfallzugang', team: 'Familie & Team' },
   credits: {
     title: 'Guthaben',
@@ -84,7 +86,7 @@ const de = {
     familyFolder: 'Familienordner'
   },
   folders: { all: 'Alle', documents: 'Dokumente', photos: 'Fotos', videos: 'Videos', backups: 'Backups & Mehr' },
-  search: 'Dateien durchsuchen…',
+  search: 'Suchen in Dateien, Passwörtern, Notizen …',
   menu: {
     synced: 'Synchronisiert',
     syncing: 'Wird synchronisiert…',
@@ -93,7 +95,10 @@ const de = {
     admin: 'Admin',
     lock: 'Sperren',
     lockTitle: 'Schlüssel aus dem Speicher entfernen',
-    logout: 'Abmelden'
+    logout: 'Abmelden',
+    open: 'Kontomenü',
+    account: 'Konto & Sicherheit',
+    plans: 'Pakete & Speicher'
   },
   files: {
     view: 'Ansicht',
@@ -113,6 +118,10 @@ const de = {
     colSize: 'Grösse',
     colDate: 'Geändert',
     colBackup: 'Sicherung',
+    sortLabel: 'Sortieren',
+    sortRecent: 'Zuletzt geändert',
+    sortName: 'Name (A–Z)',
+    sortSize: 'Grösse',
     onFilecoinTitle: 'Auf Filecoin gesichert: {copies} Kopien bei unabhängigen Anbietern, laufend per Proof of Data Possession geprüft.',
     download: 'Herunterladen',
     remove: 'Löschen',
@@ -352,6 +361,8 @@ const de = {
 }
 
 const en: typeof de = {
+  pageCount: { passwords: '{n} entries', notes: '{n} notes', '2fa': '{n} accounts' },
+  signin: { title: 'Sign-in', lead: 'How you sign in and unlock', login: 'Signed in as', passphrase: 'Passphrase', argon: 'Argon2id', change: 'Change', passkeys: 'Passkeys', none: 'None set up yet', manage: 'Manage', unlock: 'From Pro', autolock: 'Auto-lock', autolockValue: 'after {n} minutes of inactivity' },
   accnav: { overview: 'Overview', credits: 'Credit', profile: 'Account', passphrase: 'Passphrase', passkeys: 'Passkeys', emergency: 'Emergency access', team: 'Family & team' },
   credits: {
     title: 'Credit',
@@ -437,7 +448,7 @@ const en: typeof de = {
     familyFolder: 'Family folder'
   },
   folders: { all: 'All', documents: 'Documents', photos: 'Photos', videos: 'Videos', backups: 'Backups & more' },
-  search: 'Search files…',
+  search: 'Search files, passwords, notes …',
   menu: {
     synced: 'Synced',
     syncing: 'Syncing…',
@@ -446,7 +457,10 @@ const en: typeof de = {
     admin: 'Admin',
     lock: 'Lock',
     lockTitle: 'Remove the key from memory',
-    logout: 'Sign out'
+    logout: 'Sign out',
+    open: 'Account menu',
+    account: 'Account & security',
+    plans: 'Plans & storage'
   },
   files: {
     view: 'View',
@@ -466,6 +480,10 @@ const en: typeof de = {
     colSize: 'Size',
     colDate: 'Modified',
     colBackup: 'Backup',
+    sortLabel: 'Sort',
+    sortRecent: 'Recently changed',
+    sortName: 'Name (A–Z)',
+    sortSize: 'Size',
     onFilecoinTitle: 'Secured on Filecoin: {copies} copies with independent providers, continuously checked with Proof of Data Possession.',
     download: 'Download',
     remove: 'Delete',

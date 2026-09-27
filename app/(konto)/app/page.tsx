@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Sidebar, { type ViewId } from '@/components/Sidebar'
-import Topbar from '@/components/Topbar'
+import Topbar, { type SearchHit } from '@/components/Topbar'
 import FileList, { DRAG_MIME } from '@/components/FileList'
 import UpgradeWall from '@/components/UpgradeWall'
 import PasswordsPanel from '@/components/PasswordsPanel'
@@ -24,6 +24,7 @@ import { vaultsMessages } from '@/lib/i18n/messages/vaults'
 import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
 import TeamAdminView from '@/components/account/TeamAdminView'
 import SecurityStatus from '@/components/account/SecurityStatus'
+import SignInCard from '@/components/account/SignInCard'
 import CreditsCard from '@/components/account/CreditsCard'
 import { Icon } from '@/components/site/Icons'
 import TeamNotices, { TeamEscrowCard } from '@/components/account/TeamNotices'
@@ -276,6 +277,7 @@ export default function AppPage() {
   const ta = useMessages(teamAdminMessages)
   const [view, setView] = useState<ViewId>('cloud')
   const [search, setSearch] = useState('')
+  const [jump, setJump] = useState<{ id: string; q: string; n: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [undo, setUndo] = useState<TrashEntry | null>(null)
@@ -755,6 +757,41 @@ export default function AppPage() {
     emergency: em.title,
     teamAdmin: ta.nav
   }
+  const q = search.trim().toLowerCase()
+  const searchHits: SearchHit[] = !q
+    ? []
+    : [
+        ...(view === 'cloud'
+          ? []
+          : vault.files
+              .filter(f => f.name.toLowerCase().includes(q))
+              .slice(0, 4)
+              .map(f => ({
+                id: 'f' + f.id,
+                icon: 'file' as const,
+                title: f.name,
+                sub: `${t.nav.cloud} · ${formatBytes(f.size)}`,
+                onSelect: () => {
+                  setView('cloud')
+                  setSearch(f.name)
+                }
+              }))),
+        ...vault.secrets
+          .filter(s => [s.title, s.username, s.url, s.issuer, ...(s.tags ?? [])].some(x => x?.toLowerCase().includes(q)))
+          .slice(0, 6)
+          .map(s => ({
+            id: 's' + s.id,
+            icon: (s.kind === 'password' ? 'key' : s.kind === 'note' ? 'note' : 'otp') as SearchHit['icon'],
+            title: s.title || s.issuer || '—',
+            sub: s.kind === 'password' ? `${t.nav.passwords}${s.username ? ' · ' + s.username : ''}` : s.kind === 'note' ? t.nav.notes : `${t.nav.totp}${s.issuer ? ' · ' + s.issuer : ''}`,
+            onSelect: () => {
+              setJump(j => ({ id: s.id, q: s.title, n: (j?.n ?? 0) + 1 }))
+              setView(s.kind === 'password' ? 'passwords' : s.kind === 'note' ? 'notes' : '2fa')
+              setSearch('')
+            }
+          }))
+      ]
+
 
   return (
     <div className="shell">
@@ -779,13 +816,20 @@ export default function AppPage() {
         teamAdminLabel={ta.nav}
       />
       <div className="main">
-        <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
+        <Topbar title={titles[view]} search={search} onSearchChange={setSearch} hits={searchHits} right={<AccountMenu onNavigate={setView} />} />
         <div className="content">
           <div className="pagehead">
             <div>
               <h1>{titles[view]}</h1>
-              {(t.pages as Record<string, string>)[view] && <p>{(t.pages as Record<string, string>)[view]}</p>}
+              {(t.pages as Record<string, string>)[view] && (
+                <p>
+                  {isPro && (view === 'passwords' || view === 'notes' || view === '2fa') &&
+                    `${fmt(t.pageCount[view], { n: vault.secrets.filter(x => x.kind === (view === 'passwords' ? 'password' : view === 'notes' ? 'note' : 'totp')).length })} · `}
+                  {(t.pages as Record<string, string>)[view]}
+                </p>
+              )}
             </div>
+            {view !== 'cloud' && <div className="pageactions" id="pageactions-slot" />}
             {view === 'cloud' && (
               <div className="pageactions">
                 <button className="primary" onClick={() => (document.querySelector('[data-testid="upload-input"]') as HTMLInputElement | null)?.click()}>
@@ -1134,6 +1178,9 @@ export default function AppPage() {
               />
             ) : view === 'passwords' ? (
               <PasswordsPanel
+                key={jump ? `j${jump.n}` : 'pw'}
+                initialSelect={jump?.id}
+                totps={vault.secrets.filter(s => s.kind === 'totp')}
                 entries={vault.secrets.filter(s => s.kind === 'password')}
                 onSave={upsertSecret}
                 onSaveMany={upsertSecrets}
@@ -1141,6 +1188,8 @@ export default function AppPage() {
               />
             ) : view === 'notes' ? (
               <NotesPanel
+                key={jump ? `j${jump.n}` : 'notes'}
+                initialQuery={vault.secrets.some(x => x.id === jump?.id && x.kind === 'note') ? jump?.q : undefined}
                 entries={vault.secrets.filter(s => s.kind === 'note')}
                 onSave={upsertSecret}
                 onDelete={deleteSecret}
@@ -1213,16 +1262,18 @@ export default function AppPage() {
             />
           )}
           {view === 'account' && (
+            <>
+            <SecurityStatus
+              onAction={target => {
+                if (target === 'plans') return setView('plans')
+                document.getElementById(target === 'passkeys' ? 'acc-passkeys' : 'acc-emergency')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+            />
             <div className="acclayout">
               <AccountNav items={[['acc-overview', t.accnav.overview], ['acc-credits', t.accnav.credits], ['acc-profile', t.accnav.profile], ['acc-passphrase', t.accnav.passphrase], ['acc-passkeys', t.accnav.passkeys], ['acc-emergency', t.accnav.emergency], ['acc-team', t.accnav.team]]} />
               <div className="accmain">
               <section id="acc-overview">
-              <SecurityStatus
-                onAction={target => {
-                  if (target === 'plans') return setView('plans')
-                  document.getElementById(target === 'passkeys' ? 'acc-passkeys' : 'acc-emergency')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }}
-              />
+                <SignInCard isPro={isPro} onJump={id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
               </section>
               <section id="acc-credits">
               <CreditsCard onChanged={() => void refreshAccount()} />
@@ -1326,6 +1377,7 @@ export default function AppPage() {
               </section>
               </div>
             </div>
+            </>
           )}
         </div>
       </div>

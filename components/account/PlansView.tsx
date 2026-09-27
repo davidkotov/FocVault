@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Icon } from '@/components/site/Icons'
 import { useAccount } from '@/features/account/AccountProvider'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { api, isRedirect, type PublicOffer } from '@/features/api/client'
@@ -8,7 +10,7 @@ import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { useErrorText } from '@/features/i18n/errors'
 import { billingMessages } from '@/lib/i18n/messages/billing'
 import { commonMessages } from '@/lib/i18n/messages/common'
-import { CURRENCIES, yearlySavingsPct, type Currency, type Interval } from '@/lib/pricing'
+import { CURRENCIES, type Currency, type Interval } from '@/lib/pricing'
 import { formatBytes } from '@/lib/vault'
 
 type PaidPlan = 'pro' | 'family'
@@ -30,6 +32,12 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmFree, setConfirmFree] = useState(false)
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => setSlot(document.getElementById('pageactions-slot')), [])
+  const [invoices, setInvoices] = useState<Awaited<ReturnType<typeof api.invoices>> | null>(null)
+  useEffect(() => {
+    api.invoices().then(setInvoices).catch(() => setInvoices({ stripe: false, invoices: [], card: null }))
+  }, [])
   const [segment, setSegment] = useState<'private' | 'business'>(initialSegment ?? (account?.plan === 'business' ? 'business' : 'private'))
   // gewählte Zusatz-Nutzer je Stufe (im Elternteil, damit die Auswahl Re-Renders übersteht)
   const [seatChoice, setSeatChoice] = useState<Record<'starter' | 'business', number | undefined>>({ starter: undefined, business: undefined })
@@ -101,154 +109,49 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
   const pct = account.quotaBytes > 0 ? Math.min(100, (account.usedBytes / account.quotaBytes) * 100) : 0
 
   const biz = b.business
-  const BizCard = ({ tier }: { tier: 'starter' | 'business' }) => {
-    const t = offer.business[tier]
-    const text = m.biz[tier]
-    const isCurrentTier = account.plan === 'business' && biz?.tier === tier && b.interval === interval && b.currency === cur
-    const extra = seatChoice[tier] ?? (isCurrentTier ? (biz?.extraSeats ?? 0) : 0)
-    const setExtra = (n: number) => setSeatChoice(c => ({ ...c, [tier]: n }))
-    const unit = interval === 'year' ? offer.business.seat.yearly[cur] / 12 : offer.business.seat.monthly[cur]
-    const base = interval === 'year' ? t.yearly[cur] / 12 : t.monthly[cur]
-    const perMonth = base + extra * unit
-    const yearlyTotal = t.yearly[cur] + extra * offer.business.seat.yearly[cur]
-    const unchanged = isCurrentTier && extra === (biz?.extraSeats ?? 0)
-    const vars = { tb: tb(t.quotaGb), seats: t.seats }
-    return (
-      <div className={`plancard ${tier === 'business' ? 'featured' : ''} ${isCurrentTier ? 'current' : ''}`}>
-        {tier === 'business' && <span className="plantag">{m.popular}</span>}
-        <h4>{text.name}</h4>
-        <p className="dim">{text.tagline}</p>
-        <div className="planprice">
-          <strong>{fmtMoney(perMonth, cur)}</strong>
-          <span>{m.perMonth}</span>
-        </div>
-        <div className="planbilled">
-          {interval === 'year' ? fmt(m.billedYearly, { amount: fmtMoney(yearlyTotal, cur) }) : fmt(m.biz.perUser, { price: fmtMoney(unit, cur) })}
-        </div>
-        <label className="field seatpick">
-          <span>{m.biz.users}</span>
-          <select value={extra} onChange={e => setExtra(Number(e.target.value))} disabled={!!busy}>
-            {[0, 1, 3, 5, 20, 50].map(n => (
-              <option key={n} value={n}>
-                {t.seats + n} {n === 0 ? `(${fmt(m.biz.usersIncluded, { n: t.seats })})` : `(${fmt(m.biz.extraUsers, { n })})`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <ul>
-          {text.features.map(f => (
-            <li key={f}>{fmt(f, vars)}</li>
-          ))}
-        </ul>
-        <button
-          className={unchanged ? '' : 'primary'}
-          disabled={unchanged || !!busy || !offer.purchasesEnabled || !!biz?.member}
-          onClick={() =>
-            void run(tier, () => api.changePlan('business', interval, cur, { tier, extraSeats: extra }), isCurrentTier ? fmt(m.biz.seatsSaved, { n: t.seats + extra }) : fmt(m.planChanged, { plan: text.name }))
-          }
-        >
-          {busy === tier ? '…' : unchanged ? m.current : isCurrentTier ? m.save : account.plan === 'business' ? m.switchTo : m.upgrade}
-        </button>
-      </div>
-    )
-  }
+  const planName = account.plan === 'business' && biz ? offer.business[biz.tier].label : account.plan === 'free' ? m.free.name : offer.plans[account.plan as PaidPlan].label
+  const packs = account.plan === 'business' ? offer.businessAddons : offer.addons
+  const addInterval: Interval = isFree ? interval : b.interval
+  const addCur: Currency = isFree ? cur : b.currency
+  const canAddons = !isFree && !biz?.member
+  const gbLabel = (gb: number) => (gb >= 1000 ? `${tb(gb)} TB` : `${fmtNumber(gb)} GB`)
+  const monthPrice = (x: { monthly: Record<Currency, number>; yearly: Record<Currency, number> }) => (interval === 'year' ? x.yearly[cur] / 12 : x.monthly[cur])
+  const paygMax = offer.payg.perGbMonth[b.currency] * (b.payg.enabled ? b.payg.capGb : capGb)
 
-  const EnterpriseCard = () => {
-    const e = offer.business.enterprise
-    return (
-      <div className={`plancard ${biz?.tier === 'enterprise' ? 'current' : ''}`}>
-        <h4>{m.biz.enterprise.name}</h4>
-        <p className="dim">{m.biz.enterprise.tagline}</p>
-        <div className="planprice">
-          <span>{m.biz.from}</span>
-          <strong>{fmtMoney(e.fromMonthly[cur], cur, 0)}</strong>
-          <span>{m.perMonth}</span>
-        </div>
-        <div className="planbilled">{m.biz.custom}</div>
-        <ul>
-          {m.biz.enterprise.features.map(f => (
-            <li key={f}>{fmt(f, { tb: tb(e.quotaGb), seats: e.seats })}</li>
-          ))}
-        </ul>
-        <a className="planbtn" href={`mailto:${e.contact}?subject=FocVault%20Enterprise`}>
-          <button className="full">{biz?.tier === 'enterprise' ? m.current : m.biz.contact}</button>
-        </a>
-      </div>
-    )
-  }
+  const switchPlan = (plan: PaidPlan, i: Interval, cu: Currency) =>
+    void run(plan + i, () => api.changePlan(plan, i, cu), fmt(m.planChanged, { plan: plan === 'pro' ? m.pro.name : m.family.name }))
 
-  const PlanCard = ({ plan }: { plan: 'free' | PaidPlan }) => {
-    const isCurrent =
-      account.plan === plan && (plan === 'free' || (b.interval === interval && b.currency === cur))
-    const text = plan === 'free' ? m.free : plan === 'pro' ? m.pro : m.family
-    const item = plan === 'free' ? null : offer.plans[plan]
-    const vars = { gb: offer.free.quotaGb, tb: item ? tb(item.quotaGb) : 0, seats: offer.plans.family.seats }
-    const label = isCurrent ? m.current : plan === 'free' ? m.downgrade : isFree ? m.upgrade : m.switchTo
-    return (
-      <div className={`plancard ${plan === 'pro' ? 'featured' : ''} ${isCurrent ? 'current' : ''}`}>
-        {plan === 'pro' && <span className="plantag">{m.popular}</span>}
-        <h4>{text.name}</h4>
-        <p className="dim">{fmt(text.tagline, vars)}</p>
-        <div className="planprice">
-          {item ? (
-            <>
-              <strong>{fmtMoney(interval === 'year' ? item.yearly[cur] / 12 : item.monthly[cur], cur)}</strong>
-              <span>{m.perMonth}</span>
-            </>
-          ) : (
-            <>
-              <strong>{fmtMoney(0, cur, 0)}</strong>
-              <span>{m.perMonth}</span>
-            </>
-          )}
-        </div>
-        <div className="planbilled">
-          {item && interval === 'year' ? (
-            <>
-              {fmt(m.billedYearly, { amount: fmtMoney(item.yearly[cur], cur) })}{' '}
-              <span className="badge ok">{fmt(m.savePct, { pct: yearlySavingsPct(item, cur) })}</span>
-            </>
-          ) : plan === 'free' ? (
-            fmt(m.payg.step2Title, { price: perGbMoney(offer.payg.perGbMonth[cur], cur) })
-          ) : (
-            '\u00a0'
-          )}
-        </div>
-        <ul>
-          {text.features.map(f => (
-            <li key={f}>{fmt(f, vars)}</li>
-          ))}
-        </ul>
-        <button
-          className={isCurrent ? '' : plan === 'free' ? '' : 'primary'}
-          disabled={isCurrent || !!busy || !offer.purchasesEnabled}
-          onClick={() => {
-            if (plan === 'free') return setConfirmFree(true)
-            void run(plan, () => api.changePlan(plan, interval, cur), fmt(m.planChanged, { plan: text.name }))
-          }}
-        >
-          {busy === plan ? '…' : label}
+  const segSwitch = (
+    <div className="audienceswitch" role="tablist" aria-label={`${m.segment.private} / ${m.segment.business}`}>
+      {(['private', 'business'] as const).map(sg => (
+        <button key={sg} role="tab" aria-selected={segment === sg} className={segment === sg ? 'active' : ''} onClick={() => setSegment(sg)}>
+          {sg === 'private' ? m.segment.private : m.segment.business}
         </button>
-      </div>
-    )
-  }
+      ))}
+    </div>
+  )
 
   return (
     <>
+      {slot ? createPortal(segSwitch, slot) : segSwitch}
       {msg && <div className={msg.ok ? 'notice' : 'errorbox'}>{msg.text}</div>}
+      {b.subscription.status === 'past_due' && <div className="errorbox">{m.stripe.pastDue}</div>}
+      {biz?.member && <div className="notice">{m.biz.member}</div>}
 
       <div className="planhero">
         <div className="card planhero-main">
           <div className="row" style={{ gap: 10, alignItems: 'center' }}>
             <span className="badge dark">{m.hero.current}</span>
             <b className="planhero-name">
-              {account.plan === 'business' && biz ? offer.business[biz.tier === 'enterprise' ? 'business' : biz.tier].label : account.plan === 'free' ? 'Free' : offer.plans[account.plan as PaidPlan].label}
+              {planName}
               {account.plan !== 'free' && ` · ${b.interval === 'year' ? m.yearly : m.monthly}`}
             </b>
             <span style={{ flex: 1 }} />
-            {b.subscription.periodEnd && (
-              <span className="dim">{fmt(b.subscription.cancelAtPeriodEnd ? m.stripe.ends : m.stripe.renews, { date: fmtDate(b.subscription.periodEnd) })}</span>
-            )}
+            <span className="dim">
+              {b.subscription.periodEnd
+                ? fmt(b.subscription.cancelAtPeriodEnd ? m.stripe.ends : m.stripe.renews, { date: fmtDate(b.subscription.periodEnd) })
+                : fmt(m.hero.perMonthTotal, { amount: fmtMoney(b.monthlyTotal, b.currency) })}
+            </span>
           </div>
           <div className="planhero-used">
             <b>{formatBytes(account.usedBytes)}</b>
@@ -264,7 +167,7 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
             const w = (x: number) => `${account.quotaBytes ? Math.min(100, (x / account.quotaBytes) * 100) : 0}%`
             return (
               <>
-                <div className="planbar">
+                <div className={`planbar${pct >= 100 ? ' full' : ''}`}>
                   <b style={{ width: w(files), background: '#0b1220' }} />
                   <b style={{ width: w(ver), background: '#5b6475' }} />
                   <b style={{ width: w(trash), background: '#8a93a3' }} />
@@ -286,100 +189,359 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
               </>
             )
           })()}
-        </div>
-        <div className="card planhero-side">
-          <b>{m.monthlyTotal}</b>
-          <div className="planhero-total">{fmtMoney(b.monthlyTotal, b.currency)}</div>
-          <span className="dim">{m.monthlyTotalHint}</span>
-          <div className="planhero-rows">
-            <div>
-              <span className="dim">Pay-as-you-go</span>
-              <b>{b.payg.enabled ? fmt(m.hero.paygOn, { gb: b.payg.capGb }) : m.hero.paygOff}</b>
-            </div>
-            <div>
-              <span className="dim">{m.hero.addons}</span>
-              <b>{b.addons.length ? formatBytes(b.addonBytes) : '—'}</b>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {b.stripe && (b.subscription.provider === 'stripe' || b.subscription.hasPaymentAccount) && (
-        <div className={`card substatus ${b.subscription.status === 'past_due' ? 'warn' : ''}`}>
-          <div>
-            {b.subscription.status === 'past_due' && <div className="errorbox">{m.stripe.pastDue}</div>}
-            {b.subscription.provider === 'stripe' && b.subscription.periodEnd && (
-              <strong>
-                {fmt(b.subscription.cancelAtPeriodEnd ? m.stripe.ends : m.stripe.renews, { date: fmtDate(b.subscription.periodEnd) })}
-              </strong>
-            )}
-            <div className="hint">{m.stripe.manageHint}</div>
-          </div>
-          <div className="row">
-            {b.subscription.cancelAtPeriodEnd && (
-              <button className="primary small" disabled={!!busy} onClick={() => void run('resume', () => api.resumeSubscription(), m.stripe.resumed)}>
-                {m.stripe.resume}
+          <div className="planhero-actions">
+            {account.plan === 'free' && (
+              <button className="primary small" disabled={!!busy || !offer.purchasesEnabled} onClick={() => switchPlan('pro', interval, cur)}>
+                {fmt(m.hero.toPlan, { plan: m.pro.name })}
               </button>
             )}
-            <button className="small" disabled={!!busy} onClick={() => void run('portal', () => api.billingPortal(), '')}>
-              {m.stripe.manage}
-            </button>
+            {account.plan === 'pro' && (
+              <button className="small" disabled={!!busy || !offer.purchasesEnabled} onClick={() => switchPlan('family', b.interval, b.currency)}>
+                {fmt(m.hero.toPlan, { plan: m.family.name })}
+              </button>
+            )}
+            {(account.plan === 'pro' || account.plan === 'family') && (
+              <button
+                className="small"
+                disabled={!!busy || !offer.purchasesEnabled}
+                onClick={() => switchPlan(account.plan as PaidPlan, b.interval === 'year' ? 'month' : 'year', b.currency)}
+              >
+                {b.interval === 'year' ? m.hero.payMonthly : m.hero.payYearly}
+              </button>
+            )}
+            {account.plan === 'family' && (
+              <button className="small" onClick={() => setSegment('business')}>
+                {fmt(m.hero.toPlan, { plan: m.segment.business })}
+              </button>
+            )}
+            <span style={{ flex: 1 }} />
+            {b.subscription.cancelAtPeriodEnd ? (
+              <button className="small" disabled={!!busy} onClick={() => void run('resume', () => api.resumeSubscription(), m.stripe.resumed)}>
+                {m.stripe.resume}
+              </button>
+            ) : (
+              account.plan !== 'free' &&
+              !biz?.member && (
+                <button className="linkish" disabled={!!busy} onClick={() => setConfirmFree(true)}>
+                  {m.hero.cancel}
+                </button>
+              )
+            )}
           </div>
         </div>
-      )}
 
-      <div className="audienceswitch" role="tablist" aria-label={`${m.segment.private} / ${m.segment.business}`}>
-        {(['private', 'business'] as const).map(sg => (
-          <button key={sg} role="tab" aria-selected={segment === sg} className={segment === sg ? 'active' : ''} onClick={() => setSegment(sg)}>
-            {sg === 'private' ? m.segment.private : m.segment.business}
-          </button>
-        ))}
-      </div>
-      {segment === 'business' && <p className="dim audiencelead">{m.biz.lead}</p>}
-      {biz?.member && <div className="notice">{m.biz.member}</div>}
-
-      <div className="plancontrols">
-        <div className="segmented" role="group" aria-label={m.yearly}>
-          {(['month', 'year'] as const).map(i => (
-            <button key={i} className={interval === i ? 'active' : ''} aria-pressed={interval === i} onClick={() => setIntervalState(i)}>
-              {i === 'month' ? m.monthly : m.yearly}
-              {i === 'year' && <span className="savechip">{m.yearlySave}</span>}
-            </button>
-          ))}
+        <div className="card planhero-side">
+          <b className="planhero-name" style={{ fontSize: 15 }}>
+            Pay-as-you-go
+          </b>
+          <p className="dim" style={{ margin: '6px 0 0' }}>
+            {fmt(m.paygSide.lead, { gb: offer.free.quotaGb, price: perGbMoney(offer.payg.perGbMonth[b.currency], b.currency) })}
+          </p>
+          <div className="planhero-rows">
+            <div>
+              <span className="dim">{m.paygSide.cap}</span>
+              {isFree && !b.payg.enabled ? (
+                <span className="row" style={{ gap: 6, alignItems: 'center' }}>
+                  <input
+                    className="capinput"
+                    type="number"
+                    aria-label={m.payg.cap}
+                    min={1}
+                    max={offer.payg.maxCapGb}
+                    value={capGb}
+                    onChange={e => setCapGb(Math.max(1, Math.min(offer.payg.maxCapGb, Number(e.target.value) || 1)))}
+                  />
+                  <b>GB · max. {fmtMoney(paygMax, b.currency)}</b>
+                </span>
+              ) : (
+                <b>{fmt(m.paygSide.capValue, { gb: fmtNumber(b.payg.enabled ? b.payg.capGb : capGb), max: fmtMoney(paygMax, b.currency) })}</b>
+              )}
+            </div>
+            <div>
+              <span className="dim">{m.paygSide.thisMonth}</span>
+              <b>{fmtMoney(b.payg.enabled ? b.payg.estimate : 0, b.currency)}</b>
+            </div>
+          </div>
+          {isFree ? (
+            <div className="row" style={{ marginTop: 12, gap: 8 }}>
+              {b.payg.enabled ? (
+                <>
+                  <span className="badge ok">{fmt(m.payg.active, { cap: fmtNumber(b.payg.capGb) })}</span>
+                  <span style={{ flex: 1 }} />
+                  <button className="small" disabled={!!busy} onClick={() => void run('payg', () => api.setPayg(false), m.payg.disabled)}>
+                    {m.payg.disable}
+                  </button>
+                </>
+              ) : (
+                <button className="primary small" disabled={!!busy || !offer.purchasesEnabled} onClick={() => void run('payg', () => api.setPayg(true, capGb), m.payg.enabled)}>
+                  {m.payg.enable}
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="hint" style={{ marginTop: 12 }}>
+              {fmt(m.paygSide.inactivePlan, { plan: planName })}
+            </p>
+          )}
         </div>
-        <label className="currencypick">
-          <span className="dim">{m.currency}</span>
-          <select
-            value={cur}
-            onChange={e => {
-              const c = e.target.value as Currency
-              setViewCurrency(c)
-              setCurrency(c)
-            }}
-          >
-            {CURRENCIES.map(c => (
-              <option key={c}>{c}</option>
+      </div>
+
+      <div className="card plansection">
+        <div className="plansection-head">
+          <h3>{m.addons.title}</h3>
+          <span className="dim">{m.grid.rhythm}</span>
+        </div>
+        <div className="addongrid">
+          {packs.map(a => {
+            const label = gbLabel(a.gb)
+            const owned = b.addons.find(x => x.gb === a.gb && x.source !== 'admin')
+            return (
+              <div className={`addoncard${owned ? ' owned' : ''}`} key={a.id}>
+                <span className="addon-gb">+{label}</span>
+                <b className="addon-price">{(() => { const v = (addInterval === 'year' ? a.yearly : a.monthly)[addCur]; return fmtMoney(v, addCur, Number.isInteger(v) ? 0 : 2) })()}</b>
+                <span className="dim">{addInterval === 'year' ? m.grid.perYear : m.grid.perMonth}</span>
+                <div className="addon-act">
+                  {owned ? (
+                    <>
+                      <span className="badge ok">{m.grid.booked}</span>
+                      <button className="linkish" disabled={!!busy} onClick={() => void run(owned.id, () => api.cancelAddon(owned.id), m.addons.cancelled)}>
+                        {m.addons.cancel}
+                      </button>
+                    </>
+                  ) : canAddons ? (
+                    <button className="small" disabled={!!busy || !offer.purchasesEnabled} onClick={() => void run(a.id, () => api.buyAddon(a.id), fmt(m.addons.booked, { gb: label }))}>
+                      {busy === a.id ? '…' : m.addons.book}
+                    </button>
+                  ) : (
+                    <button className="small locked" data-tip={m.grid.locked} aria-label={`${m.addons.book} – ${m.grid.locked}`} onClick={() => setSegment('private')}>
+                      <Icon name="lock" size={13} /> {m.addons.book}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          <div className="addoncard custom">
+            <span className="addon-gb">{m.grid.customTitle}</span>
+            <b className="addon-price" style={{ fontSize: 16 }}>
+              {m.grid.customQ}
+            </b>
+            <span className="dim">{m.grid.customLead}</span>
+            <div className="addon-act">
+              <a className="button small primary" href={path(`/support?topic=storage&plan=${account.plan}`)}>
+                {m.grid.customBtn}
+              </a>
+            </div>
+          </div>
+        </div>
+        {b.addons.some(x => x.source === 'admin') && (
+          <p className="hint" style={{ marginTop: 10 }}>
+            {b.addons
+              .filter(x => x.source === 'admin')
+              .map(x => `+${gbLabel(x.gb)} (${m.addons.grant})`)
+              .join(' · ')}
+          </p>
+        )}
+      </div>
+
+      <div className="plangrid2">
+        <div className="card plansection">
+          <div className="plansection-head">
+            <h3>{m.compare.title}</h3>
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <div className="segmented small" role="group" aria-label={m.yearly}>
+                {(['month', 'year'] as const).map(i => (
+                  <button key={i} className={interval === i ? 'active' : ''} aria-pressed={interval === i} onClick={() => setIntervalState(i)}>
+                    {i === 'month' ? m.monthly : m.yearly}
+                  </button>
+                ))}
+              </div>
+              <select
+                aria-label={m.currency}
+                className="smallselect"
+                value={cur}
+                onChange={e => {
+                  const c2 = e.target.value as Currency
+                  setViewCurrency(c2)
+                  setCurrency(c2)
+                }}
+              >
+                {CURRENCIES.map(c2 => (
+                  <option key={c2}>{c2}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <table className="plantable">
+            <thead>
+              <tr>
+                <th>{m.compare.plan}</th>
+                <th>{m.compare.storage}</th>
+                <th>{m.compare.people}</th>
+                <th>{m.compare.price}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {segment === 'private' ? (
+                <>
+                  {(['free', 'pro', 'family'] as const).map(plan => {
+                    const item = plan === 'free' ? null : offer.plans[plan]
+                    const isCur = account.plan === plan
+                    const exact = isCur && (plan === 'free' || (b.interval === interval && b.currency === cur))
+                    const name = plan === 'free' ? m.free.name : plan === 'pro' ? m.pro.name : m.family.name
+                    return (
+                      <tr key={plan} className={isCur ? 'current' : ''}>
+                        <td>
+                          <b>{name}</b> {isCur && <span className="badge dark">{m.compare.current}</span>}
+                        </td>
+                        <td>{item ? `${tb(item.quotaGb)} TB` : `${offer.free.quotaGb} GB`}</td>
+                        <td>{plan === 'family' ? offer.plans.family.seats : 1}</td>
+                        <td>{item ? fmtMoney(monthPrice(item), cur) : fmtMoney(0, cur, 0)}</td>
+                        <td className="act">
+                          {!exact && (
+                            <button
+                              className="small"
+                              disabled={!!busy || !offer.purchasesEnabled || !!biz?.member}
+                              onClick={() => (plan === 'free' ? setConfirmFree(true) : switchPlan(plan, interval, cur))}
+                            >
+                              {busy === plan + interval ? '…' : isCur ? m.save : isFree ? m.upgrade : m.switchTo}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  <tr>
+                    <td>
+                      <b>{m.segment.business}</b>
+                    </td>
+                    <td>
+                      {m.compare.from} {tb(offer.business.starter.quotaGb)} TB
+                    </td>
+                    <td>
+                      {m.compare.from} {offer.business.starter.seats}
+                    </td>
+                    <td>
+                      {m.compare.from} {fmtMoney(monthPrice(offer.business.starter), cur, 0)}
+                    </td>
+                    <td className="act">
+                      <button className="small" onClick={() => setSegment('business')}>
+                        {m.compare.view}
+                      </button>
+                    </td>
+                  </tr>
+                </>
+              ) : (
+                <>
+                  {(['starter', 'business'] as const).map(tier => {
+                    const t2 = offer.business[tier]
+                    const isCurTier = account.plan === 'business' && biz?.tier === tier
+                    const extra = seatChoice[tier] ?? (isCurTier ? (biz?.extraSeats ?? 0) : 0)
+                    const unit = interval === 'year' ? offer.business.seat.yearly[cur] / 12 : offer.business.seat.monthly[cur]
+                    const unchanged = isCurTier && b.interval === interval && b.currency === cur && extra === (biz?.extraSeats ?? 0)
+                    return (
+                      <tr key={tier} className={isCurTier ? 'current' : ''}>
+                        <td>
+                          <b>{t2.label}</b> {isCurTier && <span className="badge dark">{m.compare.current}</span>}
+                        </td>
+                        <td>{tb(t2.quotaGb)} TB</td>
+                        <td>
+                          <select className="smallselect" aria-label={`${m.biz.users} ${t2.label}`} value={extra} onChange={e => setSeatChoice(c2 => ({ ...c2, [tier]: Number(e.target.value) }))} disabled={!!busy}>
+                            {[0, 1, 3, 5, 20, 50].map(n => (
+                              <option key={n} value={n}>
+                                {t2.seats + n}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>{fmtMoney(monthPrice(t2) + extra * unit, cur)}</td>
+                        <td className="act">
+                          {!unchanged && (
+                            <button
+                              className="small"
+                              disabled={!!busy || !offer.purchasesEnabled || !!biz?.member}
+                              onClick={() =>
+                                void run(tier, () => api.changePlan('business', interval, cur, { tier, extraSeats: extra }), isCurTier ? fmt(m.biz.seatsSaved, { n: t2.seats + extra }) : fmt(m.planChanged, { plan: t2.label }))
+                              }
+                            >
+                              {busy === tier ? '…' : isCurTier ? m.save : account.plan === 'business' ? m.switchTo : m.upgrade}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  <tr className={biz?.tier === 'enterprise' ? 'current' : ''}>
+                    <td>
+                      <b>{offer.business.enterprise.label}</b>
+                    </td>
+                    <td>
+                      {m.compare.from} {tb(offer.business.enterprise.quotaGb)} TB
+                    </td>
+                    <td>
+                      {m.compare.from} {offer.business.enterprise.seats}
+                    </td>
+                    <td>
+                      {m.compare.from} {fmtMoney(offer.business.enterprise.fromMonthly[cur], cur, 0)}
+                    </td>
+                    <td className="act">
+                      <a className="button small" href={`mailto:${offer.business.enterprise.contact}?subject=FocVault%20Enterprise`}>
+                        {m.biz.contact}
+                      </a>
+                    </td>
+                  </tr>
+                </>
+              )}
+            </tbody>
+          </table>
+          <p className="hint" style={{ padding: '10px 18px 0' }}>
+            {interval === 'year' ? m.compare.hintYear : m.compare.hintMonth} · {m.vatNote} {!offer.purchasesEnabled ? m.stripeSoon : b.stripe ? m.stripe.secure : m.devNote}
+          </p>
+        </div>
+
+        <div className="card plansection">
+          <div className="plansection-head">
+            <h3>{m.inv.title}</h3>
+            <span className="dim">{m.inv.via}</span>
+          </div>
+          <div className="invlist">
+            {(invoices?.invoices ?? []).map(i => (
+              <div className="invrow" key={i.id}>
+                <Icon name="file" size={18} />
+                <div className="invmain">
+                  <b>{fmtDate(i.date)}</b>
+                  <span className="dim">{i.description}</span>
+                </div>
+                <b>{fmtMoney(i.amount, i.currency.toUpperCase() as Currency)}</b>
+                <span className={`badge ${i.status === 'paid' ? 'ok' : ''}`}>{i.status === 'paid' ? m.inv.paid : m.inv.open}</span>
+                {i.pdf ? (
+                  <a className="linkish" href={i.pdf} target="_blank" rel="noreferrer">
+                    PDF
+                  </a>
+                ) : (
+                  <span />
+                )}
+              </div>
             ))}
-          </select>
-        </label>
+            {invoices && invoices.invoices.length === 0 && <p className="dim invempty">{invoices.stripe ? m.inv.none : m.inv.off}</p>}
+            <div className="invrow">
+              <Icon name="card" size={18} />
+              <div className="invmain">
+                <b>{invoices?.card ? `${invoices.card.brand.charAt(0).toUpperCase()}${invoices.card.brand.slice(1)} •••• ${invoices.card.last4}` : m.inv.noCard}</b>
+                {invoices?.card && <span className="dim">{fmt(m.inv.expires, { date: `${String(invoices.card.expMonth).padStart(2, '0')}/${invoices.card.expYear}` })}</span>}
+              </div>
+              <span />
+              <span />
+              {b.stripe && (
+                <button className="small" disabled={!!busy} onClick={() => void run('portal', () => (invoices?.card ? api.billingPortal() : api.addPaymentMethod()), '')}>
+                  {invoices?.card ? m.inv.change : m.inv.add}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
-
-      {segment === 'private' ? (
-        <div className="plancards">
-          <PlanCard plan="free" />
-          <PlanCard plan="pro" />
-          <PlanCard plan="family" />
-        </div>
-      ) : (
-        <div className="plancards">
-          <BizCard tier="starter" />
-          <BizCard tier="business" />
-          <EnterpriseCard />
-        </div>
-      )}
-      <p className="hint" style={{ marginBottom: 18 }}>
-        {m.vatNote} {!offer.purchasesEnabled ? m.stripeSoon : b.stripe ? m.stripe.secure : m.devNote}
-      </p>
 
       {confirmFree && (
         <ConfirmDialog
@@ -416,131 +578,35 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
               </div>
             ))}
           </div>
-
-          <div className="grid2" style={{ marginTop: 16 }}>
-            <div className="paygcalc">
-              <strong>{m.payg.calcTitle}</strong>
-              <label className="field" style={{ marginTop: 10 }}>
-                <span className="dim">
-                  {m.payg.calcExtra}: <strong>{fmtNumber(calcGb)} GB</strong>
-                </span>
-                <input type="range" min={0} max={1000} step={10} value={calcGb} onChange={e => setCalcGb(Number(e.target.value))} />
-              </label>
-              <div className="stat">
-                <span className="k">{m.payg.calcCost}</span>
-                <span className="v">
-                  <strong>{fmtMoney(calc.cost, cur)}</strong>
-                  {calc.carry && calc.cost > 0 && (
-                    <span className="dim"> · {fmt(m.payg.calcCarry, { min: fmtMoney(offer.payg.minInvoice[cur], cur) })}</span>
-                  )}
-                </span>
-              </div>
-              <p className="hint" style={{ color: calcGb >= calc.breakEven ? 'var(--accent-dark)' : undefined }}>
-                {calcGb >= calc.breakEven
-                  ? m.payg.proCheaperNow
-                  : fmt(m.payg.proCheaper, { gb: fmtNumber(calc.breakEven), tb: tb(offer.plans.pro.quotaGb) })}
-              </p>
+          <div className="paygcalc" style={{ marginTop: 16 }}>
+            <strong>{m.payg.calcTitle}</strong>
+            <label className="field" style={{ marginTop: 10 }}>
+              <span className="dim">
+                {m.payg.calcExtra}: <strong>{fmtNumber(calcGb)} GB</strong>
+              </span>
+              <input type="range" min={0} max={1000} step={10} value={calcGb} onChange={e => setCalcGb(Number(e.target.value))} />
+            </label>
+            <div className="stat">
+              <span className="k">{m.payg.calcCost}</span>
+              <span className="v">
+                <strong>{fmtMoney(calc.cost, cur)}</strong>
+                {calc.carry && calc.cost > 0 && <span className="dim"> · {fmt(m.payg.calcCarry, { min: fmtMoney(offer.payg.minInvoice[cur], cur) })}</span>}
+              </span>
             </div>
-
-            <div>
-              <div className="stat">
-                <span className="k">{m.payg.status}</span>
-                <span className="v">{b.payg.enabled ? fmt(m.payg.active, { cap: fmtNumber(b.payg.capGb) }) : m.payg.inactive}</span>
-              </div>
-              {b.payg.enabled && (
-                <div className="stat">
-                  <span className="k">{m.payg.thisMonth}</span>
-                  <span className="v">
-                    {fmtMoney(b.payg.estimate, b.currency)} · {fmt(m.payg.billable, { gb: fmtNumber(b.payg.billableGb, 1) })}
-                  </span>
-                </div>
-              )}
-              <div className="row" style={{ marginTop: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <p className="hint" style={{ color: calcGb >= calc.breakEven ? 'var(--accent-dark)' : undefined }}>
+              {calcGb >= calc.breakEven ? m.payg.proCheaperNow : fmt(m.payg.proCheaper, { gb: fmtNumber(calc.breakEven), tb: tb(offer.plans.pro.quotaGb) })}
+            </p>
+            {b.payg.enabled && (
+              <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
                 <label className="field" style={{ maxWidth: 160, marginBottom: 0 }}>
                   <span className="hint">{m.payg.cap}</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={offer.payg.maxCapGb}
-                    value={capGb}
-                    onChange={e => setCapGb(Math.max(1, Math.min(offer.payg.maxCapGb, Number(e.target.value) || 1)))}
-                  />
+                  <input type="number" min={1} max={offer.payg.maxCapGb} value={capGb} onChange={e => setCapGb(Math.max(1, Math.min(offer.payg.maxCapGb, Number(e.target.value) || 1)))} />
                 </label>
-                {b.payg.enabled ? (
-                  <>
-                    <button className="small" disabled={!!busy} onClick={() => void run('payg', () => api.setPayg(true, capGb), m.payg.capSaved)}>
-                      {m.payg.saveCap}
-                    </button>
-                    <button className="small" disabled={!!busy} onClick={() => void run('payg', () => api.setPayg(false), m.payg.disabled)}>
-                      {m.payg.disable}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    className="primary"
-                    disabled={!!busy || !offer.purchasesEnabled}
-                    onClick={() => void run('payg', () => api.setPayg(true, capGb), m.payg.enabled)}
-                  >
-                    {m.payg.enable}
-                  </button>
-                )}
+                <button className="small" disabled={!!busy} onClick={() => void run('payg', () => api.setPayg(true, capGb), m.payg.capSaved)}>
+                  {m.payg.saveCap}
+                </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!isFree && !biz?.member && (account.plan === 'pro' || account.plan === 'family' || account.plan === 'business') && (
-        <div className="card">
-          <h3>{m.addons.title}</h3>
-          <p className="dim" style={{ marginBottom: 12 }}>
-            {m.addons.intro}
-          </p>
-          {b.addons.length > 0 && (
-            <div style={{ marginBottom: 12 }}>
-              <strong>{m.addons.yours}</strong>
-              {b.addons.map(a => (
-                <div className="stat" key={a.id}>
-                  <span className="k">
-                    +{a.gb >= 1000 ? `${tb(a.gb)} TB` : `${fmtNumber(a.gb)} GB`} {a.source === 'admin' ? `(${m.addons.grant})` : ''}
-                  </span>
-                  <span className="v">
-                    {fmtMoney(a.price, a.currency)} {a.interval === 'year' ? m.perYear : m.perMonth}{' '}
-                    <button className="small" disabled={!!busy} onClick={() => void run(a.id, () => api.cancelAddon(a.id), m.addons.cancelled)}>
-                      {m.addons.cancel}
-                    </button>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="storeoptions">
-            {(account.plan === 'business' ? offer.businessAddons : offer.addons).map(a => {
-              const label = a.gb >= 1000 ? `${tb(a.gb)} TB` : `${fmtNumber(a.gb)} GB`
-              return (
-                <div className="storeoption" key={a.id}>
-                  <span className="gb">+{label}</span>
-                  <span className="price">
-                    {fmtMoney((b.interval === 'year' ? a.yearly : a.monthly)[b.currency], b.currency)}{' '}
-                    {b.interval === 'year' ? m.perYear : m.perMonth}
-                  </span>
-                  <button
-                    className="small primary"
-                    disabled={!!busy || !offer.purchasesEnabled}
-                    onClick={() => void run(a.id, () => api.buyAddon(a.id), fmt(m.addons.booked, { gb: label }))}
-                  >
-                    {busy === a.id ? '…' : m.addons.book}
-                  </button>
-                </div>
-              )
-            })}
-            <div className="storeoption custom">
-              <span className="gb">{m.addons.custom}</span>
-              <span className="price">{m.addons.customLead}</span>
-              <a className="button small" href={path(`/support?topic=storage&plan=${account.plan}`)}>
-                {m.addons.customButton}
-              </a>
-            </div>
+            )}
           </div>
         </div>
       )}

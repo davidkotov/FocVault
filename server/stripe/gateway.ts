@@ -42,6 +42,23 @@ export interface StripeEventLite {
   object: Record<string, any>
 }
 
+export interface InvoiceLite {
+  id: string
+  date: string
+  amount: number
+  currency: string
+  status: string
+  description: string
+  pdf: string | null
+}
+
+export interface CardLite {
+  brand: string
+  last4: string
+  expMonth: number
+  expYear: number
+}
+
 export interface StripeGateway {
   createCustomer(input: { accountId: string; email: string | null; name: string }): Promise<string>
   createProduct(name: string, key: string): Promise<string>
@@ -85,6 +102,8 @@ export interface StripeGateway {
   setupIntentPaymentMethod(setupIntentId: string): Promise<string | null>
   setDefaultPaymentMethod(customer: string, paymentMethod: string): Promise<void>
   hasDefaultPaymentMethod(customer: string): Promise<boolean>
+  listInvoices(customer: string, limit: number): Promise<InvoiceLite[]>
+  defaultCard(customer: string): Promise<CardLite | null>
   /** Einzelrechnung (Pay-as-you-go) sofort abbuchen */
   chargeOnce(input: {
     customer: string
@@ -260,6 +279,29 @@ export class LiveStripeGateway implements StripeGateway {
   async hasDefaultPaymentMethod(customer: string) {
     const c = await this.s.customers.retrieve(customer)
     return !('deleted' in c && c.deleted) && !!(c as any).invoice_settings?.default_payment_method
+  }
+
+  async listInvoices(customer: string, limit: number) {
+    const r = await this.s.invoices.list({ customer, limit })
+    return r.data
+      .filter(i => i.status !== 'draft')
+      .map(i => ({
+        id: i.id!,
+        date: new Date((i.status_transitions?.paid_at ?? i.created) * 1000).toISOString(),
+        amount: (i.total ?? 0) / 100,
+        currency: i.currency,
+        status: i.status ?? 'open',
+        description: i.lines?.data?.[0]?.description ?? i.description ?? '',
+        pdf: i.invoice_pdf ?? null
+      }))
+  }
+
+  async defaultCard(customer: string) {
+    const c = await this.s.customers.retrieve(customer, { expand: ['invoice_settings.default_payment_method'] })
+    if ('deleted' in c && c.deleted) return null
+    const pm = (c as any).invoice_settings?.default_payment_method
+    if (!pm || typeof pm === 'string' || !pm.card) return null
+    return { brand: pm.card.brand, last4: pm.card.last4, expMonth: pm.card.exp_month, expYear: pm.card.exp_year }
   }
 
   async chargeOnce(input: Parameters<StripeGateway['chargeOnce']>[0]) {
