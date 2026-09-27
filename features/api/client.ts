@@ -10,6 +10,7 @@ import type {
   PresignedPiece,
   RegisterInput
 } from '@/lib/api-types'
+import type { Economics, PricingConfig } from '@/lib/pricing'
 
 export class ApiClientError extends Error {
   constructor(
@@ -111,7 +112,68 @@ export const api = {
 
   adminStats: () => call<AdminStats>('GET', '/admin/stats'),
   adminSetPlan: (id: string, plan: Plan) =>
-    call<{ ok: true }>('PATCH', `/admin/accounts/${encodeURIComponent(id)}`, { plan })
+    call<{ ok: true }>('PATCH', `/admin/accounts/${encodeURIComponent(id)}`, { plan }),
+  adminUpdateAccount: (id: string, input: { plan?: Plan; paygEnabled?: boolean; paygCapGb?: number; status?: string }) =>
+    call<{ ok: true }>('PATCH', `/admin/accounts/${encodeURIComponent(id)}`, input),
+  adminAccounts: (q: string, offset: number) =>
+    call<{ total: number; rows: AdminAccountListRow[] }>(
+      'GET',
+      `/admin/accounts?q=${encodeURIComponent(q)}&offset=${offset}`
+    ),
+  adminGrantAddon: (id: string, input: { gb: number; chfPerMonth: number; note?: string }) =>
+    call<{ ok: true }>('POST', `/admin/accounts/${encodeURIComponent(id)}/addons`, input),
+  adminRevokeAddon: (addonId: string) => call<{ ok: true }>('DELETE', `/admin/addons/${encodeURIComponent(addonId)}`),
+  adminEconomics: () => call<EconomicsReport>('GET', '/admin/economics'),
+  adminPricing: () => call<PricingConfig>('GET', '/admin/pricing'),
+  adminSavePricing: (p: PricingConfig) => call<PricingConfig>('PUT', '/admin/pricing', p),
+  adminTreasury: () => call<TreasuryStatus>('GET', '/admin/treasury'),
+  adminSaveTreasury: (t: { address: string; chainId: 314 | 314159; label: string }) =>
+    call<TreasuryStatus>('PUT', '/admin/treasury', t),
+
+  offer: () => call<PublicOffer>('GET', '/billing/offer'),
+  buyAddon: (packId: string) => call<AccountView>('POST', '/billing/addons', { packId }),
+  cancelAddon: (id: string) => call<AccountView>('DELETE', `/billing/addons/${encodeURIComponent(id)}`),
+  setPayg: (enabled: boolean, capGb?: number) => call<AccountView>('PUT', '/billing/payg', { enabled, capGb })
+}
+
+export interface AdminAccountListRow {
+  id: string
+  display: string
+  plan: Plan
+  status: string
+  storedBytes: number
+  quotaGb: number
+  addonsGb: number
+  addonsChf: number
+  paygEnabled: boolean
+  paygCapGb: number | null
+  lastLoginAt: string | null
+  createdAt: string
+}
+
+export interface EconomicsReport {
+  pricing: PricingConfig
+  economics: Economics
+  history: Array<{ day: string; storedBytes: number; accounts: number }>
+  inactiveFree: { warn: number; delete: number }
+}
+
+export interface TreasuryStatus {
+  address: string
+  chainId: 314 | 314159
+  label: string
+  balances: { usdfc: number; fil: number } | null
+  error: string | null
+  monthlyCostUsd: number
+  runwayMonths: number | null
+}
+
+export interface PublicOffer {
+  free: { quotaGb: number }
+  payg: { chfPerGbMonth: number; minInvoiceChf: number; defaultCapGb: number; maxCapGb: number }
+  plans: PricingConfig['plans']
+  addons: PricingConfig['addons']
+  purchasesEnabled: boolean
 }
 
 /** Nutzerfreundliche Meldung für beliebige Fehler. */

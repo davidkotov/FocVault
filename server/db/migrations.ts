@@ -133,6 +133,48 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
         used_at timestamptz
       );
     `
+  },
+  {
+    version: 3,
+    name: 'billing_addons_payg_settings',
+    sql: `
+      -- Admin-Einstellungen (Preisbuch, Krypto-Reserve) als versionierbares JSON.
+      CREATE TABLE settings (
+        key text PRIMARY KEY,
+        value jsonb NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        updated_by uuid
+      );
+
+      -- Zusatzspeicher für Abos (Pro/Family). Preis wird beim Kauf festgeschrieben.
+      CREATE TABLE account_addons (
+        id uuid PRIMARY KEY,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        pack_id text,
+        bytes bigint NOT NULL CHECK (bytes > 0),
+        chf_per_month numeric(10, 2) NOT NULL CHECK (chf_per_month >= 0),
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled')),
+        source text NOT NULL CHECK (source IN ('admin', 'stripe', 'dev')),
+        note text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        cancelled_at timestamptz
+      );
+      CREATE INDEX account_addons_active ON account_addons (account_id) WHERE status = 'active';
+
+      -- Pay-as-you-go für Free-Konten: Speicher über der Free-Quota bis zur Obergrenze.
+      ALTER TABLE accounts ADD COLUMN payg_enabled boolean NOT NULL DEFAULT false;
+      ALTER TABLE accounts ADD COLUMN payg_cap_gb integer;
+      ALTER TABLE accounts ADD COLUMN last_login_at timestamptz;
+
+      -- Tagesstand pro Plan (Verlauf im Admin, Grundlage der Monatsabrechnung).
+      CREATE TABLE platform_daily (
+        day date NOT NULL,
+        plan text NOT NULL,
+        accounts integer NOT NULL,
+        stored_bytes bigint NOT NULL,
+        PRIMARY KEY (day, plan)
+      );
+    `
   }
 ]
 

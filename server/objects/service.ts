@@ -6,7 +6,9 @@ import { audit, type Deps } from '../deps'
 import { ApiError } from '../shared/errors'
 import { isUuid, uuidv7 } from '../shared/ids'
 import type { SessionInfo } from '../auth/sessions'
-import { quotaFor, usedBytes } from '../accounts/plans'
+import { usedBytes } from '../accounts/plans'
+import { quotaFor } from '../billing/quota'
+import { getPricing } from '../billing/settings'
 import { objectPieceKey } from '../storage/provider'
 
 const UPLOAD_URL_TTL_SEC = 60 * 60
@@ -89,20 +91,29 @@ export async function createObject(
   const objectId = uuidv7()
   await deps.db.tx(async tx => {
     // Zeilensperre auf dem Konto serialisiert parallele Uploads → Quota kann nicht überbucht werden.
-    const acc = await tx.query<{ plan: SessionInfo['plan']; status: string }>(
-      'SELECT plan, status FROM accounts WHERE id = $1 FOR UPDATE',
-      [session.accountId]
-    )
+    const acc = await tx.query<{
+      id: string
+      plan: SessionInfo['plan']
+      status: string
+      payg_enabled: boolean
+      payg_cap_gb: number | null
+    }>('SELECT id, plan, status, payg_enabled, payg_cap_gb FROM accounts WHERE id = $1 FOR UPDATE', [session.accountId])
     if (!acc[0]) throw new ApiError('UNAUTHENTICATED', 'Konto nicht gefunden.')
     if (acc[0].status !== 'active') throw new ApiError('FORBIDDEN', 'Konto ist schreibgeschützt.')
-    const quota = quotaFor(acc[0].plan)
+    const { quotaBytes: quota } = await quotaFor(tx, acc[0], await getPricing(tx))
     const used = await usedBytes(tx, session.accountId)
     if (used + total > quota) {
       const free = Math.max(0, quota - used)
+      const hint =
+        acc[0].plan === 'free'
+          ? acc[0].payg_enabled
+            ? ' Erhöhe deine Pay-as-you-go-Grenze oder wechsle zu Pro.'
+            : ' Mehr Platz: Pay-as-you-go aktivieren oder zu Pro wechseln.'
+          : ' Mehr Platz: Zusatzspeicher buchen.'
       throw new ApiError(
         'QUOTA_EXCEEDED',
-        `Nicht genug Speicher: ${formatBytes(free)} frei, ${formatBytes(total)} benötigt.`,
-        { freeBytes: free, neededBytes: total }
+        `Nicht genug Speicher: ${formatBytes(free)} frei, ${formatBytes(total)} benötigt.${hint}`,
+        { freeBytes: free, neededBytes: total, plan: acc[0].plan }
       )
     }
     await tx.query(

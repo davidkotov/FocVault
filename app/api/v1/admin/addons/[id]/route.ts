@@ -4,13 +4,12 @@ import { json, param, readJson, route } from '@/server/shared/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-import { adminAccountSchema } from '@/server/billing/schemas'
-import { adminUpdateAccount } from '@/server/billing/service'
+import { cancelAddon } from '@/server/billing/service'
 
-export const PATCH = route(async (req, ctx) => {
+export const DELETE = route(async (req, ctx) => {
   const d = await deps()
   const session = await requireSession(req, d.db)
   await requireAdmin(d.db, session)
-  await adminUpdateAccount(d, session, param(ctx, 'id'), await readJson(req, adminAccountSchema))
+  await cancelAddon(d, session, param(ctx, 'id'), 'admin')
   return json({ ok: true })
 })

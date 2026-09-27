@@ -104,7 +104,7 @@ export default function Landing() {
             </a>
           </div>
           <div className="trustline">
-            <b>5 GB kostenlos</b> · Pay-as-you-go ohne Aufschlag · Keine Kreditkarte nötig
+            <b>5 GB kostenlos</b> · danach Pay-as-you-go · Keine Kreditkarte nötig
           </div>
 
           <div className="preview">
@@ -320,18 +320,19 @@ export default function Landing() {
       <section className="msection" id="preise" style={{ background: 'var(--card-soft)' }}>
         <div className="wrap">
           <div className="eyebrow">Preise</div>
-          <h2 className="sectitle">Fair, transparent, ohne Mindestbetrag</h2>
+          <h2 className="sectitle">Privacy hat ihren Preis – und ist ihn wert</h2>
           <p className="subtitle">
-            5 GB free. Danach zahlst du nur die bare Filecoin-Infrastruktur – oder holst dir
-            ein Abo in CHF mit allen Privacy-Modulen.
+            5 GB kostenlos, danach Pay-as-you-go pro GB. Oder ein Abo in CHF mit allen
+            Privacy-Modulen – und jederzeit zubuchbarem Zusatzspeicher.
           </p>
           <div className="pricing">
             <div className="plan">
               <h3>Free</h3>
               <div className="price">0 CHF<span>/Monat</span></div>
-              <div className="desc">Inklusive 5 GB, danach Pay-as-you-go mit echten Filecoin-Kosten.</div>
+              <div className="desc">Inklusive 5 GB, danach Pay-as-you-go für 2 Rappen pro GB und Monat.</div>
               <ul>
                 <li><CheckIcon />5 GB Speicher inklusive</li>
+                <li><CheckIcon />Pay-as-you-go mit selbst gewählter Obergrenze</li>
                 <li><CheckIcon />Zero-Knowledge-Verschlüsselung</li>
                 <li><CheckIcon />Secure Send</li>
                 <li><CheckIcon />Modul-Quota ohne Cloud-Speicher</li>
@@ -344,7 +345,7 @@ export default function Landing() {
               <div className="price">13.90 CHF<span>/Monat</span></div>
               <div className="desc">Deine komplette persönliche Privacy-Cloud – inkl. aller Module.</div>
               <ul>
-                <li><CheckIcon />2 TB Speicher</li>
+                <li><CheckIcon />1 TB Speicher, Zusatzspeicher ab 2.90 CHF</li>
                 <li><CheckIcon />Passwörter, Notizen &amp; 2FA-Authenticator</li>
                 <li><CheckIcon />Passkeys &amp; Device-Backup (bald)</li>
                 <li><CheckIcon />Vault-Sync über alle Geräte</li>
@@ -357,7 +358,7 @@ export default function Landing() {
               <div className="price">19.90 CHF<span>/Monat</span></div>
               <div className="desc">Geteilter Speicher für 2–6 Personen – jede*r mit eigenem Vault &amp; Schlüssel.</div>
               <ul>
-                <li><CheckIcon />2 TB geteilt</li>
+                <li><CheckIcon />2 TB geteilt, Zusatzspeicher buchbar</li>
                 <li><CheckIcon />2–6 Mitglieder, je eigener Vault &amp; Key</li>
                 <li><CheckIcon />Alle Module für jedes Mitglied</li>
                 <li><CheckIcon />Echtes Privacy-Versprechen für die ganze Familie</li>
@@ -396,19 +397,20 @@ export default function Landing() {
             <details>
               <summary>Brauche ich eine Kryptowährung?</summary>
               <p>
-                Im Free-Tier sind 5 GB Speicher enthalten. Was darüber hinausgeht, zahlst du
-                als transparentes Pay-as-you-go mit USDFC (FIL-besicherter Stablecoin) –
-                nur deine echten Filecoin-Kosten, rund 0,5 Rappen pro GB und Monat.
-                Die Abos (Pro, Family) laufen ab Release über Stripe in CHF.
+                Nein. Du meldest dich mit E-Mail, Google, Apple oder – wenn du willst – einer
+                Wallet an. Im Free-Tier sind 5 GB enthalten; darüber zahlst du Pay-as-you-go
+                in CHF (2 Rappen pro GB und Monat, mit selbst gewählter Obergrenze). Abos
+                laufen über Stripe in CHF.
               </p>
             </details>
             <details>
               <summary>Was kostet das Abo, und warum darf Privacy etwas mehr kosten?</summary>
               <p>
-                Pro kostet 13.90 CHF/Monat (2 TB), Family 19.90 CHF/Monat (2 TB für 2–6
-                Personen, jede*r mit eigenem Vault und Schlüssel). Die Abos bezahlen Features,
-                Schweizer Datenschutz-Versprechen und Support – der Speicher selbst ist bei
-                Filecoin so günstig, dass er als Pay-as-you-go quasi nichts kostet.
+                Pro kostet 13.90 CHF/Monat (1 TB), Family 19.90 CHF/Monat (2 TB für 2–6
+                Personen, jede*r mit eigenem Vault und Schlüssel). Mehr Platz buchst du als
+                Zusatzspeicher dazu. Du bezahlst nicht nur Speicher, sondern Zero-Knowledge:
+                Niemand – auch wir nicht – kann deine Dateien lesen, gespeichert auf Filecoin mit
+                nachweisbarer Integrität, dazu Passwort-Manager und 2FA im selben Tresor.
               </p>
             </details>
             <details>

@@ -13,7 +13,7 @@ describe('Konten', () => {
     const { input, result, session } = await newAccount(deps, '  Anna@Example.COM ')
     expect(result.view.email).toBe('anna@example.com')
     expect(result.view.plan).toBe('free')
-    expect(result.view.quotaBytes).toBe(5 * 1024 ** 3)
+    expect(result.view.quotaBytes).toBe(5e9)
     expect(result.view.usedBytes).toBe(0)
     expect(result.view.kdf).toEqual(input.kdf)
     expect(result.view.envelopes.map(e => e.kekType)).toEqual(['passphrase'])

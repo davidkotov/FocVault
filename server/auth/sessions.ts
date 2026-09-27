@@ -29,6 +29,8 @@ export async function createSession(
     'INSERT INTO sessions (id, account_id, token_hash, expires_at, user_agent) VALUES ($1, $2, $3, $4, $5)',
     [sessionId, accountId, sha256(token), expiresAt, userAgent ? userAgent.slice(0, 200) : null]
   )
+  // Grundlage der Inaktivitätsregel für Free-Konten (Preisbuch: inactiveWarnDays/DeleteDays)
+  await db.query('UPDATE accounts SET last_login_at = now() WHERE id = $1', [accountId])
   return { token, expiresAt, sessionId }
 }
 

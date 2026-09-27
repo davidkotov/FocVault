@@ -105,6 +105,8 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
 
   // 8) Admin: Konto sichtbar, Speicher gebucht – ohne Dateinamen
   await page.goto('/admin')
+  await page.getByRole('tab', { name: 'Konten' }).click()
+  await page.getByPlaceholder(/Suchen/).fill(email)
   await expect(page.getByRole('cell', { name: email })).toBeVisible()
   await expect(page.getByText(fileName)).toHaveCount(0)
 })

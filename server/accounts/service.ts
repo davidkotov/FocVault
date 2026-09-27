@@ -10,7 +10,8 @@ import { burnVerification, hashSecret, verifySecret, type SecretHashParams } fro
 import { rateLimit } from '../auth/ratelimit'
 import { createSession, revokeOtherSessions, type SessionInfo } from '../auth/sessions'
 import { requireStrongAuth } from '../auth/guard'
-import { quotaFor, usedBytes } from './plans'
+import { usedBytes } from './plans'
+import { accountBilling } from '../billing/service'
 import type { loginSchema, passphraseSchema, recoverySchema, registerSchema } from './schemas'
 
 export interface RequestMeta {
@@ -219,6 +220,8 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
   const envelopes: KeyEnvelope[] = keys
     .filter(k => k.kek_type === 'passphrase' || extraKeks.includes(k.kek_type))
     .map(k => ({ kekType: k.kek_type, iv: b64uEncode(k.mk_iv), cipher: b64uEncode(k.mk_wrapped) }))
+  const used = await usedBytes(deps.db, a.id)
+  const { quotaBytes, ...billing } = await accountBilling(deps, a.id, used)
   return {
     id: a.id,
     email: a.email,
@@ -226,8 +229,9 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
     wallets,
     emailVerified: !!a.email_verified_at,
     plan: a.plan,
-    quotaBytes: quotaFor(a.plan),
-    usedBytes: await usedBytes(deps.db, a.id),
+    quotaBytes,
+    usedBytes: used,
+    billing,
     createdAt: new Date(a.created_at).toISOString(),
     kdf: pass.kdf_params,
     envelopes,

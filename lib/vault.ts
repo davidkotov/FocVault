@@ -92,17 +92,17 @@ export const GiB = 1024 ** 3
 export const TiB = 1024 ** 4
 
 /**
- * Pricing- & Quota-Modell (abgestimmt mit Partner, 2026-09):
- *  - Free  5 GB  – danach Pay-as-you-go (Self-Pay, echte FOC-Kosten)
- *  - Pro   2 TB  @ 13.90 CHF/Monat – alle Module (später Stripe)
- *  - Family 2 TB @ 19.90 CHF/Monat – 2–6 Mitglieder, je eigene Vaults
+ * Pakete (Stand 27.09.2026, Konto-Modus rechnet live aus dem Preisbuch in `lib/pricing.ts`):
+ *  - Free   5 GB – danach Pay-as-you-go
+ *  - Pro    1 TB @ 13.90 CHF/Monat – alle Module, Zusatzspeicher buchbar
+ *  - Family 2 TB @ 19.90 CHF/Monat – bis 6 Mitglieder, Zusatzspeicher buchbar
  *  - Business/Custom – individuell
- * Free-Usage wird später über das Admin-/Backend-Konto bezahlt; Abos via Stripe.
+ * Einheiten dezimal (1 TB = 10^12 Byte), wie Fil One und die Konkurrenz.
  */
 export const TIERS = {
-  FREE: { label: 'Free', quotaLabel: '5 GB', maxBytes: 5 * GiB, priceChf: '0 CHF' },
-  PRO: { label: 'Pro', quotaLabel: '2 TB', maxBytes: 2 * TiB, priceChf: '13.90 CHF / Monat' },
-  FAMILY: { label: 'Family', quotaLabel: '2 TB geteilt', maxBytes: 2 * TiB, priceChf: '19.90 CHF / Monat' },
+  FREE: { label: 'Free', quotaLabel: '5 GB', maxBytes: 5e9, priceChf: '0 CHF' },
+  PRO: { label: 'Pro', quotaLabel: '1 TB', maxBytes: 1e12, priceChf: '13.90 CHF / Monat' },
+  FAMILY: { label: 'Family', quotaLabel: '2 TB geteilt', maxBytes: 2e12, priceChf: '19.90 CHF / Monat' },
   BUSINESS: { label: 'Business', quotaLabel: 'Individuell', maxBytes: Number.MAX_SAFE_INTEGER, priceChf: 'individuell' }
 } as const
 
@@ -190,10 +190,11 @@ export function tierFor(proActive: boolean, plan: 'FAMILY' | 'BUSINESS' | null =
   return proActive ? 'PRO' : 'FREE'
 }
 
+/** Dezimal wie Fil One und die Konkurrenz: 1 GB = 1 000 000 000 Byte. */
 export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
-  if (n < 1024 ** 4) return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
-  return `${(n / 1024 ** 4).toFixed(2)} TB`
+  if (n < 1e3) return `${n} B`
+  if (n < 1e6) return `${(n / 1e3).toFixed(1)} KB`
+  if (n < 1e9) return `${(n / 1e6).toFixed(1)} MB`
+  if (n < 1e12) return `${(n / 1e9).toFixed(2)} GB`
+  return `${(n / 1e12).toFixed(2)} TB`
 }

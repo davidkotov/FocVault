@@ -41,6 +41,33 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Billing & Admin-Wirtschaftlichkeit (Free 5 GB + PAYG, Pro 1 TB, Family 2 TB, Zusatzspeicher)
+
+**Kernbefund:** Fil One rechnet per Kreditkarte (Stripe) auf den Tagesdurchschnitt ab – für die
+Free-Nutzer gibt es **eine** Monatsrechnung, keine Einzahlung pro Nutzer und keine USDFC-Wallet.
+Scheitert die Zahlung, sperrt Fil One sofort alle Uploads (im Admin als kritischer Hinweis).
+
+- `lib/pricing.ts`: Preisbuch (Standardwerte), Wirtschaftlichkeit, Szenario-Hochrechnung,
+  PAYG-Rechnung – eine Formel für Admin, Rechner und `PRICING.md`.
+- Migration v3: `settings` (Preisbuch, Reserve), `account_addons`, PAYG-Felder, `last_login_at`,
+  `platform_daily` (Tagesverlauf).
+- `server/billing/`: Quota = Paket + Zusatzspeicher bzw. PAYG-Obergrenze **live aus dem Preisbuch**;
+  Zusatzspeicher buchen/kündigen (Kündigung nur, wenn die Daten danach passen), PAYG an/aus,
+  Admin-Gutschriften, Ist-Wirtschaftlichkeit aus Echtdaten, USDFC-Reserve (nur Lesen, Live-Saldo,
+  Laufzeit), Kontensuche mit Seiten (skaliert auf 100 000+). Käufe ohne Stripe nur lokal bzw. mit
+  `BILLING_DEV_PURCHASES=1`.
+- Admin neu mit Tabs: Übersicht · Wirtschaftlichkeit (Free-Subvention, Budget, Deckung durch
+  Pro-Kunden, Inaktive, Deckungsbeitrag je Paket) · Szenario-Rechner · Preisbuch (mit Worst-Case-Marge
+  je Preis) · Finanzierung (Fil-One-Rechnung, Krypto-Reserve) · Konten (Paket, PAYG, +100 GB Kulanz).
+- Konto: „Speicher & Abrechnung“ mit PAYG (eigene Obergrenze) bzw. Zusatzspeicher und Monatssumme.
+- Pro jetzt **1 TB** (vorher 2 TB); Anzeige dezimal (1 GB = 10^9 Byte); Landing-Texte korrigiert
+  („PAYG ohne Aufschlag mit USDFC“ stimmte nicht mehr).
+- `PRICING.md`: Konkurrenz (Dropbox, MEGA, Proton, Tresorit, pCloud, Google), Deckungsbeiträge,
+  Free-Tier-Kosten, Hochrechnung 10k–1M Nutzer, offene Punkte (MWST, Jahresabos, Stripe).
+
+**Tests:** Vitest 67/67 (neu: 6 Preis-/Kalkulationstests, 4 Billing-Tests), E2E grün (Admin-Test
+auf Tab „Konten“ mit Suche angepasst).
+
 ### Login per Reown (Google, Apple, E-Mail, Wallets) – Entscheidung E1
 
 **Prinzip:** Reown liefert die **Identität**, nicht den Tresorschlüssel. Nach dem Reown-Login wird

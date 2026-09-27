@@ -14,6 +14,7 @@ import AuthShell, { Working } from '@/components/account/AuthShell'
 import AccountMenu from '@/components/account/AccountMenu'
 import AccountUpload from '@/components/account/AccountUpload'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
+import StorageOptions from '@/components/account/StorageOptions'
 import { useAccount } from '@/features/account/AccountProvider'
 import { ApiClientError, api, errorMessage } from '@/features/api/client'
 import { buildPassphraseChange, deriveFromPassphrase, unwrapMasterKeyRaw } from '@/features/keys/kdf'
@@ -403,28 +404,7 @@ export default function AppPage() {
                     <span className="v">{new Date(account.createdAt).toLocaleDateString('de-CH')}</span>
                   </div>
                 </div>
-                <div className="card">
-                  <h3>
-                    Upgrade <span>Stripe folgt in Phase 2</span>
-                  </h3>
-                  <div className="stat">
-                    <span className="k">Pro · 2 TB · alle Module</span>
-                    <span className="v">13.90 CHF / Monat</span>
-                  </div>
-                  <div className="stat">
-                    <span className="k">Family · 2 TB geteilt</span>
-                    <span className="v">19.90 CHF / Monat</span>
-                  </div>
-                  <p className="dim" style={{ marginTop: 12 }}>
-                    Bis zur Stripe-Anbindung wird der Plan im Admin-Bereich gesetzt.
-                    {account.isAdmin && (
-                      <>
-                        {' '}
-                        <Link href="/admin">Zum Admin-Bereich →</Link>
-                      </>
-                    )}
-                  </p>
-                </div>
+                <StorageOptions />
               </div>
               <div className="grid2">
                 <ChangePassphraseCard />

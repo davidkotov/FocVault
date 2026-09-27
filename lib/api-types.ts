@@ -36,11 +36,22 @@ export interface AccountView {
   plan: Plan
   quotaBytes: number
   usedBytes: number
+  billing: AccountBilling
   createdAt: string
   kdf: KdfParams
   /** Passphrase-Envelope; nach Recovery-Login zusätzlich das Recovery-Envelope. */
   envelopes: KeyEnvelope[]
   isAdmin: boolean
+}
+
+export interface AccountBilling {
+  baseBytes: number
+  addonBytes: number
+  paygBytes: number
+  addons: Array<{ id: string; packId: string | null; gb: number; chfPerMonth: number; source: string; createdAt: string }>
+  payg: { enabled: boolean; capGb: number; chfPerGbMonth: number; estimateChf: number }
+  planChf: number
+  monthlyChf: number
 }
 
 export interface RegisterInput {
