@@ -16,6 +16,10 @@ import AccountUpload from '@/components/account/AccountUpload'
 import PlansView from '@/components/account/PlansView'
 import ShareDialog from '@/components/account/ShareDialog'
 import SharedVaultsView from '@/components/account/SharedVaultsView'
+import EmergencyPanel from '@/components/account/EmergencyPanel'
+import EmergencyVaultView from '@/components/account/EmergencyVaultView'
+import { emergencyMessages } from '@/lib/i18n/messages/emergency'
+import { ensureKeypair } from '@/features/emergency/client'
 import { vaultsMessages } from '@/lib/i18n/messages/vaults'
 import SendView from '@/components/account/SendView'
 import TrashView from '@/components/account/TrashView'
@@ -219,6 +223,32 @@ export default function AppPage() {
       })
     if (window.location.search.includes('join=')) window.history.replaceState(null, '', window.location.pathname)
   }, [status, errText])
+  const em = useMessages(emergencyMessages)
+  const [emInvite, setEmInvite] = useState<{ token: string; name: string; wait: number } | null>(null)
+  const [emOpen, setEmOpen] = useState<{ id: string; name: string } | null>(null)
+  const [emAlert, setEmAlert] = useState<{ name: string; at: string } | null>(null)
+  useEffect(() => {
+    if (status !== 'ready') return
+    const token = sessionStorage.getItem('fv_emergency')
+    if (token) {
+      api
+        .emergencyInvite(token)
+        .then(i => setEmInvite({ token, name: i.grantorLabel ?? '—', wait: i.waitHours }))
+        .catch(e => {
+          sessionStorage.removeItem('fv_emergency')
+          setError(errText(e))
+        })
+      if (window.location.search.includes('emergency=')) window.history.replaceState(null, '', window.location.pathname)
+    }
+    // Hinweis für Inhaber: offene Notfall-Anforderung
+    api
+      .emergency()
+      .then(o => {
+        const r = o.asGrantor.find(c => c.status === 'requested' && !c.access)
+        setEmAlert(r ? { name: r.label ?? '—', at: r.availableAt! } : null)
+      })
+      .catch(() => undefined)
+  }, [status, errText])
   const [trashDays, setTrashDays] = useState(30)
   const [freeGb, setFreeGb] = useState(5)
   const [purgeAt, setPurgeAt] = useState<Record<string, string>>({})
@@ -246,7 +276,9 @@ export default function AppPage() {
     // Family-Einladung überlebt Anmeldung/Registrierung (nur in diesem Tab)
     const join = new URLSearchParams(window.location.search).get('join')
     if (join && /^[A-Za-z0-9_-]{20,64}$/.test(join)) sessionStorage.setItem('fv_join', join)
-    if (status === 'signedOut') router.replace(path(sessionStorage.getItem('fv_join') ? '/registrieren' : '/anmelden'))
+    const emergency = new URLSearchParams(window.location.search).get('emergency')
+    if (emergency && /^[A-Za-z0-9_-]{32}$/.test(emergency)) sessionStorage.setItem('fv_emergency', emergency)
+    if (status === 'signedOut') router.replace(path(sessionStorage.getItem('fv_join') || sessionStorage.getItem('fv_emergency') ? '/registrieren' : '/anmelden'))
   }, [status, router, path])
 
   useEffect(() => {
@@ -634,7 +666,8 @@ export default function AppPage() {
     passkeys: t.nav.passkeys,
     familyFolder: account?.plan === 'business' ? t.team.folder : t.nav.familyFolder,
     storageApi: sApi.nav,
-    sharedVaults: vm.nav
+    sharedVaults: vm.nav,
+    emergency: em.title
   }
 
   return (
@@ -951,6 +984,41 @@ export default function AppPage() {
               <TotpPanel entries={vault.secrets.filter(s => s.kind === 'totp')} onSave={upsertSecret} onDelete={deleteSecret} />
             ))}
 
+          {emAlert && view !== 'account' && (
+            <div className="notice warn row" style={{ justifyContent: 'space-between' }}>
+              <span>{fmt(em.banner, { name: emAlert.name, at: fmtDate(emAlert.at) })}</span>
+              <button className="small" onClick={() => setView('account')}>
+                {em.bannerButton}
+              </button>
+            </div>
+          )}
+          {emInvite && (
+            <ConfirmDialog
+              title={em.joinTitle}
+              body={fmt(em.joinBody, { name: emInvite.name, wait: em.waits[emInvite.wait] ?? `${emInvite.wait} h` })}
+              confirmLabel={em.join}
+              cancelLabel={em.decline}
+              danger={false}
+              onCancel={() => {
+                sessionStorage.removeItem('fv_emergency')
+                setEmInvite(null)
+              }}
+              onConfirm={async () => {
+                const inv = emInvite
+                setEmInvite(null)
+                sessionStorage.removeItem('fv_emergency')
+                try {
+                  await api.acceptEmergency(inv.token)
+                  const o = await api.emergency()
+                  await ensureKeypair(o.myPublicKey, vault.familyKey, k => mutate(c => (c.familyKey ? c : { ...c, familyKey: k })))
+                  setNotice(fmt(em.joined, { name: inv.name }))
+                } catch (e) {
+                  setError(errText(e))
+                }
+              }}
+            />
+          )}
+          {view === 'emergency' && emOpen && <EmergencyVaultView contactId={emOpen.id} name={emOpen.name} onBack={() => setView('account')} />}
           {joinInvite && (
             <ConfirmDialog
               title={joinInvite.team ? t.team.joinTitle : t.family.joinTitle}
@@ -1040,6 +1108,13 @@ export default function AppPage() {
                 </div>
               </div>
               <ChangePassphraseCard />
+              <EmergencyPanel
+                onOpen={(id, name) => {
+                  setEmOpen({ id, name })
+                  setView('emergency')
+                }}
+                onUpgrade={() => setView('plans')}
+              />
               {isPro ? (
                 <PasskeysPanel />
               ) : (

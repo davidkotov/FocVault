@@ -41,6 +41,20 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Notfallzugang / digitaler Nachlass (Migration v19)
+
+„Konto & Sicherheit → Notfallzugang“. Inhaber (Pro/Family/Business) lädt per Link eine Vertrauensperson ein
+(beliebiges Konto, auch Free) und wählt eine Wartezeit (sofort … 30 Tage). Nach dem Annehmen bestätigt der
+Inhaber mit seiner Passphrase: der Master-Key wird im Browser per ECDH-ES für den öffentlichen Schlüssel der
+Vertrauensperson verpackt (Kontext `emergency:<id>`), der Server speichert nur die Hülle. Die Vertrauensperson
+fordert Zugriff an; der Inhaber sieht einen Hinweis im Dashboard und kann ablehnen oder sofort freigeben.
+Erst nach Ablauf (oder Freigabe) liefert der Server die Hülle und erlaubt **nur lesend** Tresor-Index und
+Datei-Downloads des Inhabers (`/emergency/:id/vault`, `/emergency/:id/objects/:oid/download`). Neuer
+Schlüssel der Vertrauensperson → Hülle ungültig, Inhaber bestätigt neu. Entziehen jederzeit, auch
+Austreten durch die Vertrauensperson. Alles protokolliert (audit_events).
+
+**Tests:** Vitest 112/112 (neu `server/emergency`), Playwright 10/10 (neu `e2e/emergency.spec.ts`).
+
 ### Geteilte Tresore mit Rechten (Business, Migration v18)
 
 Neues Modul „Geteilte Tresore“ (Seitenleiste → Weitere Module; ohne Business Schloss „ab Business Starter“).

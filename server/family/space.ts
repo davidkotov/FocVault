@@ -61,6 +61,11 @@ export async function setPublicKey(deps: Deps, session: SessionInfo, publicKey: 
   // Alte Hüllen passen nicht mehr zum neuen Schlüssel → andere Mitglieder verteilen neu
   await deps.db.query('DELETE FROM family_space_keys WHERE account_id = $1', [session.accountId])
   await deps.db.query('DELETE FROM shared_vault_keys WHERE account_id = $1', [session.accountId])
+  // Notfallzugang: für den alten Schlüssel verpackter Master-Key ist wertlos → Inhaber bestätigt neu
+  await deps.db.query(
+    `UPDATE emergency_contacts SET wrapped = NULL, status = 'accepted', requested_at = NULL, approved_at = NULL, updated_at = now() WHERE grantee = $1 AND wrapped IS NOT NULL`,
+    [session.accountId]
+  )
 }
 
 export interface SpaceState {

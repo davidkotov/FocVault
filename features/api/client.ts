@@ -21,9 +21,10 @@ import type { FilecoinFileStatus, ProofCertificate } from '@/server/foc/proofs'
 import type { FamilyView } from '@/server/family/service'
 import type { SpaceState } from '@/server/family/space'
 import type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview } from '@/server/vaults/service'
+import type { EmergencyOverview } from '@/server/emergency/service'
 import type { RetentionRule, S3Overview } from '@/server/s3/service'
 
-export type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview }
+export type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview, EmergencyOverview }
 export type { RetentionRule, S3Overview, SpaceState, FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
 /** Weiterleitung zu Stripe (Checkout, Kundenportal) */
@@ -136,6 +137,16 @@ export const api = {
 
   setPublicKey: (publicKey: JsonWebKey) => call<{ ok: true }>('PUT', '/account/pubkey', { publicKey }),
   familySpace: () => call<SpaceState>('GET', '/family/space'),
+  emergency: () => call<EmergencyOverview>('GET', '/emergency'),
+  createEmergency: (waitHours: number) => call<{ id: string; token: string }>('POST', '/emergency', { waitHours }),
+  emergencyInvite: (token: string) => call<{ grantorLabel: string | null; waitHours: number }>('GET', `/emergency/invite/${encodeURIComponent(token)}`),
+  acceptEmergency: (token: string) => call<{ ok: true }>('POST', '/emergency/accept', { token }),
+  confirmEmergency: (id: string, wrapped: unknown) => call<{ ok: true }>('POST', `/emergency/${encodeURIComponent(id)}/confirm`, { wrapped }),
+  emergencyAction: (id: string, action: 'request' | 'approve' | 'reject') => call<{ ok: true }>('POST', `/emergency/${encodeURIComponent(id)}/${action}`),
+  removeEmergency: (id: string) => call<{ ok: true }>('DELETE', `/emergency/${encodeURIComponent(id)}`),
+  emergencyVault: (id: string) => call<{ grantorId: string; body: string | null }>('GET', `/emergency/${encodeURIComponent(id)}/vault`),
+  emergencyDownload: (id: string, objectId: string) =>
+    call<DownloadResult>('GET', `/emergency/${encodeURIComponent(id)}/objects/${encodeURIComponent(objectId)}/download`),
   vaults: () => call<VaultsOverview>('GET', '/vaults'),
   createVault: (input: { id: string; wrapped: unknown; body: string }) => call<{ ok: true }>('POST', '/vaults', input),
   deleteVault: (id: string) => call<{ ok: true }>('DELETE', `/vaults/${encodeURIComponent(id)}`),

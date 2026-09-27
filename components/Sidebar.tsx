@@ -5,7 +5,7 @@ import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 import { formatBytes, type TierName } from '@/lib/vault'
 
-export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder' | 'storageApi' | 'sharedVaults'
+export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder' | 'storageApi' | 'sharedVaults' | 'emergency'
 
 interface Props {
   view: ViewId
@@ -93,6 +93,12 @@ const ICONS: Record<ViewId, JSX.Element> = {
       <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       <circle cx="10" cy="13" r="1.6" />
       <circle cx="15" cy="13" r="1.6" />
+    </>
+  ),
+  emergency: (
+    <>
+      <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+      <path d="M12 8v5M12 16h.01" />
     </>
   ),
   passkeys: (

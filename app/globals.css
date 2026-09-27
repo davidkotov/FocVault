@@ -2274,3 +2274,12 @@ input.mono { font-family: var(--mono); }
 .vaultaudit ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .vaultaudit li { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--border-soft); }
 .vaultfoot { margin-top: 16px; gap: 8px; justify-content: flex-end; }
+
+/* ---------- Notfallzugang ---------- */
+.emrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--card-soft); margin-bottom: 8px; flex-wrap: wrap; }
+.emrow.alert { border-color: #f3d9a4; background: #fff8eb; }
+.emmain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.emconfirm { margin-top: 8px; gap: 6px; flex-wrap: nowrap; }
+.emconfirm input { max-width: 260px; }
+.eminvite { margin-top: 10px; gap: 8px; align-items: center; }
+.eminvite select { width: auto; }

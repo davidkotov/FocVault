@@ -524,6 +524,30 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       );
       CREATE INDEX audit_events_vault ON audit_events ((meta->>'vaultId')) WHERE meta ? 'vaultId';
     `
+  },
+  {
+    version: 19,
+    name: 'emergency_access',
+    sql: `
+      -- Notfallzugang: Vertrauensperson erhält nach Wartezeit Lesezugriff. Der Master-Key liegt nur
+      -- für deren öffentlichen Schlüssel verpackt vor (wrapped) und wird erst nach Ablauf ausgeliefert.
+      CREATE TABLE emergency_contacts (
+        id uuid PRIMARY KEY,
+        grantor uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        grantee uuid REFERENCES accounts(id) ON DELETE CASCADE,
+        invite_hash bytea UNIQUE,
+        invite_expires timestamptz,
+        wait_hours integer NOT NULL CHECK (wait_hours >= 0 AND wait_hours <= 2160),
+        status text NOT NULL CHECK (status IN ('invited', 'accepted', 'confirmed', 'requested')),
+        wrapped jsonb,
+        requested_at timestamptz,
+        approved_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX emergency_pair ON emergency_contacts (grantor, grantee) WHERE grantee IS NOT NULL;
+      CREATE INDEX emergency_grantee ON emergency_contacts (grantee);
+    `
   }
 ]
 
