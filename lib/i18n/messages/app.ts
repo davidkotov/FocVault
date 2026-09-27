@@ -1,4 +1,26 @@
 const de = {
+  credits: {
+    title: 'Guthaben',
+    sub: 'Prepaid · wird zuerst verrechnet',
+    balance: 'Verfügbares Guthaben',
+    usage: 'Wird bei Pay-as-you-go-Abrechnungen zuerst verwendet, erst der Rest über deine Zahlungsmethode. Mit Guthaben kannst du Pay-as-you-go auch ohne Karte starten.',
+    depositCard: 'Mit Karte aufladen',
+    depositCrypto: 'Mit Krypto aufladen',
+    soon: 'bald',
+    custom: 'Eigener Betrag',
+    payNow: 'Weiter zur Zahlung · {amount}',
+    addDev: '{amount} gutschreiben (Test ohne Zahlung)',
+    added: '{amount} gutgeschrieben.',
+    paid: 'Zahlung erhalten – das Guthaben erscheint in wenigen Sekunden.',
+    cardAdded: 'Zahlungsmethode hinterlegt.',
+    method: 'Zahlungsmethode',
+    methodOk: 'Hinterlegt bei Stripe – für Beträge über dem Guthaben.',
+    methodNone: 'Keine hinterlegt. Karte, TWINT, Apple Pay oder SEPA über Stripe.',
+    methodNoStripe: 'Online-Zahlung (Stripe) wird gerade eingerichtet.',
+    methodAdd: 'Zahlungsmethode hinzufügen',
+    methodChange: 'Ändern',
+    kinds: { deposit: 'Aufladung', charge: 'Verbrauch', refund: 'Rückerstattung', grant: 'Gutschrift' } as Record<string, string>
+  },
   secstatus: {
     titleAll: 'Dein Konto ist bestmöglich geschützt',
     titleGood: 'Dein Sicherheitsstatus ist gut',
@@ -261,7 +283,14 @@ const de = {
     working: 'Schlüssel wird abgeleitet …',
     submit: 'Entsperren',
     forgot: 'Passphrase vergessen?',
-    logout: 'Abmelden'
+    logout: 'Abmelden',
+    signedInAs: 'Angemeldet als',
+    leadShort: 'Gib deine Passphrase ein. Der Schlüssel entsteht nur auf diesem Gerät.',
+    show: 'Eingabe anzeigen',
+    hide: 'Eingabe verbergen',
+    asideTitle: 'Dein Tresor ist verschlossen.',
+    asideLead: 'Auch wir können ihn nicht öffnen – nur deine Passphrase oder dein Passkey.',
+    asidePoints: ['Ende-zu-Ende-verschlüsselt mit AES-256-GCM', 'Schlüssel nur im Arbeitsspeicher dieses Geräts', 'Automatische Sperre nach Inaktivität', 'Gespeichert in der EU und auf Filecoin']
   },
   loadingAccount: 'Lade Konto …',
   syncError: 'Tresor nicht synchronisiert: {error}',
@@ -314,6 +343,28 @@ const de = {
 }
 
 const en: typeof de = {
+  credits: {
+    title: 'Credit',
+    sub: 'Prepaid · used first',
+    balance: 'Available credit',
+    usage: 'Used first for pay-as-you-go invoices, only the rest goes to your payment method. With credit you can start pay-as-you-go without a card.',
+    depositCard: 'Top up by card',
+    depositCrypto: 'Top up with crypto',
+    soon: 'soon',
+    custom: 'Custom amount',
+    payNow: 'Continue to payment · {amount}',
+    addDev: 'Add {amount} (test, no payment)',
+    added: '{amount} added.',
+    paid: 'Payment received – your credit appears in a few seconds.',
+    cardAdded: 'Payment method saved.',
+    method: 'Payment method',
+    methodOk: 'Saved at Stripe – for amounts beyond your credit.',
+    methodNone: 'None saved. Card, TWINT, Apple Pay or SEPA via Stripe.',
+    methodNoStripe: 'Online payment (Stripe) is being set up.',
+    methodAdd: 'Add payment method',
+    methodChange: 'Change',
+    kinds: { deposit: 'Top-up', charge: 'Usage', refund: 'Refund', grant: 'Credit' }
+  },
   secstatus: {
     titleAll: 'Your account is protected as well as it can be',
     titleGood: 'Your security status is good',
@@ -576,7 +627,14 @@ const en: typeof de = {
     working: 'Deriving key …',
     submit: 'Unlock',
     forgot: 'Forgot your passphrase?',
-    logout: 'Sign out'
+    logout: 'Sign out',
+    signedInAs: 'Signed in as',
+    leadShort: 'Enter your passphrase. The key is derived on this device only.',
+    show: 'Show input',
+    hide: 'Hide input',
+    asideTitle: 'Your vault is locked.',
+    asideLead: 'Not even we can open it – only your passphrase or your passkey.',
+    asidePoints: ['End-to-end encrypted with AES-256-GCM', 'Keys only in this device’s memory', 'Automatic lock after inactivity', 'Stored in the EU and on Filecoin']
   },
   loadingAccount: 'Loading account …',
   syncError: 'Vault not synced: {error}',

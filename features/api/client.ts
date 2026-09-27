@@ -27,10 +27,11 @@ import type { SsoConfigView } from '@/server/team/sso'
 import type { StatusOverview } from '@/server/status/service'
 import type { PublicStats } from '@/server/status/public-stats'
 import type { SupportTicket } from '@/server/support/service'
+import type { CreditsView } from '@/server/credits/service'
 import type { TeamPolicy } from '@/lib/api-types'
 import type { RetentionRule, S3Overview } from '@/server/s3/service'
 
-export type { StatusOverview, SupportTicket, PublicStats }
+export type { StatusOverview, SupportTicket, PublicStats, CreditsView }
 export type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview, EmergencyOverview, ComplianceData, TeamAdminView, TeamAuditEvent, SsoConfigView }
 export type { RetentionRule, S3Overview, SpaceState, FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
@@ -145,6 +146,9 @@ export const api = {
   setPublicKey: (publicKey: JsonWebKey) => call<{ ok: true }>('PUT', '/account/pubkey', { publicKey }),
   familySpace: () => call<SpaceState>('GET', '/family/space'),
   status: () => call<StatusOverview>('GET', '/status'),
+  credits: () => call<CreditsView>('GET', '/credits'),
+  deposit: (amount: number) => call<{ ok?: true; redirectUrl?: string }>('POST', '/credits/deposit', { amount }),
+  addPaymentMethod: () => call<{ redirectUrl: string }>('POST', '/credits/payment-method'),
   publicStats: () => call<PublicStats>('GET', '/public/stats'),
   supportTicket: (t: { firstName: string; lastName: string; email: string; company?: string; categories: string[]; topic?: string; message: string; website?: string }) =>
     call<{ id: string }>('POST', '/support', t),

@@ -66,14 +66,14 @@ export default function LoginPage() {
 
   if (setup) {
     return (
-      <AuthShell wide={setupStep !== 'form'}>
+      <AuthShell kind="register" wide={setupStep !== 'form'}>
         <RegistrationFlow mode={setup} onStepChange={setSetupStep} />
       </AuthShell>
     )
   }
 
   return (
-    <AuthShell>
+    <AuthShell kind="login">
       <h2>{m.title}</h2>
       <p className="lead">{m.lead}</p>
       <SocialEntry onNew={r => setSetup({ kind: 'wallet', registrationToken: r.registrationToken, address: r.address, label: r.label })} />

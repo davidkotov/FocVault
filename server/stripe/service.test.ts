@@ -35,6 +35,10 @@ function fakeStripe() {
       calls.push('setup')
       return `https://checkout.stripe.test/setup/${input.customer}`
     },
+    async checkoutPayment(input) {
+      calls.push('payment')
+      return `https://checkout.stripe.test/pay/${input.customer}/${input.amount}`
+    },
     async portal() {
       return 'https://billing.stripe.test/portal'
     },

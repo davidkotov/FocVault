@@ -2881,3 +2881,64 @@ button.kpi { display: block; }
 .topbar .accountmenu { flex: none; margin-left: 0; }
 .pwdetail[hidden] { display: none; }
 .pwlayout:has(.pwdetail[hidden]) { grid-template-columns: 1fr; }
+.creditstop { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.creditstop .k { font-size: 12px; color: #8a93a3; }
+.creditbal { font-size: 30px; font-weight: 700; color: #0b1220; letter-spacing: -0.02em; }
+.creditstop .hint { max-width: 520px; }
+.creditpick { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; padding: 12px; border: 1px solid #e8ebf0; border-radius: 12px; background: #fafbfc; }
+.creditcustom { width: 110px; }
+.creditrow { display: flex; align-items: center; gap: 12px; padding: 14px 0 4px; margin-top: 14px; border-top: 1px solid #e8ebf0; }
+.credithist { margin-top: 10px; border-top: 1px solid #e8ebf0; }
+.credititem { display: grid; grid-template-columns: 100px 1fr auto; gap: 12px; padding: 9px 0; border-bottom: 1px dashed #e8ebf0; font-size: 13.5px; }
+.credititem .pos { color: #148a52; }
+.credititem .neg { color: #0b1220; }
+
+/* ---------- Entsperren (geteilt) ---------- */
+.authsplit { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, 560px); background: #fff; }
+.authaside { position: relative; overflow: hidden; background: #0b1220; color: #fff; display: flex; align-items: flex-end; padding: 56px; isolation: isolate; }
+.authaside::before { content: ''; position: absolute; inset: 0; z-index: -2; background: url('/matterhorn-1920.jpg') 60% 30% / cover no-repeat; }
+.authaside::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(11, 18, 32, 0.2) 0%, rgba(11, 18, 32, 0.55) 45%, rgba(11, 18, 32, 0.95) 100%); }
+.unlockaside { max-width: 460px; }
+.unlockbadge { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); backdrop-filter: blur(6px); margin-bottom: 18px; }
+.unlockaside h2 { font-size: 34px; letter-spacing: -0.02em; margin: 0 0 10px; line-height: 1.1; }
+.unlockaside p { color: rgba(255, 255, 255, 0.75); margin: 0 0 26px; font-size: 15.5px; line-height: 1.55; }
+.unlockaside ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; font-size: 14px; color: rgba(255, 255, 255, 0.85); }
+.unlockaside li { display: flex; align-items: center; gap: 10px; }
+.unlockaside li .sicon { color: #7ee0a8; }
+.authpane { display: flex; flex-direction: column; padding: 28px 44px; }
+.authpane .authtop { width: 100%; max-width: none; }
+.authpane .authcard { margin: auto 0; max-width: 400px; width: 100%; align-self: center; border: 0; box-shadow: none; padding: 0; background: transparent; }
+.authpane .authfoot { text-align: center; }
+.unlockform h2 { font-size: 26px; letter-spacing: -0.015em; margin: 18px 0 6px; }
+.unlockwho { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e8ebf0; border-radius: 12px; background: #fafbfc; }
+.unlockwho b { color: #0b1220; font-size: 14px; }
+.unlockavatar { width: 38px; height: 38px; border-radius: 50%; background: #0b1220; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
+.pwinput { position: relative; }
+.pwinput input { padding-right: 44px; height: 46px; font-size: 16px; }
+.pwtoggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; padding: 6px; color: #5b6475; border-radius: 8px; }
+.pwtoggle:hover:not(:disabled) { background: #f6f8fb; }
+.unlockform button.full { height: 46px; }
+@media (max-width: 900px) { .authsplit { grid-template-columns: 1fr; } .authaside { display: none; } .authpane { padding: 22px; } }
+.authpane .authcard.wide { max-width: 560px; }
+.authpane .authcard h2 { font-size: 26px; letter-spacing: -0.015em; }
+.authpane .field input, .authpane .field textarea { border-radius: 10px; }
+.authpane .field input { height: 44px; }
+.authpane button.full { height: 46px; }
+.authpane .sharefile { border: 1px solid #e8ebf0; border-radius: 12px; padding: 12px 14px; background: #fff; }
+.authpane .sharenote { border-radius: 14px; }
+.authpane .sharecta { border-radius: 12px; }
+
+/* ---------- Ladebildschirm ---------- */
+.loadscreen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: radial-gradient(900px 500px at 50% 0%, #eef6ff 0%, #fff 60%); animation: loadin 0.25s ease both; }
+@keyframes loadin { from { opacity: 0; } to { opacity: 1; } }
+.loadmark { position: relative; width: 72px; height: 72px; display: grid; place-items: center; }
+.loadmark svg { width: 44px; height: 44px; }
+.loadring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #e3eaf3; border-top-color: #0090ff; animation: loadspin 1s linear infinite; }
+@keyframes loadspin { to { transform: rotate(360deg); } }
+.loadbrand { font-weight: 700; font-size: 18px; color: #0b1220; }
+.loadbrand span { color: #0090ff; }
+.loadlabel { color: #5b6475; font-size: 14px; }
+.loadbar { width: 160px; height: 3px; border-radius: 3px; background: #eef0f4; overflow: hidden; }
+.loadbar b { display: block; width: 40%; height: 100%; border-radius: 3px; background: #0b1220; animation: loadslide 1.2s ease-in-out infinite; }
+@keyframes loadslide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+@media (prefers-reduced-motion: reduce) { .loadring, .loadbar b { animation: none; } }

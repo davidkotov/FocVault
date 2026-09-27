@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 
@@ -15,6 +15,17 @@ interface Props {
 
 export default function Topbar({ title, search, onSearchChange, showSearch, right }: Props) {
   const m = useMessages(appMessages)
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable))) return
+      e.preventDefault()
+      ref.current?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   return (
     <div className="topbar">
       <h1 className="topbartitle">{title}</h1>
@@ -24,7 +35,7 @@ export default function Topbar({ title, search, onSearchChange, showSearch, righ
             <circle cx="11" cy="11" r="7" />
             <path d="M21 21l-4.3-4.3" />
           </svg>
-          <input placeholder={m.search} value={search ?? ''} onChange={e => onSearchChange?.(e.target.value)} />
+          <input ref={ref} placeholder={m.search} value={search ?? ''} onChange={e => onSearchChange?.(e.target.value)} />
           <kbd>/</kbd>
         </div>
       )}

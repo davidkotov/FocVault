@@ -22,6 +22,7 @@ import { isProd } from '../shared/env'
 import { isUuid, uuidv7 } from '../shared/ids'
 import type { SessionInfo } from '../auth/sessions'
 import { usedBytes } from '../accounts/plans'
+import { creditBalance } from '../credits/service'
 import { getPricing, getTreasury } from './settings'
 import { quotaFor } from './quota'
 import { isFamilyMember, pooledUsedBytes, syncFamilyAfterPlanChange } from '../family/service'
@@ -271,10 +272,12 @@ export async function setPayg(
   }
   const pricing = await getPricing(deps.db)
   const cap = Math.min(Math.max(1, Math.round(capGb ?? pricing.payg.defaultCapGb)), pricing.payg.maxCapGb)
-  if (enabled) assertPurchasesAllowed()
-  // Mit Stripe: beim ersten Einschalten Karte hinterlegen lassen (Webhook schaltet dann ein).
+  // Voraussetzung: Zahlungsmethode bei Stripe ODER vorhandenes Guthaben (z. B. aus Krypto-Aufladungen)
+  const hasCredit = (await creditBalance(deps.db, account.id, account.currency)) > 0
+  if (enabled && !hasCredit) assertPurchasesAllowed()
+  // Mit Stripe ohne Guthaben: beim ersten Einschalten Karte hinterlegen lassen (Webhook schaltet dann ein).
   const gw = stripeGateway()
-  if (gw && enabled && !account.payg_enabled) {
+  if (gw && enabled && !account.payg_enabled && !hasCredit) {
     const url = await stripePaygSetupUrl(deps, gw, session, cap, ctx)
     if (url) return { redirectUrl: url }
   }

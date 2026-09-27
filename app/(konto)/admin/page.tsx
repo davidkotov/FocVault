@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
-import AuthShell, { BrandMark, Working } from '@/components/account/AuthShell'
+import AuthShell, { BrandMark, LoadingScreen, Working } from '@/components/account/AuthShell'
 import EconomicsPanel from '@/components/admin/EconomicsPanel'
 import ScenarioPanel from '@/components/admin/ScenarioPanel'
 import PricingPanel from '@/components/admin/PricingPanel'
@@ -96,11 +96,7 @@ export default function AdminPage() {
   }, [status, router, load, path])
 
   if (status === 'loading' || status === 'signedOut') {
-    return (
-      <AuthShell>
-        <Working label="Lade …" />
-      </AuthShell>
-    )
+    return <LoadingScreen label="Lade …" />
   }
   if (account && !account.isAdmin) {
     return (

@@ -41,6 +41,22 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Guthaben (Prepaid), neue Anmelde-/Sperr-/Lade-Ansichten (Migration v23)
+
+**Guthaben** unter Konto & Sicherheit: Aufladen per Karte (Stripe-Checkout, Einmalzahlung in Kontowährung,
+Webhook `checkout.session.completed` mit `purpose=credit` bucht idempotent) oder Krypto (Knopf „bald“);
+Zahlungsmethode hinterlegen (Stripe-Setup, `purpose=card`). `credit_ledger` mit Einzahlung/Verbrauch;
+Pay-as-you-go-Monatsabschluss verrechnet zuerst das Guthaben, nur der Rest geht auf die Karte.
+**Pay-as-you-go manuell starten**: mit Guthaben auch ohne Karte; sonst Karte über Stripe.
+Stripe-Sandbox lokal geprüft (echter Checkout mit Testkarte, Webhook über `stripe listen`, Guthaben +10);
+Schlüssel danach wieder auskommentiert – Aktivierung zusammen mit Neon.
+**Anmelden, Registrieren, Wiederherstellen, Secure-Send-Empfang, Tresor entsperren**: geteilte Ansicht mit
+Matterhorn links (Titel, drei Aussagen je Seite) und Formular rechts; Entsperren mit Kontokarte und
+Anzeigen/Verbergen der Passphrase. **Ladebildschirm** mit Marke, Ring und Fortschrittsbalken.
+Suchfeld per `/` fokussieren.
+
+**Tests:** Vitest 122/122 (neu `server/credits`), Playwright 14/14.
+
 ### Dashboard im Stil der Mockups
 
 Gemeinsames Gerüst: Seitenleiste mit Gruppen Tresor / Business / API-Module, aktiver Eintrag dunkel,

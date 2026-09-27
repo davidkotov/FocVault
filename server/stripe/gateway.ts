@@ -65,6 +65,17 @@ export interface StripeGateway {
     locale: 'de' | 'en'
   }): Promise<string>
   portal(customer: string, returnUrl: string, locale: 'de' | 'en'): Promise<string>
+  /** Einmalzahlung (Guthaben aufladen) */
+  checkoutPayment(input: {
+    customer: string
+    currency: Cur
+    amount: number
+    description: string
+    successUrl: string
+    cancelUrl: string
+    metadata: Record<string, string>
+    locale: 'de' | 'en'
+  }): Promise<string>
   retrieveSubscription(id: string): Promise<SubscriptionLite>
   changeSubscriptionPlan(id: string, itemId: string, price: PriceData): Promise<SubscriptionLite>
   setCancelAtPeriodEnd(id: string, cancel: boolean): Promise<SubscriptionLite>
@@ -174,6 +185,21 @@ export class LiveStripeGateway implements StripeGateway {
       cancel_url: input.cancelUrl,
       metadata: input.metadata,
       setup_intent_data: { metadata: input.metadata },
+      locale: input.locale
+    } as any)
+    if (!session.url) throw new Error('Stripe lieferte keine Checkout-URL.')
+    return session.url
+  }
+
+  async checkoutPayment(input: Parameters<StripeGateway['checkoutPayment']>[0]) {
+    const session = await this.s.checkout.sessions.create({
+      mode: 'payment',
+      customer: input.customer,
+      line_items: [{ price_data: { currency: input.currency, unit_amount: input.amount, product_data: { name: input.description } }, quantity: 1 }],
+      payment_intent_data: { metadata: input.metadata, setup_future_usage: 'off_session' },
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      metadata: input.metadata,
       locale: input.locale
     } as any)
     if (!session.url) throw new Error('Stripe lieferte keine Checkout-URL.')

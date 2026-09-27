@@ -675,6 +675,25 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       ALTER TABLE shares ADD COLUMN has_note boolean NOT NULL DEFAULT false;
       UPDATE shares SET has_note = true WHERE payload IS NOT NULL;
     `
+  },
+  {
+    version: 23,
+    name: 'credits',
+    sql: `
+      -- Guthaben: Buchungen (positiv = Einzahlung/Gutschrift, negativ = Verbrauch). ref verhindert Doppelbuchungen.
+      CREATE TABLE credit_ledger (
+        id uuid PRIMARY KEY,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        amount numeric(12, 2) NOT NULL CHECK (amount <> 0),
+        currency text NOT NULL CHECK (currency IN ('CHF', 'EUR', 'USD')),
+        kind text NOT NULL CHECK (kind IN ('deposit', 'charge', 'refund', 'grant')),
+        source text NOT NULL CHECK (source IN ('stripe', 'crypto', 'admin', 'dev', 'system')),
+        ref text UNIQUE,
+        note text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX credit_ledger_account ON credit_ledger (account_id, created_at DESC);
+    `
   }
 ]
 

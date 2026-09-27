@@ -105,7 +105,7 @@ export default function SharePage() {
   }
 
   return (
-    <AuthShell foot={m.zk}>
+    <AuthShell kind="share" foot={m.zk}>
       <h2>{m.title}</h2>
       {phase === 'loading' && <Working label={m.loading} />}
 

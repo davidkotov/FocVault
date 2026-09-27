@@ -10,7 +10,7 @@ import UpgradeWall from '@/components/UpgradeWall'
 import PasswordsPanel from '@/components/PasswordsPanel'
 import NotesPanel from '@/components/NotesPanel'
 import TotpPanel from '@/components/TotpPanel'
-import AuthShell, { Working } from '@/components/account/AuthShell'
+import AuthShell, { LoadingScreen, Working } from '@/components/account/AuthShell'
 import AccountMenu from '@/components/account/AccountMenu'
 import AccountUpload from '@/components/account/AccountUpload'
 import PlansView from '@/components/account/PlansView'
@@ -24,6 +24,7 @@ import { vaultsMessages } from '@/lib/i18n/messages/vaults'
 import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
 import TeamAdminView from '@/components/account/TeamAdminView'
 import SecurityStatus from '@/components/account/SecurityStatus'
+import CreditsCard from '@/components/account/CreditsCard'
 import { Icon } from '@/components/site/Icons'
 import TeamNotices, { TeamEscrowCard } from '@/components/account/TeamNotices'
 import SendView from '@/components/account/SendView'
@@ -64,9 +65,30 @@ function UnlockScreen() {
   const [pass, setPass] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [show, setShow] = useState(false)
+  const initials = (account?.label ?? '?').replace(/@.*/, '').slice(0, 2).toUpperCase()
   return (
-    <AuthShell>
-      <form
+    <AuthShell
+      aside={
+        <div className="unlockaside">
+          <div className="unlockaside-top">
+            <span className="unlockbadge">
+              <Icon name="lock" size={22} />
+            </span>
+            <h2>{m.asideTitle}</h2>
+            <p>{m.asideLead}</p>
+          </div>
+          <ul>
+            {m.asidePoints.map(x => (
+              <li key={x}>
+                <Icon name="check" size={15} /> {x}
+              </li>
+            ))}
+          </ul>
+        </div>
+      }
+    >
+      <form className="unlockform"
         onSubmit={async e => {
           e.preventDefault()
           if (!pass || busy) return
@@ -80,8 +102,17 @@ function UnlockScreen() {
           }
         }}
       >
+        <div className="unlockwho">
+          <span className="unlockavatar">{initials}</span>
+          <div>
+            <div className="dim" style={{ fontSize: 12 }}>
+              {m.signedInAs}
+            </div>
+            <b>{account?.label}</b>
+          </div>
+        </div>
         <h2>{m.title}</h2>
-        <p className="lead">{fmt(m.lead, { name: account?.label ?? '' })}</p>
+        <p className="lead">{m.leadShort}</p>
         {error && <div className="errorbox">{error}</div>}
         {canPasskey && (
           <>
@@ -107,7 +138,12 @@ function UnlockScreen() {
         )}
         <div className="field">
           <label htmlFor="unlock">{m.passphrase}</label>
-          <input id="unlock" type="password" autoFocus={!canPasskey} autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} />
+          <div className="pwinput">
+            <input id="unlock" type={show ? 'text' : 'password'} autoFocus={!canPasskey} autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} />
+            <button type="button" className="pwtoggle" aria-label={show ? m.hide : m.show} onClick={() => setShow(v => !v)}>
+              <Icon name={show ? 'eyeOff' : 'eye'} size={16} />
+            </button>
+          </div>
         </div>
         {busy ? (
           <Working label={m.working} />
@@ -668,7 +704,7 @@ export default function AppPage() {
   const deleteSecret = useCallback((id: string) => mutate(c => ({ ...c, secrets: c.secrets.filter(x => x.id !== id) })), [mutate])
 
   if (status === 'loading' || status === 'signedOut') {
-    return <AuthShell>{bootError ? <div className="errorbox">{bootError}</div> : <Working label={t.loadingAccount} />}</AuthShell>
+    return <LoadingScreen label={t.loadingAccount} error={bootError} />
   }
   if (status === 'locked' || !account || !masterKey) return <UnlockScreen />
 
@@ -1156,6 +1192,7 @@ export default function AppPage() {
                   document.getElementById(target === 'passkeys' ? 'passkeys-card' : 'emergency-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
               />
+              <CreditsCard onChanged={() => void refreshAccount()} />
               <FamilyPanel freeGb={freeGb} />
               <div className="grid2">
                 <div className="card">

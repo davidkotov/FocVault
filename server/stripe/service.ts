@@ -6,6 +6,7 @@ import type { SessionInfo } from '../auth/sessions'
 import type { Db } from '../db'
 import { audit, type Deps } from '../deps'
 import { getPricing } from '../billing/settings'
+import { addCredit, consumeCredit } from '../credits/service'
 import { findAddon, planQuotaGb, type PlanChange } from '../billing/service'
 import { ApiError } from '../shared/errors'
 import { uuidv7 } from '../shared/ids'
@@ -334,6 +335,23 @@ export async function handleStripeEvent(deps: Deps, gw: StripeGateway, event: St
           if (acc) await audit(deps.db, acc, 'system', 'billing.subscribed', { plan: o.metadata?.plan })
           return 'processed'
         }
+        if (o.mode === 'payment' && o.metadata?.purpose === 'credit') {
+          const acc = await accountForCustomer(deps.db, typeof o.customer === 'string' ? o.customer : o.customer?.id, o.metadata?.accountId)
+          const amount = Number(o.metadata?.amount)
+          const currency = String(o.metadata?.currency ?? '').toUpperCase() as 'CHF' | 'EUR' | 'USD'
+          if (!acc || !(amount > 0) || !['CHF', 'EUR', 'USD'].includes(currency) || o.payment_status !== 'paid') return 'ignored'
+          await addCredit(deps.db, { accountId: acc, amount, currency, kind: 'deposit', source: 'stripe', ref: `stripe:${o.id}`, note: 'Aufladung per Karte' })
+          return 'processed'
+        }
+        if (o.mode === 'setup' && o.metadata?.purpose === 'card' && o.setup_intent) {
+          const pm = await gw.setupIntentPaymentMethod(typeof o.setup_intent === 'string' ? o.setup_intent : o.setup_intent.id)
+          const customer = typeof o.customer === 'string' ? o.customer : o.customer?.id
+          const acc = await accountForCustomer(deps.db, customer, o.metadata?.accountId)
+          if (!pm || !acc) return 'ignored'
+          await gw.setDefaultPaymentMethod(customer, pm)
+          await audit(deps.db, acc, 'system', 'billing.payment_method_added', {})
+          return 'processed'
+        }
         if (o.mode === 'setup' && o.metadata?.purpose === 'payg' && o.setup_intent) {
           const pm = await gw.setupIntentPaymentMethod(typeof o.setup_intent === 'string' ? o.setup_intent : o.setup_intent.id)
           const customer = typeof o.customer === 'string' ? o.customer : o.customer?.id
@@ -442,11 +460,14 @@ export async function closePaygMonth(deps: Deps, gw: StripeGateway | null, now =
     const due = total >= pricing.payg.minInvoice[u.currency]
     let status: 'carried' | 'charged' | 'failed' | 'recorded' = due ? 'recorded' : 'carried'
     let invoiceId: string | null = null
-    if (due && gw && u.stripe_customer_id) {
+    const fromCredit = due ? await consumeCredit(deps.db, u.account_id, total, u.currency, `payg:${u.account_id}:${p.period}`, `Pay-as-you-go ${p.period}`) : 0
+    const rest = round2(total - fromCredit)
+    if (due && rest <= 0) status = 'charged'
+    if (due && rest > 0 && gw && u.stripe_customer_id) {
       const r = await gw.chargeOnce({
         customer: u.stripe_customer_id,
         currency: cur(u.currency),
-        amount: cents(total),
+        amount: cents(rest),
         description: `FocVault Pay-as-you-go ${p.period}: ${est.billableGb.toFixed(1)} GB im Monatsschnitt`,
         metadata: { accountId: u.account_id, kind: 'payg', period: p.period },
         automaticTax: stripeTaxEnabled()
@@ -464,4 +485,34 @@ export async function closePaygMonth(deps: Deps, gw: StripeGateway | null, now =
     if (status === 'failed') await audit(deps.db, u.account_id, 'system', 'billing.payment_failed', { period: p.period, amount: total })
   }
   return { charged, carried }
+}
+
+/** Guthaben aufladen: Stripe-Checkout für eine Einmalzahlung in der Kontowährung. */
+export async function stripeDepositUrl(deps: Deps, gw: StripeGateway, session: SessionInfo, amount: number, ctx: StripeContext): Promise<string> {
+  const acc = await loadBillingAccount(deps.db, session.accountId)
+  const customer = await ensureCustomer(deps.db, gw, acc)
+  const back = (q: string) => `${ctx.origin}/${ctx.locale}/app?view=account&${q}`
+  return gw.checkoutPayment({
+    customer,
+    currency: cur(acc.currency),
+    amount: cents(amount),
+    description: `FocVault Guthaben ${amount.toFixed(2)} ${acc.currency}`,
+    successUrl: back('credit=ok'),
+    cancelUrl: back('credit=cancelled'),
+    metadata: { accountId: acc.id, purpose: 'credit', amount: amount.toFixed(2), currency: acc.currency },
+    locale: ctx.locale
+  })
+}
+
+/** Zahlungsmethode hinterlegen (Stripe-Setup). */
+export async function stripeCardSetupUrl(deps: Deps, gw: StripeGateway, session: SessionInfo, ctx: StripeContext): Promise<string> {
+  const acc = await loadBillingAccount(deps.db, session.accountId)
+  const customer = await ensureCustomer(deps.db, gw, acc)
+  const back = (q: string) => `${ctx.origin}/${ctx.locale}/app?view=account&${q}`
+  return gw.checkoutSetup({ customer, currency: cur(acc.currency), successUrl: back('card=ok'), cancelUrl: back('card=cancelled'), metadata: { accountId: acc.id, purpose: 'card' }, locale: ctx.locale })
+}
+
+export async function stripeHasPaymentMethod(deps: Deps, gw: StripeGateway, accountId: string): Promise<boolean> {
+  const acc = await loadBillingAccount(deps.db, accountId)
+  return acc.stripe_customer_id ? gw.hasDefaultPaymentMethod(acc.stripe_customer_id) : false
 }
