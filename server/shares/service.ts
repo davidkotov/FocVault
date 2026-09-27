@@ -91,9 +91,9 @@ const SELECT = `
   SELECT s.id, s.account_id, s.meta, s.expires_at, s.max_downloads, s.downloads, s.created_at, s.revoked_at,
          coalesce(array_remove(array_agg(i.object_id::text ORDER BY i.position), NULL), '{}') AS object_ids,
          count(o.id) FILTER (WHERE o.state = 'stored')::float8 AS stored,
-         (s.payload IS NOT NULL) AS has_payload
+         s.has_note AS has_payload
     FROM shares s LEFT JOIN share_items i ON i.share_id = s.id LEFT JOIN objects o ON o.id = i.object_id`
-const GROUP = `GROUP BY s.id, s.account_id, s.meta, s.expires_at, s.max_downloads, s.downloads, s.created_at, s.revoked_at, s.payload`
+const GROUP = `GROUP BY s.id, s.account_id, s.meta, s.expires_at, s.max_downloads, s.downloads, s.created_at, s.revoked_at, s.has_note`
 
 /** 16 Zufallsbytes → nicht erratbare Link-ID (die ID allein entschlüsselt nichts). */
 function newId(): string {
@@ -122,8 +122,8 @@ export async function createShare(deps: Deps, session: SessionInfo, input: z.out
   const id = newId()
   await deps.db.tx(async tx => {
     await tx.query(
-      `INSERT INTO shares (id, account_id, object_id, meta, expires_at, max_downloads, payload)
-       VALUES ($1, $2, $3, $4, CASE WHEN $5::float8 IS NULL THEN NULL ELSE now() + make_interval(hours => $5::int) END, $6, $7)`,
+      `INSERT INTO shares (id, account_id, object_id, meta, expires_at, max_downloads, payload, has_note)
+       VALUES ($1, $2, $3, $4, CASE WHEN $5::float8 IS NULL THEN NULL ELSE now() + make_interval(hours => $5::int) END, $6, $7, $7::bytea IS NOT NULL)`,
       [
         id,
         session.accountId,
@@ -156,7 +156,7 @@ export async function listShares(deps: Deps, session: SessionInfo, objectId?: st
 
 export async function revokeShare(deps: Deps, session: SessionInfo, id: string): Promise<void> {
   const rows = await deps.db.query(
-    `UPDATE shares SET revoked_at = now() WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL RETURNING id`,
+    `UPDATE shares SET revoked_at = now(), payload = NULL WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL RETURNING id`,
     [id, session.accountId]
   )
   if (!rows.length) throw new ApiError('NOT_FOUND', 'Link nicht gefunden.')
@@ -219,8 +219,26 @@ export async function startShareDownload(
   // `pieces` der ersten Datei für ältere Empfängerseiten
   let payload: string | undefined
   if (r.has_payload) {
-    const p = await deps.db.query<{ payload: Uint8Array }>('SELECT payload FROM shares WHERE id = $1', [id])
-    payload = Buffer.from(p[0].payload).toString('base64')
+    const p = await deps.db.query<{ payload: Uint8Array | null; max_downloads: number | null; downloads: number }>(
+      'SELECT payload, max_downloads, downloads FROM shares WHERE id = $1',
+      [id]
+    )
+    if (p[0]?.payload) payload = Buffer.from(p[0].payload).toString('base64')
+    // letzter erlaubter Abruf: Inhalt sofort löschen (nicht erst beim Aufräumen)
+    if (p[0]?.max_downloads !== null && p[0]?.max_downloads !== undefined && Number(p[0].downloads) >= Number(p[0].max_downloads)) {
+      await deps.db.query('UPDATE shares SET payload = NULL WHERE id = $1', [id])
+    }
   }
   return { pieces: items[0]?.pieces ?? [], items: items.filter(i => i.pieces.length), ...(payload ? { payload } : {}) }
+}
+
+/** Wartung: Inhalte abgelaufener, widerrufener oder ausgeschöpfter Links entfernen. */
+export async function purgeSharePayloads(deps: Deps): Promise<number> {
+  const r = await deps.db.query(
+    `UPDATE shares SET payload = NULL
+      WHERE payload IS NOT NULL AND (revoked_at IS NOT NULL OR (expires_at IS NOT NULL AND expires_at <= now())
+            OR (max_downloads IS NOT NULL AND downloads >= max_downloads))
+      RETURNING id`
+  )
+  return r.length
 }

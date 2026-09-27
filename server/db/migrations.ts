@@ -666,6 +666,15 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
         at timestamptz NOT NULL DEFAULT now()
       );
     `
+  },
+  {
+    version: 22,
+    name: 'share_note_flag',
+    sql: `
+      -- Notiz-Link bleibt als solcher erkennbar, auch nachdem der Inhalt gelöscht wurde
+      ALTER TABLE shares ADD COLUMN has_note boolean NOT NULL DEFAULT false;
+      UPDATE shares SET has_note = true WHERE payload IS NOT NULL;
+    `
   }
 ]
 

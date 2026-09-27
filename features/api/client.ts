@@ -186,8 +186,8 @@ export const api = {
   vaults: () => call<VaultsOverview>('GET', '/vaults'),
   createVault: (input: { id: string; wrapped: unknown; body: string }) => call<{ ok: true }>('POST', '/vaults', input),
   deleteVault: (id: string) => call<{ ok: true }>('DELETE', `/vaults/${encodeURIComponent(id)}`),
-  grantVaultKeys: (id: string, generation: number, grants: Array<{ accountId: string; wrapped: unknown }>) =>
-    call<{ ok: true }>('POST', `/vaults/${encodeURIComponent(id)}/keys`, { generation, grants }),
+  grantVaultKeys: (id: string, generation: number, grants: Array<{ accountId: string; wrapped: unknown }>, rotate = false) =>
+    call<{ ok: true }>('POST', `/vaults/${encodeURIComponent(id)}/keys`, { generation, grants, ...(rotate ? { rotate: true } : {}) }),
   putVaultIndex: (id: string, baseVersion: number, body: string) =>
     call<{ version: number }>('PUT', `/vaults/${encodeURIComponent(id)}/index`, { baseVersion, body }),
   addVaultMember: (id: string, accountId: string, role: VaultRole) =>

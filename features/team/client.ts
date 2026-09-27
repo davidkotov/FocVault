@@ -78,7 +78,9 @@ export async function openRecoveredVault(requestId: string, owner: string, me: s
       raw.fill(0)
     }
     const container = v.body ? await decryptIndex(fromB64(v.body), masterKey, v.targetId) : { v: 3 as const, files: [], secrets: [] }
-    return { masterKey, container }
+    // Private Schlüssel (Familien-/Teamordner) nicht an Dritte weiterreichen
+  const { familyKey: _fk, ...visible } = container
+  return { masterKey, container: visible }
   } finally {
     d.fill(0)
     priv.d = undefined

@@ -41,6 +41,25 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Review-Follow-ups (Sicherheit) + Business-Zusatzspeicher ab 3 TB (Migration v22)
+
+- **Geteilte Tresore, Rotations-Race:** neue Generation nur mit `rotate: true`, geprüft unter
+  `SELECT … FOR UPDATE` auf den Tresor; existiert die Generation schon → `VERSION_CONFLICT` (Client lädt neu),
+  ohne Kennzeichen entsteht nie eine neue Generation.
+- **Geteilte Tresore, Schreiben während `rotate_needed`:** abgelehnt (`VERSION_CONFLICT`), bis ein Verwalter
+  den Schlüssel gewechselt hat.
+- **Notfallzugang:** alle Statuswechsel mit Ausgangsstatus im `UPDATE … RETURNING` (accept: `invited` und
+  nicht abgelaufen, confirm: `accepted`, request: `confirmed`, approve/reject: `requested`). Der geöffnete
+  Tresor wird ohne `familyKey` angezeigt (auch beim Firmen-Notfallzugriff); Warnhinweis vor dem Bestätigen
+  und nach dem Entziehen eines genutzten Zugriffs. Grenze: Wer den Master-Key hatte, behält, was er sah.
+- **Secure Send:** Notizinhalt wird beim Widerruf, nach dem letzten erlaubten Abruf und (Wartung) nach Ablauf
+  gelöscht; `shares.has_note` hält die Anzeige „Notiz“ stabil.
+- **Passwort-Check:** HIBP-Abruf mit 8-s-Zeitlimit, höhere Grenzen, 6 parallele Abfragen, Teilfehler brechen
+  nicht ab („n Passwörter konnten nicht geprüft werden“), Fortschritt bei vielen Einträgen.
+- **Zusatzspeicher Business** beginnt bei 3 TB (1-TB-Paket entfernt).
+
+**Tests:** Vitest 121/121 (neu: Rotations-Race, Schreibsperre, Payload-Löschung), Playwright 13/13 (1 Worker).
+
 ### Support, Dokumentation, Statusseite, Business-Zusatzspeicher (Migration v21)
 
 **/support** (nach Vorbild fil.one/support): Karten Dokumentation + Status (mit Live-Punkt), häufige Fragen

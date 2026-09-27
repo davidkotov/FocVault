@@ -80,8 +80,14 @@ describe('Geteilte Tresore (Business)', () => {
     expect((await listVaults(deps, ceo)).vaults[0]).toMatchObject({ rotateNeeded: true })
     // Ehemalige können keine Hüllen mehr bekommen; nur Verwalter legen Generation 2 an
     await expect(grantVaultKeys(deps, ceo, id, { generation: 1, grants: [{ accountId: ops.accountId, wrapped: wrapped() }] })).rejects.toMatchObject({ code: 'BAD_REQUEST' })
-    await expect(grantVaultKeys(deps, dev, id, { generation: 2, grants: [{ accountId: dev.accountId, wrapped: wrapped() }] })).rejects.toMatchObject({ code: 'FORBIDDEN' })
-    await grantVaultKeys(deps, ceo, id, { generation: 2, grants: [ceo, dev].map(s => ({ accountId: s.accountId, wrapped: wrapped() })) })
+    await expect(grantVaultKeys(deps, dev, id, { generation: 2, rotate: true, grants: [{ accountId: dev.accountId, wrapped: wrapped() }] })).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    // ohne Rotations-Kennzeichen entsteht keine neue Generation
+    await expect(grantVaultKeys(deps, ceo, id, { generation: 2, grants: [{ accountId: ceo.accountId, wrapped: wrapped() }] })).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    // während des ausstehenden Schlüsselwechsels wird nicht mit dem alten Schlüssel geschrieben
+    await expect(putVaultIndex(deps, dev, id, { baseVersion: 1, body: body(1) })).rejects.toMatchObject({ code: 'VERSION_CONFLICT' })
+    await grantVaultKeys(deps, ceo, id, { generation: 2, rotate: true, grants: [ceo, dev].map(s => ({ accountId: s.accountId, wrapped: wrapped() })) })
+    // zweiter Verwalter/Tab mit derselben neuen Generation → Konflikt statt verworfenem Schlüssel
+    await expect(grantVaultKeys(deps, ceo, id, { generation: 2, rotate: true, grants: [{ accountId: ceo.accountId, wrapped: wrapped() }] })).rejects.toMatchObject({ code: 'VERSION_CONFLICT' })
     expect((await listVaults(deps, ceo)).vaults[0]).toMatchObject({ rotateNeeded: false, generation: 2 })
     // mit dem alten Schlüssel verschlüsselter Index wird abgelehnt
     await expect(putVaultIndex(deps, dev, id, { baseVersion: 1, body: body(1) })).rejects.toMatchObject({ code: 'VERSION_CONFLICT' })

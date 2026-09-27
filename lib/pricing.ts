@@ -117,7 +117,6 @@ export const DEFAULT_PRICING: PricingConfig = {
     { id: 'plus-2000', gb: 2000, monthly: { CHF: 17.9, EUR: 17.9, USD: 19.9 }, yearly: { CHF: 179, EUR: 179, USD: 199 } }
   ],
   businessAddons: [
-    { id: 'biz-1tb', gb: 1000, monthly: { CHF: 12.9, EUR: 12.9, USD: 13.9 }, yearly: { CHF: 129, EUR: 129, USD: 139 } },
     { id: 'biz-3tb', gb: 3000, monthly: { CHF: 35, EUR: 35, USD: 38 }, yearly: { CHF: 350, EUR: 350, USD: 380 } },
     { id: 'biz-5tb', gb: 5000, monthly: { CHF: 55, EUR: 55, USD: 59 }, yearly: { CHF: 550, EUR: 550, USD: 590 } },
     { id: 'biz-50tb', gb: 50000, monthly: { CHF: 490, EUR: 490, USD: 529 }, yearly: { CHF: 4900, EUR: 4900, USD: 5290 } },

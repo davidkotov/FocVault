@@ -25,6 +25,7 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ask, setAsk] = useState<{ id: string; name: string; wait: number } | null>(null)
+  const [warn, setWarn] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +65,7 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
       <h3>{m.title}</h3>
       <p className="dim">{m.lead}</p>
       {error && <div className="errorbox">{error}</div>}
+      {warn && <div className="notice warn">{warn}</div>}
 
       {ov && !ov.canGrant && (
         <div className="notice">
@@ -92,6 +94,8 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
                     (c.access ? fmt(m.hasAccess, { date: fmtDate(c.availableAt!) }) : fmt(m.requested, { date: fmtDate(c.requestedAt!), at: fmtDate(c.availableAt!) }))}
                 </span>
                 {c.status === 'accepted' && !!c.granteePublicKey && !!c.granteeId && (
+                  <>
+                  <p className="hint" style={{ color: '#9a5b00' }}>{m.confirmWarn}</p>
                   <form
                     className="row emconfirm"
                     onSubmit={e => {
@@ -116,6 +120,7 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
                       {m.confirm}
                     </button>
                   </form>
+                  </>
                 )}
               </div>
               <div className="row" style={{ gap: 6 }}>
@@ -129,7 +134,16 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
                     </button>
                   </>
                 )}
-                <button className="small danger" disabled={busy} onClick={() => void act(() => api.removeEmergency(c.id))}>
+                <button
+                  className="small danger"
+                  disabled={busy}
+                  onClick={() =>
+                    void act(async () => {
+                      await api.removeEmergency(c.id)
+                      if (c.access) setWarn(m.revokedAfterAccess)
+                    })
+                  }
+                >
                   {c.access ? m.revoke : m.remove}
                 </button>
               </div>

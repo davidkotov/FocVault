@@ -168,10 +168,12 @@ export async function acceptEmergencyInvite(deps: Deps, session: SessionInfo, to
   if (r.grantor === session.accountId) throw new ApiError('BAD_REQUEST', 'Du kannst nicht dein eigener Notfallkontakt sein.')
   const dup = await deps.db.query('SELECT 1 FROM emergency_contacts WHERE grantor = $1 AND grantee = $2', [r.grantor, session.accountId])
   if (dup.length) throw new ApiError('BAD_REQUEST', 'Du bist bereits Notfallkontakt für dieses Konto.')
-  await deps.db.query(
-    `UPDATE emergency_contacts SET grantee = $2, status = 'accepted', invite_hash = NULL, invite_expires = NULL, updated_at = now() WHERE id = $1`,
+  const upd = await deps.db.query(
+    `UPDATE emergency_contacts SET grantee = $2, status = 'accepted', invite_hash = NULL, invite_expires = NULL, updated_at = now()
+      WHERE id = $1 AND status = 'invited' AND invite_expires > now() RETURNING id`,
     [r.id, session.accountId]
   )
+  if (!upd.length) throw new ApiError('NOT_FOUND', 'Diese Einladung ist abgelaufen oder wurde schon verwendet.')
   await audit(deps.db, r.grantor, 'user', 'emergency.accepted', { contactId: r.id, grantee: session.accountId })
 }
 
@@ -187,28 +189,32 @@ export async function confirmEmergency(deps: Deps, session: SessionInfo, id: str
   const r = await own(deps.db, session, id, 'grantor')
   if (r.status !== 'accepted') throw new ApiError('BAD_REQUEST', 'Dieser Kontakt ist bereits bestätigt oder hat noch nicht angenommen.')
   if (!(await pubkey(deps.db, r.grantee))) throw new ApiError('BAD_REQUEST', 'Die Vertrauensperson muss FocVault zuerst einmal öffnen.')
-  await deps.db.query(`UPDATE emergency_contacts SET wrapped = $2, status = 'confirmed', updated_at = now() WHERE id = $1`, [id, JSON.stringify(input.wrapped)])
+  const upd = await deps.db.query(`UPDATE emergency_contacts SET wrapped = $2, status = 'confirmed', updated_at = now() WHERE id = $1 AND status = 'accepted' RETURNING id`, [id, JSON.stringify(input.wrapped)])
+  if (!upd.length) throw new ApiError('BAD_REQUEST', 'Dieser Kontakt ist bereits bestätigt.')
   await audit(deps.db, session.accountId, 'user', 'emergency.confirmed', { contactId: id })
 }
 
 export async function requestEmergency(deps: Deps, session: SessionInfo, id: string): Promise<void> {
   const r = await own(deps.db, session, id, 'grantee')
   if (r.status !== 'confirmed') throw new ApiError('BAD_REQUEST', r.status === 'requested' ? 'Zugriff ist bereits angefordert.' : 'Der Inhaber hat den Notfallzugang noch nicht bestätigt.')
-  await deps.db.query(`UPDATE emergency_contacts SET status = 'requested', requested_at = now(), approved_at = NULL, updated_at = now() WHERE id = $1`, [id])
+  const upd = await deps.db.query(`UPDATE emergency_contacts SET status = 'requested', requested_at = now(), approved_at = NULL, updated_at = now() WHERE id = $1 AND status = 'confirmed' RETURNING id`, [id])
+  if (!upd.length) throw new ApiError('BAD_REQUEST', 'Zugriff ist bereits angefordert.')
   await audit(deps.db, r.grantor, 'user', 'emergency.requested', { contactId: id, grantee: session.accountId, waitHours: Number(r.wait_hours) })
 }
 
 export async function approveEmergency(deps: Deps, session: SessionInfo, id: string): Promise<void> {
   const r = await own(deps.db, session, id, 'grantor')
   if (r.status !== 'requested') throw new ApiError('BAD_REQUEST', 'Es liegt keine Anforderung vor.')
-  await deps.db.query('UPDATE emergency_contacts SET approved_at = now(), updated_at = now() WHERE id = $1', [id])
+  const upd = await deps.db.query(`UPDATE emergency_contacts SET approved_at = now(), updated_at = now() WHERE id = $1 AND status = 'requested' RETURNING id`, [id])
+  if (!upd.length) throw new ApiError('BAD_REQUEST', 'Es liegt keine Anforderung vor.')
   await audit(deps.db, session.accountId, 'user', 'emergency.approved', { contactId: id })
 }
 
 export async function rejectEmergency(deps: Deps, session: SessionInfo, id: string): Promise<void> {
   const r = await own(deps.db, session, id, 'grantor')
   if (r.status !== 'requested') throw new ApiError('BAD_REQUEST', 'Es liegt keine Anforderung vor.')
-  await deps.db.query(`UPDATE emergency_contacts SET status = 'confirmed', requested_at = NULL, approved_at = NULL, updated_at = now() WHERE id = $1`, [id])
+  const upd = await deps.db.query(`UPDATE emergency_contacts SET status = 'confirmed', requested_at = NULL, approved_at = NULL, updated_at = now() WHERE id = $1 AND status = 'requested' RETURNING id`, [id])
+  if (!upd.length) throw new ApiError('BAD_REQUEST', 'Es liegt keine Anforderung vor.')
   await audit(deps.db, session.accountId, 'user', 'emergency.rejected', { contactId: id })
 }
 

@@ -22,7 +22,8 @@ const de = {
     badgeReused: 'mehrfach',
     badgeLeaked: 'geleakt',
     leakedTip: 'Dieses Passwort taucht {n}-mal in bekannten Datenlecks auf – bitte ändern.',
-    reusedTip: 'Gleiches Passwort in {n} Einträgen'
+    reusedTip: 'Gleiches Passwort in {n} Einträgen',
+    unchecked: '{n} Passwörter konnten gerade nicht geprüft werden – bitte später erneut.'
   },
   passwords: {
     heading: 'Passwörter',
@@ -180,7 +181,8 @@ const en: typeof de = {
     badgeReused: 'reused',
     badgeLeaked: 'breached',
     leakedTip: 'This password appears {n} times in known data breaches – please change it.',
-    reusedTip: 'Same password in {n} items'
+    reusedTip: 'Same password in {n} items',
+    unchecked: '{n} passwords could not be checked right now – please try again later.'
   },
   passwords: {
     heading: 'Passwords',

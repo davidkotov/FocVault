@@ -120,7 +120,7 @@ export class SharedVaultsClient {
       if (!m.publicKey) continue
       grants.push({ accountId: m.accountId, wrapped: await wrapSpaceKey(raw, m.publicKey as JsonWebKey, vaultKeyContext(v.id), gen, m.accountId) })
     }
-    await api.grantVaultKeys(v.id, gen, grants)
+    await api.grantVaultKeys(v.id, gen, grants, true)
     const key = await importSpaceKey(raw)
     ring.set(gen, { raw, key })
     await api.putVaultIndex(v.id, v.version, toB64(await encryptVaultIndex(data, key, gen, v.id)))

@@ -36,7 +36,9 @@ const b64 = z.string().min(24).max(Math.ceil((MAX_BODY * 4) / 3) + 8).regex(/^[A
 export const createVaultSchema = z.object({ id: z.string().uuid(), wrapped, body: b64 })
 export const vaultGrantSchema = z.object({
   generation: z.number().int().min(1),
-  grants: z.array(z.object({ accountId: z.string().uuid(), wrapped })).min(1).max(100)
+  grants: z.array(z.object({ accountId: z.string().uuid(), wrapped })).min(1).max(100),
+  /** neue Generation anlegen (Schlüsselwechsel) – sonst nur vorhandene Generation weitergeben */
+  rotate: z.boolean().optional()
 })
 export const vaultIndexSchema = z.object({ baseVersion: z.number().int().min(1), body: b64 })
 export const vaultMemberSchema = z.object({ accountId: z.string().uuid(), role: z.enum(ROLES) })
@@ -214,21 +216,24 @@ export async function grantVaultKeys(deps: Deps, session: SessionInfo, vaultId: 
   const members = await deps.db.query<{ account_id: string }>('SELECT account_id FROM shared_vault_members WHERE vault_id = $1', [vaultId])
   const ids = new Set(members.map(m => m.account_id))
   if (input.grants.some(g => !ids.has(g.accountId))) throw new ApiError('BAD_REQUEST', 'Empfänger ist kein Mitglied dieses Tresors.')
-  const current = await currentGeneration(deps.db, vaultId)
-  const fresh = input.generation === current + 1
+  const fresh = !!input.rotate
   if (fresh) {
     if (role !== 'manage') throw new ApiError('FORBIDDEN', 'Nur Verwalter legen neue Schlüssel an.')
     if (!input.grants.some(g => g.accountId === session.accountId)) throw new ApiError('BAD_REQUEST', 'Neue Generation ohne eigene Hülle.')
-  } else {
-    if (input.generation > current) throw new ApiError('BAD_REQUEST', 'Unbekannte Generation.')
-    const mine = await deps.db.query('SELECT 1 FROM shared_vault_keys WHERE vault_id = $1 AND generation = $2 AND account_id = $3', [
-      vaultId,
-      input.generation,
-      session.accountId
-    ])
-    if (!mine.length) throw new ApiError('FORBIDDEN', 'Du besitzt diesen Tresor-Schlüssel nicht.')
   }
   await deps.db.tx(async tx => {
+    // Tresor sperren: gleichzeitige Schlüsselwechsel (zwei Verwalter/Tabs) werden serialisiert
+    await tx.query('SELECT id FROM shared_vaults WHERE id = $1 FOR UPDATE', [vaultId])
+    const cur = await tx.query<{ g: number | null }>('SELECT max(generation) AS g FROM shared_vault_keys WHERE vault_id = $1', [vaultId])
+    const current = Number(cur[0]?.g ?? 0)
+    if (fresh) {
+      // Generation existiert schon (anderer Verwalter war schneller) → neu laden statt fremden Schlüssel zu überschreiben
+      if (input.generation !== current + 1) throw new ApiError('VERSION_CONFLICT', 'Der Tresor hat bereits einen neuen Schlüssel – bitte neu laden.', { generation: current })
+    } else {
+      if (input.generation > current) throw new ApiError('BAD_REQUEST', 'Unbekannte Generation.')
+      const mine = await tx.query('SELECT 1 FROM shared_vault_keys WHERE vault_id = $1 AND generation = $2 AND account_id = $3', [vaultId, input.generation, session.accountId])
+      if (!mine.length) throw new ApiError('FORBIDDEN', 'Du besitzt diesen Tresor-Schlüssel nicht.')
+    }
     for (const g of input.grants) {
       await tx.query(
         `INSERT INTO shared_vault_keys (vault_id, generation, account_id, wrapped) VALUES ($1, $2, $3, $4)
@@ -251,6 +256,9 @@ export async function putVaultIndex(deps: Deps, session: SessionInfo, vaultId: s
   const current = await currentGeneration(deps.db, vaultId)
   if (gen !== current) throw new ApiError('VERSION_CONFLICT', 'Der Tresor hat einen neuen Schlüssel – bitte neu laden.', { generation: current })
   if (RANK[role] < RANK.edit) throw new ApiError('FORBIDDEN', 'Du darfst diesen Tresor nur ansehen.')
+  // Nach dem Entfernen einer Person: erst nach dem Schlüsselwechsel wieder schreiben (sonst mit altem Schlüssel)
+  const rot = await deps.db.query<{ rotate_needed: boolean }>('SELECT rotate_needed FROM shared_vaults WHERE id = $1', [vaultId])
+  if (rot[0]?.rotate_needed) throw new ApiError('VERSION_CONFLICT', 'Der Tresor erhält gerade einen neuen Schlüssel – ein Verwalter muss ihn einmal öffnen.', { rotateNeeded: true })
   const r = await deps.db.query<{ version: number }>(
     `UPDATE shared_vaults SET version = version + 1, body = $3, updated_at = now()
       WHERE id = $1 AND version = $2 RETURNING version::float8 AS version`,

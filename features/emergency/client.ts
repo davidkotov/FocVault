@@ -53,5 +53,7 @@ export async function openGrantorVault(contactId: string, wrapped: unknown, myId
   }
   const v = await api.emergencyVault(contactId)
   const container = v.body ? await decryptIndex(fromB64(v.body), masterKey, v.grantorId) : { v: 3 as const, files: [], secrets: [] }
-  return { masterKey, container }
+  // Private Schlüssel (Familien-/Teamordner) nicht an Dritte weiterreichen
+  const { familyKey: _fk, ...visible } = container
+  return { masterKey, container: visible }
 }

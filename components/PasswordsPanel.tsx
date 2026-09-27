@@ -86,6 +86,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
   const [breaches, setBreaches] = useState<Map<string, number> | null>(null)
   const [checking, setChecking] = useState(false)
   const [checkError, setCheckError] = useState<string | null>(null)
+  const [checkProgress, setCheckProgress] = useState<string | null>(null)
   const weak = useMemo(() => new Set(entries.filter(e => e.password && strength(e.password) <= 1).map(e => e.id)), [entries])
   const reused = useMemo(() => reusedPasswords(entries), [entries])
   const leaked = useMemo(() => new Set([...(breaches ?? new Map<string, number>())].filter(([, n]) => n > 0).map(([id]) => id)), [breaches])
@@ -93,11 +94,14 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
     setChecking(true)
     setCheckError(null)
     try {
-      setBreaches(await checkBreaches(entries))
+      const r = await checkBreaches(entries, (d, t) => setCheckProgress(t > 20 ? `${Math.round((d / t) * 100)} %` : null))
+      setBreaches(r.counts)
+      if (r.unchecked) setCheckError(fmt(h.unchecked, { n: r.unchecked }))
     } catch (e) {
       setCheckError(errText(e))
     } finally {
       setChecking(false)
+      setCheckProgress(null)
     }
   }
 
@@ -252,7 +256,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
             </button>
           ) : (
             <button type="button" className="small" disabled={checking} onClick={() => void runBreachCheck()} title={h.checkHint}>
-              {checking ? h.checking : h.check}
+              {checking ? `${h.checking}${checkProgress ? ` ${checkProgress}` : ''}` : h.check}
             </button>
           )}
           <span className="hint">{breaches ? h.anonymousDone : h.checkHint}</span>

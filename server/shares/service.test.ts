@@ -3,7 +3,7 @@ import { resetRateLimits } from '../auth/ratelimit'
 import { completeObject, createObject, deleteObject } from '../objects/service'
 import { objectPieceKey } from '../storage/provider'
 import { newAccount, testDeps } from '../testing'
-import { createShare, listShares, publicShare, revokeShare, startShareDownload } from './service'
+import { createShare, listShares, publicShare, purgeSharePayloads, revokeShare, startShareDownload } from './service'
 
 const meta = Buffer.from('verschluesselte-metadaten-0123456789').toString('base64')
 
@@ -84,6 +84,16 @@ describe('Secure Send (Konto-Modus)', () => {
     expect(JSON.stringify(pub)).not.toContain(payload)
     expect((await startShareDownload(deps, note.id)).payload).toBe(payload)
     await expect(startShareDownload(deps, note.id)).rejects.toMatchObject({ code: 'GONE' })
+    // Inhalt nach dem letzten Abruf gelöscht
+    expect((await deps.db.query<{ payload: unknown }>('SELECT payload FROM shares WHERE id = $1', [note.id]))[0].payload).toBeNull()
+    // Widerruf und Ablauf löschen den Inhalt ebenfalls
+    const n2 = await createShare(deps, session, { objectIds: [], meta, payload, expiresInHours: 1, maxDownloads: null })
+    await revokeShare(deps, session, n2.id)
+    const n3 = await createShare(deps, session, { objectIds: [], meta, payload, expiresInHours: 1, maxDownloads: null })
+    await deps.db.query(`UPDATE shares SET expires_at = now() - interval '1 minute' WHERE id = $1`, [n3.id])
+    expect(await purgeSharePayloads(deps)).toBe(1)
+    const left = await deps.db.query<{ n: number }>('SELECT count(*)::float8 AS n FROM shares WHERE payload IS NOT NULL AND id = ANY($1)', [[n2.id, n3.id]])
+    expect(Number(left[0].n)).toBe(0)
     // Notiz mit Anhang: Anhang wird hart gelöscht → Link bleibt (nur Inhalt)
     const withFile = await createShare(deps, session, { objectIds: [a], meta, payload, expiresInHours: null, maxDownloads: null })
     await deps.db.query('DELETE FROM objects WHERE id = $1', [a])

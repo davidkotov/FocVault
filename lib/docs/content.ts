@@ -185,7 +185,7 @@ const de: DocArticle[] = [
     title: 'Pakete, Zusatzspeicher und Pay-as-you-go',
     summary: 'Wie abgerechnet wird, Zusatzspeicher buchen und individuelle Mengen anfragen.',
     blocks: [
-      { t: 'ul', x: ['Pay-as-you-go (Free): über 5 GB hinaus pro GB und Monat, mit einstellbarer Obergrenze.', 'Zusatzspeicher: Pro/Family ab 200 GB, Business 1 TB bis 1000 TB – monatlich kündbar.', 'Grössere oder individuelle Mengen: über „Individuelle Menge → Anfrage senden“.', 'Business: zusätzliche Nutzer pro Monat, jährliche Zahlung mit Rabatt.'] }
+      { t: 'ul', x: ['Pay-as-you-go (Free): über 5 GB hinaus pro GB und Monat, mit einstellbarer Obergrenze.', 'Zusatzspeicher: Pro/Family ab 200 GB, Business 3 TB bis 1000 TB – monatlich kündbar.', 'Grössere oder individuelle Mengen: über „Individuelle Menge → Anfrage senden“.', 'Business: zusätzliche Nutzer pro Monat, jährliche Zahlung mit Rabatt.'] }
     ]
   }
 ]
@@ -356,7 +356,7 @@ const en: DocArticle[] = [
     title: 'Plans, extra storage and pay-as-you-go',
     summary: 'How billing works, adding extra storage and requesting custom amounts.',
     blocks: [
-      { t: 'ul', x: ['Pay-as-you-go (Free): beyond 5 GB per GB and month, with an adjustable cap.', 'Extra storage: Pro/Family from 200 GB, Business 1 TB to 1000 TB – cancel monthly.', 'Larger or custom amounts: via “Custom amount → Send request”.', 'Business: additional users per month, yearly payment with discount.'] }
+      { t: 'ul', x: ['Pay-as-you-go (Free): beyond 5 GB per GB and month, with an adjustable cap.', 'Extra storage: Pro/Family from 200 GB, Business 3 TB to 1000 TB – cancel monthly.', 'Larger or custom amounts: via “Custom amount → Send request”.', 'Business: additional users per month, yearly payment with discount.'] }
     ]
   }
 ]
