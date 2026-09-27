@@ -49,7 +49,21 @@ export interface VaultEntry {
   objectId?: string
   /** Klartext-Bytes pro Piece; fehlt = CHUNK_SIZE (256 MiB, Wallet-Modus). */
   pieceSize?: number
+  /** Ältere Fassungen (Pro/Family), neueste zuerst */
+  versions?: FileVersion[]
   v: 2
+}
+
+/** Ältere Fassung einer Datei: eigenes Objekt, eigener Datei-Schlüssel. */
+export interface FileVersion {
+  objectId: string
+  size: number
+  type: string
+  wrappedKey: string
+  wrapIv: string
+  chunks: ChunkMeta[]
+  pieceSize?: number
+  storedAt: number
 }
 
 /** Kleine strukturierte Datensätze (Passwörter, Notizen, 2FA/TOTP).

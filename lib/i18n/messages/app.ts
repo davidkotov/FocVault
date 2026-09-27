@@ -68,6 +68,19 @@ const de = {
     back: 'Zurück zu Meine Cloud'
   },
   confirm: { cancel: 'Abbrechen', delete: 'Endgültig löschen' },
+  versions: {
+    badge: '{n} Versionen',
+    badgeOne: '1 Version',
+    title: 'Versionen',
+    lead: 'Ältere Fassungen bleiben {days} Tage erhalten (höchstens {max} je Datei) und zählen zum Speicher.',
+    current: 'Aktuell',
+    restore: 'Wiederherstellen',
+    download: 'Herunterladen',
+    close: 'Schließen',
+    until: 'bis {date}',
+    restored: 'Die Fassung vom {date} ist wieder aktuell.',
+    saved: 'Neue Version von „{name}“ gespeichert – die bisherige bleibt {days} Tage erhalten.'
+  },
   preview: {
     open: 'Vorschau',
     loading: 'Entschlüssele … {pct} %',
@@ -217,6 +230,19 @@ const en: typeof de = {
     back: 'Back to My cloud'
   },
   confirm: { cancel: 'Cancel', delete: 'Delete permanently' },
+  versions: {
+    badge: '{n} versions',
+    badgeOne: '1 version',
+    title: 'Versions',
+    lead: 'Older versions are kept for {days} days (up to {max} per file) and count towards your storage.',
+    current: 'Current',
+    restore: 'Restore',
+    download: 'Download',
+    close: 'Close',
+    until: 'until {date}',
+    restored: 'The version from {date} is current again.',
+    saved: 'New version of “{name}” saved – the previous one is kept for {days} days.'
+  },
   preview: {
     open: 'Preview',
     loading: 'Decrypting … {pct} %',

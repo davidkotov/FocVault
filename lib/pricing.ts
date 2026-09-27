@@ -46,6 +46,8 @@ export interface PricingConfig {
   freeTier: { monthlyBudgetChf: number; inactiveWarnDays: number; inactiveDeleteDays: number }
   /** Papierkorb für Abos (Pro/Family/Business): Tage bis zur endgültigen Löschung. Free löscht sofort. */
   trashDays: number
+  /** Dateiversionen (Pro/Family): Aufbewahrung ältere Fassungen in Tagen, höchstens maxVersions je Datei */
+  versions: { days: number; max: number }
   /**
    * Womit wir speichern (bestimmt die Kosten): Fil One (S3), Filecoin Onchain Cloud direkt
    * (USDFC, PDP-geprüft) oder beides (Fil One als schnelle Kopie + FOC als geprüfte Kopie).
@@ -94,6 +96,7 @@ export const DEFAULT_PRICING: PricingConfig = {
   ],
   freeTier: { monthlyBudgetChf: 1000, inactiveWarnDays: 365, inactiveDeleteDays: 540 },
   trashDays: 30,
+  versions: { days: 30, max: 10 },
   storage: { backend: 'filone', focUsdPerTibMonthPerCopy: 2.5, focCopies: 2 },
   api: {
     perGbMonth: { CHF: 0.015, EUR: 0.015, USD: 0.016 },

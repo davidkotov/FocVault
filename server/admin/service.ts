@@ -16,7 +16,7 @@ export async function adminStats(deps: Deps): Promise<AdminStats> {
     deps.db.query<{ n: number }>('SELECT count(*)::float8 AS n FROM accounts'),
     deps.db.query<{ plan: Plan; n: number }>('SELECT plan, count(*)::float8 AS n FROM accounts GROUP BY plan'),
     deps.db.query<{ bytes: number; n: number }>(
-      `SELECT COALESCE(SUM(cipher_bytes), 0)::float8 AS bytes, count(*)::float8 AS n FROM objects WHERE state IN ('stored', 'trashed')`
+      `SELECT COALESCE(SUM(cipher_bytes), 0)::float8 AS bytes, count(*)::float8 AS n FROM objects WHERE state IN ('stored', 'version', 'trashed')`
     ),
     deps.db.query<{ n: number }>(`SELECT count(*)::float8 AS n FROM objects WHERE state = 'uploading'`),
     deps.db.query<{
@@ -31,7 +31,7 @@ export async function adminStats(deps: Deps): Promise<AdminStats> {
       `SELECT a.id,
               COALESCE(a.email, a.label, (SELECT w.address FROM auth_wallets w WHERE w.account_id = a.id LIMIT 1), '—') AS email,
               a.plan, a.status, a.created_at,
-              COALESCE(SUM(o.cipher_bytes) FILTER (WHERE o.state IN ('stored', 'trashed')), 0)::float8 AS stored,
+              COALESCE(SUM(o.cipher_bytes) FILTER (WHERE o.state IN ('stored', 'version', 'trashed')), 0)::float8 AS stored,
               (count(o.id) FILTER (WHERE o.state = 'stored'))::float8 AS objects
          FROM accounts a LEFT JOIN objects o ON o.owner_account_id = a.id
         GROUP BY a.id ORDER BY a.created_at DESC LIMIT 100`

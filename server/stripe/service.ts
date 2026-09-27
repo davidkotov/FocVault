@@ -355,7 +355,7 @@ export async function snapshotPaygUsage(db: Db, day = new Date()): Promise<numbe
   const rows = await db.query(
     `INSERT INTO usage_daily (account_id, day, bytes)
      SELECT a.id, $1::date, COALESCE(SUM(o.cipher_bytes), 0)
-       FROM accounts a LEFT JOIN objects o ON o.owner_account_id = a.id AND o.state IN ('uploading', 'stored', 'trashed')
+       FROM accounts a LEFT JOIN objects o ON o.owner_account_id = a.id AND o.state IN ('uploading', 'stored', 'version', 'trashed')
       WHERE a.plan = 'free' AND a.payg_enabled
       GROUP BY a.id
      ON CONFLICT (account_id, day) DO UPDATE SET bytes = GREATEST(usage_daily.bytes, EXCLUDED.bytes)

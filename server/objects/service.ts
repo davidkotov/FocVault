@@ -41,7 +41,7 @@ export const refreshUrlsSchema = z.object({ pieces: z.array(z.number().int().min
 
 interface ObjectRow {
   id: string
-  state: 'uploading' | 'stored' | 'trashed' | 'failed' | 'deleted'
+  state: 'uploading' | 'stored' | 'version' | 'trashed' | 'failed' | 'deleted'
   cipher_bytes: number
 }
 
@@ -233,7 +233,7 @@ async function purgeObject(deps: Deps, accountId: string, objectId: string, obj:
       [objectId]
     )
     if (!upd.length) return
-    if (obj.state === 'stored' || obj.state === 'trashed') {
+    if (obj.state === 'stored' || obj.state === 'version' || obj.state === 'trashed') {
       await tx.query(
         `INSERT INTO usage_ledger (account_id, delta_bytes, reason, object_id) VALUES ($1, $2, 'delete', $3)`,
         [accountId, -obj.cipher_bytes, objectId]
@@ -291,11 +291,58 @@ export async function listTrash(deps: Deps, session: SessionInfo): Promise<Trash
 export async function purgeExpiredTrash(deps: Deps, limit = 200): Promise<number> {
   const rows = await deps.db.query<{ id: string; owner_account_id: string; cipher_bytes: number }>(
     `SELECT id, owner_account_id, cipher_bytes::float8 AS cipher_bytes FROM objects
-      WHERE state = 'trashed' AND purge_after <= now() ORDER BY purge_after LIMIT $1`,
+      WHERE state IN ('trashed', 'version') AND purge_after <= now() ORDER BY purge_after LIMIT $1`,
     [limit]
   )
   for (const r of rows) {
     await purgeObject(deps, r.owner_account_id, r.id, { id: r.id, state: 'trashed', cipher_bytes: Number(r.cipher_bytes) }, 'system')
   }
   return rows.length
+}
+
+async function assertPaid(deps: Deps, session: SessionInfo, what: string): Promise<void> {
+  const acc = await deps.db.query<{ plan: string }>('SELECT plan FROM accounts WHERE id = $1', [session.accountId])
+  if (!PAID_PLANS.has(acc[0]?.plan ?? 'free')) throw new ApiError('PLAN_REQUIRED', `${what} gibt es mit Pro und Family.`)
+}
+
+/** Neue Fassung hochgeladen: die bisherige wird zur Version (Pro/Family), Aufbewahrung laut Preisbuch. */
+export async function keepAsVersion(deps: Deps, session: SessionInfo, objectId: string): Promise<{ purgeAfter: string }> {
+  await assertPaid(deps, session, 'Dateiversionen')
+  const obj = await loadOwned(deps, session, objectId)
+  if (obj.state !== 'stored') throw new ApiError('NOT_FOUND', 'Datei ist nicht (mehr) verfügbar.')
+  const days = (await getPricing(deps.db)).versions.days
+  const rows = await deps.db.query<{ purge_after: string }>(
+    `UPDATE objects SET state = 'version', purge_after = now() + make_interval(days => $2)
+      WHERE id = $1 AND state = 'stored' RETURNING purge_after`,
+    [objectId, days]
+  )
+  if (!rows[0]) throw new ApiError('NOT_FOUND', 'Datei ist nicht (mehr) verfügbar.')
+  await audit(deps.db, session.accountId, 'user', 'object.versioned', { bytes: obj.cipher_bytes })
+  return { purgeAfter: new Date(rows[0].purge_after).toISOString() }
+}
+
+/** Ältere Fassung wiederherstellen: sie wird aktuell, die bisherige aktuelle wird Version. */
+export async function promoteVersion(deps: Deps, session: SessionInfo, versionId: string, currentId: string): Promise<void> {
+  await assertPaid(deps, session, 'Dateiversionen')
+  const v = await loadOwned(deps, session, versionId)
+  const cur = await loadOwned(deps, session, currentId)
+  if (v.state !== 'version' || cur.state !== 'stored') throw new ApiError('NOT_FOUND', 'Version nicht (mehr) verfügbar.')
+  const days = (await getPricing(deps.db)).versions.days
+  await deps.db.tx(async tx => {
+    await tx.query(`UPDATE objects SET state = 'stored', purge_after = NULL WHERE id = $1 AND state = 'version'`, [versionId])
+    await tx.query(`UPDATE objects SET state = 'version', purge_after = now() + make_interval(days => $2) WHERE id = $1 AND state = 'stored'`, [
+      currentId,
+      days
+    ])
+  })
+  await audit(deps.db, session.accountId, 'user', 'object.version_restored', { bytes: v.cipher_bytes })
+}
+
+/** Aufbewahrte Versionen des Kontos laut Server (Abgleich mit dem verschlüsselten Index). */
+export async function listVersions(deps: Deps, session: SessionInfo): Promise<Array<{ objectId: string; purgeAfter: string }>> {
+  const rows = await deps.db.query<{ id: string; purge_after: string }>(
+    `SELECT id, purge_after FROM objects WHERE owner_account_id = $1 AND state = 'version'`,
+    [session.accountId]
+  )
+  return rows.map(r => ({ objectId: r.id, purgeAfter: new Date(r.purge_after).toISOString() }))
 }

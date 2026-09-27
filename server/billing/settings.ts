@@ -36,6 +36,7 @@ export const pricingSchema = z.object({
     inactiveDeleteDays: z.number().int().min(60).max(3650)
   }),
   trashDays: z.number().int().min(1).max(365),
+  versions: z.object({ days: z.number().int().min(1).max(365), max: z.number().int().min(1).max(100) }),
   storage: z.object({
     backend: z.enum(['filone', 'foc', 'both']),
     focUsdPerTibMonthPerCopy: amount,

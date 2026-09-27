@@ -19,6 +19,7 @@ import SendView from '@/components/account/SendView'
 import TrashView from '@/components/account/TrashView'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import PreviewModal from '@/components/account/PreviewModal'
+import VersionsDialog from '@/components/account/VersionsDialog'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
 import { ApiClientError, api } from '@/features/api/client'
@@ -27,7 +28,7 @@ import { useErrorText } from '@/features/i18n/errors'
 import { buildPassphraseChange, deriveFromPassphrase, unwrapMasterKeyRaw } from '@/features/keys/kdf'
 import { downloadFile } from '@/features/objects/transfer'
 import { appMessages } from '@/lib/i18n/messages/app'
-import { formatBytes, type SecretEntry, type TierName, type TrashEntry, type VaultEntry } from '@/lib/vault'
+import { formatBytes, type FileVersion, type SecretEntry, type TierName, type TrashEntry, type VaultEntry } from '@/lib/vault'
 
 const TIER: Record<string, TierName> = { free: 'FREE', pro: 'PRO', family: 'FAMILY', business: 'BUSINESS' }
 const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Business' }
@@ -161,6 +162,9 @@ export default function AppPage() {
   const [undo, setUndo] = useState<TrashEntry | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<VaultEntry | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
+  const [versionsId, setVersionsId] = useState<string | null>(null)
+  const [versionRules, setVersionRules] = useState({ days: 30, max: 10 })
+  const [versionPurge, setVersionPurge] = useState<Record<string, string>>({})
   const [trashDays, setTrashDays] = useState(30)
   const [purgeAt, setPurgeAt] = useState<Record<string, string>>({})
   const [sharing, setSharing] = useState<VaultEntry | null>(null)
@@ -186,7 +190,13 @@ export default function AppPage() {
     setDevPro(process.env.NODE_ENV !== 'production' && q.get('pro') === '1')
     const v = q.get('view')
     if (v === 'plans' || v === 'account' || v === 'send' || v === 'trash') setView(v)
-    api.offer().then(o => setTrashDays(o.trashDays)).catch(() => undefined)
+    api
+      .offer()
+      .then(o => {
+        setTrashDays(o.trashDays)
+        setVersionRules(o.versions)
+      })
+      .catch(() => undefined)
   }, [])
 
   // Papierkorb mit dem Server abgleichen: Löschfristen holen, abgelaufene (endgültig gelöschte) Einträge entfernen.
@@ -213,12 +223,112 @@ export default function AppPage() {
     }
   }, [status, view, trashLen, mutate])
 
+  const paidAccount = !!account && account.plan !== 'free'
+
+  /**
+   * Neue Datei gespeichert. Pro/Family: gleicher Name im selben Ordner → neue Version,
+   * die bisherige Fassung bleibt als Version erhalten. Free: beide Dateien bleiben nebeneinander.
+   */
   const onStored = useCallback(
-    (entry: VaultEntry) => {
+    async (entry: VaultEntry) => {
+      const prev = paidAccount
+        ? vault.files.find(f => f.objectId && f.folder === entry.folder && f.name.toLowerCase() === entry.name.toLowerCase())
+        : undefined
+      if (prev?.objectId) {
+        try {
+          await api.keepVersion(prev.objectId)
+          const asVersion: FileVersion = {
+            objectId: prev.objectId,
+            size: prev.size,
+            type: prev.type,
+            wrappedKey: prev.wrappedKey,
+            wrapIv: prev.wrapIv,
+            chunks: prev.chunks,
+            pieceSize: prev.pieceSize,
+            storedAt: prev.storedAt
+          }
+          const all = [asVersion, ...(prev.versions ?? [])]
+          const keep = all.slice(0, versionRules.max)
+          for (const extra of all.slice(versionRules.max)) void api.deleteObject(extra.objectId).catch(() => undefined)
+          mutate(c => ({ ...c, files: [{ ...entry, versions: keep }, ...c.files.filter(f => f.id !== entry.id && f.id !== prev.id)] }))
+          setNotice(fmt(t.versions.saved, { name: entry.name, days: versionRules.days }))
+          void refreshAccount()
+          return
+        } catch {
+          // Version konnte nicht angelegt werden → wie Free: als eigene Datei behalten
+        }
+      }
       mutate(c => ({ ...c, files: [entry, ...c.files.filter(f => f.id !== entry.id)] }))
       void refreshAccount()
     },
-    [mutate, refreshAccount]
+    [paidAccount, vault.files, versionRules, mutate, refreshAccount, t]
+  )
+
+  // Abgelaufene Versionen (vom Server endgültig gelöscht) aus dem Index entfernen
+  const versionCount = vault.files.reduce((n, f) => n + (f.versions?.length ?? 0), 0)
+  useEffect(() => {
+    if (status !== 'ready' || !versionCount) return
+    let cancelled = false
+    api
+      .listVersions()
+      .then(({ items }) => {
+        if (cancelled) return
+        const map = Object.fromEntries(items.map(i => [i.objectId, i.purgeAfter]))
+        setVersionPurge(map)
+        mutate(c => {
+          let changed = false
+          const files = c.files.map(f => {
+            if (!f.versions?.length) return f
+            const v = f.versions.filter(x => map[x.objectId])
+            if (v.length === f.versions.length) return f
+            changed = true
+            return { ...f, versions: v }
+          })
+          return changed ? { ...c, files } : c
+        })
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [status, versionCount, mutate])
+
+  const restoreVersion = useCallback(
+    async (entry: VaultEntry, v: FileVersion) => {
+      if (!entry.objectId) return
+      setBusyId(entry.id)
+      setError(null)
+      try {
+        await api.promoteVersion(v.objectId, entry.objectId)
+        const current: FileVersion = {
+          objectId: entry.objectId,
+          size: entry.size,
+          type: entry.type,
+          wrappedKey: entry.wrappedKey,
+          wrapIv: entry.wrapIv,
+          chunks: entry.chunks,
+          pieceSize: entry.pieceSize,
+          storedAt: entry.storedAt
+        }
+        const next: VaultEntry = {
+          ...entry,
+          ...v,
+          id: entry.id,
+          name: entry.name,
+          folder: entry.folder,
+          // Zeitstempel = Änderung (gewinnt beim Abgleich zwischen Geräten)
+          storedAt: Date.now(),
+          versions: [current, ...(entry.versions ?? []).filter(x => x.objectId !== v.objectId)]
+        }
+        mutate(c => ({ ...c, files: c.files.map(f => (f.id === entry.id ? next : f)) }))
+        setNotice(fmt(t.versions.restored, { date: new Date(v.storedAt).toLocaleString() }))
+      } catch (e) {
+        setError(errText(e))
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [mutate, errText, t]
   )
 
   const onDownload = useCallback(
@@ -259,9 +369,10 @@ export default function AppPage() {
       setBusyId(entry.id)
       setError(null)
       try {
-        if (entry.objectId) {
+        for (const id of [entry.objectId, ...(entry.versions ?? []).map(v => v.objectId)]) {
+          if (!id) continue
           try {
-            await api.deleteObject(entry.objectId)
+            await api.deleteObject(id)
           } catch (e) {
             if (!(e instanceof ApiClientError && e.code === 'NOT_FOUND')) throw e
           }
@@ -394,7 +505,7 @@ export default function AppPage() {
 
           {view === 'cloud' && (
             <>
-              <AccountUpload masterKey={masterKey} freeBytes={freeBytes} onStored={onStored} onError={msg => setError(msg)} />
+              <AccountUpload masterKey={masterKey} freeBytes={freeBytes} onStored={e => void onStored(e)} onError={msg => setError(msg)} />
               {dl && (
                 <div className="dlbar">
                   <span className="dlbar-name" title={dl.name}>
@@ -418,6 +529,7 @@ export default function AppPage() {
                 onDelete={id => void onDelete(id)}
                 onShare={e => setSharing(e)}
                 onPreview={e => setPreviewId(e.id)}
+                onVersions={e => setVersionsId(e.id)}
                 onFilecoin={onFilecoin}
                 headerAction={
                   paidPlan || (vault.trash?.length ?? 0) > 0 ? (
@@ -451,6 +563,23 @@ export default function AppPage() {
                   onDownload={e => void onDownload(e)}
                   onPrev={i > 0 ? () => setPreviewId(files[i - 1].id) : undefined}
                   onNext={i < files.length - 1 ? () => setPreviewId(files[i + 1].id) : undefined}
+                />
+              )
+            })()}
+          {versionsId &&
+            (() => {
+              const entry = vault.files.find(f => f.id === versionsId)
+              if (!entry) return null
+              return (
+                <VersionsDialog
+                  entry={entry}
+                  purgeAt={versionPurge}
+                  days={versionRules.days}
+                  max={versionRules.max}
+                  busy={busyId === entry.id}
+                  onClose={() => setVersionsId(null)}
+                  onRestore={v => void restoreVersion(entry, v)}
+                  onDownload={v => void onDownload({ ...entry, ...v, id: `${entry.id}:${v.objectId}`, versions: undefined })}
                 />
               )
             })()}

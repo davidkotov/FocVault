@@ -174,4 +174,16 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await expect(page.getByText(`„${fileName}" ist wiederhergestellt.`)).toBeVisible()
   await page.getByRole('button', { name: 'Meine Cloud', exact: true }).click()
   await downloadAndCompare(page, fileName, content)
+
+  // 10) Versionen (Pro): gleiche Datei neu hochladen → alte Fassung bleibt, lässt sich zurückholen
+  const content2 = randomBytes(120_000)
+  await page.getByTestId('upload-input').setInputFiles({ name: fileName, mimeType: 'application/octet-stream', buffer: content2 })
+  await expect(page.getByText(/Neue Version von „geheim-bericht.bin“ gespeichert/)).toBeVisible()
+  await expect(page.locator('.filecard').filter({ hasText: fileName })).toHaveCount(1)
+  await downloadAndCompare(page, fileName, content2)
+  await page.locator('.filecard').filter({ hasText: fileName }).getByRole('button', { name: '1 Version' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Wiederherstellen' }).click()
+  await expect(page.getByText(/ist wieder aktuell/)).toBeVisible()
+  await page.getByRole('dialog').getByRole('button', { name: 'Schließen' }).click()
+  await downloadAndCompare(page, fileName, content)
 })

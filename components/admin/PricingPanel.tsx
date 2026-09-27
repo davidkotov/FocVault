@@ -220,6 +220,13 @@ export default function PricingPanel({ onSaved }: { onSaved: () => void }) {
             <Num label="Warnung nach" unit="Tagen inaktiv" step={30} value={p.freeTier.inactiveWarnDays} onChange={v => set(d => void (d.freeTier.inactiveWarnDays = v))} />
             <Num label="Löschung nach" unit="Tagen inaktiv" step={30} value={p.freeTier.inactiveDeleteDays} onChange={v => set(d => void (d.freeTier.inactiveDeleteDays = v))} />
           </div>
+          <h3 style={{ marginTop: 18 }}>Aufbewahrung (Pro/Family)</h3>
+          <div className="formgrid">
+            <Num label="Papierkorb" unit="Tage" step={1} value={p.trashDays} onChange={v => set(d => void (d.trashDays = v))} />
+            <Num label="Versionen" unit="Tage" step={1} value={p.versions.days} onChange={v => set(d => void (d.versions.days = v))} />
+            <Num label="Versionen je Datei" unit="max." step={1} value={p.versions.max} onChange={v => set(d => void (d.versions.max = v))} />
+          </div>
+          <span className="hint">Papierkorb und Versionen zählen zum Speicher des Kunden – sie kosten uns Speicher, der Kunde bezahlt ihn.</span>
           <span className="hint">Branchenüblich (Dropbox, MEGA): inaktive Gratis-Konten nach 12–18 Monaten mit Vorankündigung löschen.</span>
         </div>
       </div>

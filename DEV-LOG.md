@@ -41,6 +41,19 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Dateiversionen (Pro/Family)
+
+Gleicher Name im selben Ordner erneut hochgeladen → neue Fassung wird aktuell, die bisherige bleibt als
+Version erhalten (Migration v9, Objektzustand `version`, Aufbewahrung im Preisbuch: 30 Tage, höchstens
+10 je Datei). Versionen zählen zur Quota und werden auf Filecoin mitgesichert. Im Dashboard zeigt die
+Datei „n Versionen“; der Dialog listet alle Fassungen mit Herunterladen und Wiederherstellen (tauscht
+aktuelle und ältere Fassung). Abgelaufene Versionen löscht die Wartung, der Index gleicht sich ab.
+Endgültiges Löschen einer Datei entfernt auch ihre Versionen. Free: beide Dateien bleiben nebeneinander.
+Preisbuch: neuer Bereich „Aufbewahrung“ (Papierkorb, Versionen).
+
+**Tests:** Vitest 85/85 (Versionen: Quota, Wiederherstellen, Ablauf), Playwright 5/5 (Pro: neu hochladen →
+1 Version → Wiederherstellen → Download byte-identisch mit der alten Fassung).
+
 ### Stripe: Abos, Zusatzspeicher, Pay-as-you-go (bereit, sobald die Schlüssel eingetragen sind)
 
 **Architektur (`server/stripe/*`, Migration v8):** eine schmale `StripeGateway`-Schnittstelle (einzige

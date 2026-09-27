@@ -158,6 +158,9 @@ export const api = {
   trashObject: (id: string) => call<{ objectId: string; trashedAt: string; purgeAfter: string }>('POST', `/objects/${encodeURIComponent(id)}/trash`),
   restoreObject: (id: string) => call<{ ok: true }>('POST', `/objects/${encodeURIComponent(id)}/restore`),
   listTrash: () => call<{ items: Array<{ objectId: string; trashedAt: string; purgeAfter: string }> }>('GET', '/objects/trash'),
+  keepVersion: (id: string) => call<{ purgeAfter: string }>('POST', `/objects/${encodeURIComponent(id)}/version`),
+  promoteVersion: (id: string, currentId: string) => call<{ ok: true }>('POST', `/objects/${encodeURIComponent(id)}/promote`, { currentId }),
+  listVersions: () => call<{ items: Array<{ objectId: string; purgeAfter: string }> }>('GET', '/objects/versions'),
   filecoinStatus: () => call<FilecoinFileStatus>('GET', '/objects/filecoin'),
   createShare: (input: { objectId: string; meta: string; expiresInHours: number | null; maxDownloads: number | null }) =>
     call<ShareSummary>('POST', '/shares', input),
@@ -219,6 +222,7 @@ export interface PublicOffer {
   plans: PricingConfig['plans']
   addons: PricingConfig['addons']
   trashDays: number
+  versions: PricingConfig['versions']
   purchasesEnabled: boolean
 }
 

@@ -136,3 +136,36 @@ describe('Papierkorb (Pro/Family)', () => {
     await expect(restoreObject(deps, session, created.objectId)).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 })
+
+describe('Dateiversionen (Pro/Family)', () => {
+  beforeEach(() => resetRateLimits())
+
+  it('alte Fassung bleibt als Version, lässt sich zurückholen und läuft ab', async () => {
+    const { keepAsVersion, promoteVersion, listVersions, purgeExpiredTrash } = await import('./service')
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'versions@example.com')
+    const store = async (n: number) => {
+      const c = await createObject(deps, session, { fmt: 'frame2', pieces: [{ index: 0, cipherBytes: n }] })
+      await deps.storage.writeStream(objectPieceKey(session.accountId, c.objectId, 0), bytes(n), n)
+      await completeObject(deps, session, c.objectId)
+      return c.objectId
+    }
+    const v1 = await store(100)
+    const v2 = await store(200)
+    await expect(keepAsVersion(deps, session, v1)).rejects.toMatchObject({ code: 'PLAN_REQUIRED' })
+    await deps.db.query(`UPDATE accounts SET plan = 'family' WHERE id = $1`, [session.accountId])
+
+    await keepAsVersion(deps, session, v1)
+    expect(await usedBytes(deps.db, session.accountId)).toBe(300) // Versionen zählen zur Quota
+    expect((await listVersions(deps, session)).map(v => v.objectId)).toEqual([v1])
+    await expect(downloadObject(deps, session, v1)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+
+    await promoteVersion(deps, session, v1, v2)
+    expect((await downloadObject(deps, session, v1)).pieces).toHaveLength(1)
+    expect((await listVersions(deps, session)).map(v => v.objectId)).toEqual([v2])
+
+    await deps.db.query(`UPDATE objects SET purge_after = now() - interval '1 second' WHERE id = $1`, [v2])
+    expect(await purgeExpiredTrash(deps)).toBe(1)
+    expect(await usedBytes(deps.db, session.accountId)).toBe(100)
+  })
+})

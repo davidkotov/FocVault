@@ -297,6 +297,17 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
         PRIMARY KEY (account_id, period)
       );
     `
+  },
+  {
+    version: 9,
+    name: 'file_versions',
+    sql: `
+      -- Dateiversionen (Pro/Family): ältere Fassungen bleiben als 'version' bis purge_after erhalten.
+      ALTER TABLE objects DROP CONSTRAINT objects_state_check;
+      ALTER TABLE objects ADD CONSTRAINT objects_state_check CHECK (state IN ('uploading','stored','version','trashed','failed','deleted'));
+      DROP INDEX objects_purge;
+      CREATE INDEX objects_purge ON objects (purge_after) WHERE state IN ('trashed', 'version');
+    `
   }
 ]
 
