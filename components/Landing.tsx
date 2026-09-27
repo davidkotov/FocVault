@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import LocaleSwitch from '@/components/LocaleSwitch'
+import { SiteFooter, SiteHeader } from '@/components/site/SiteChrome'
 import { api } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { landingMessages } from '@/lib/i18n/messages/landing'
@@ -34,48 +35,7 @@ export default function Landing() {
 
   return (
     <div className="landing">
-      <div className="utilbar">
-        <div className="wrap">
-          <div className="utillinks">
-            <a href="https://docs.fil.one" target="_blank" rel="noreferrer">
-              {t.util.docs}
-            </a>
-            <a href="#sicherheit">{t.util.security}</a>
-            <a href="#faq">{t.util.support}</a>
-          </div>
-          <div className="utilright">
-            <LocaleSwitch showCurrency />
-          </div>
-        </div>
-      </div>
-
-      <nav className="mainnav">
-        <div className="wrap">
-          <div className="brand">
-            <svg className="mark" viewBox="0 0 40 40">
-              <circle cx="20" cy="20" r="20" fill="#0090ff" />
-              <path d="M20 8a12 12 0 1 0 8.49 3.51" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" />
-              <rect x="15" y="17" width="10" height="9" rx="2" fill="#fff" />
-              <path d="M17 17v-2a3 3 0 0 1 6 0v2" stroke="#fff" strokeWidth="2.4" fill="none" />
-            </svg>
-            Foc<span style={{ color: '#0090ff' }}>Vault</span>
-          </div>
-          <div className="navlinks">
-            <a href="#produkt">{t.nav.product}</a>
-            <a href="#sicherheit">{t.nav.security}</a>
-            <a href="#preise">{t.nav.pricing}</a>
-            <a href="#faq">{t.nav.faq}</a>
-          </div>
-          <div className="navcta">
-            <button onClick={goLogin}>
-              {t.login}
-            </button>
-            <button className="primary" onClick={goRegister}>
-              {t.register}
-            </button>
-          </div>
-        </div>
-      </nav>
+      <SiteHeader />
 
       <header className="hero">
         <div className="wrap">
@@ -367,45 +327,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="sitefooter">
-        <div className="wrap">
-          <div className="footgrid">
-            <div>
-              <div className="footbrand">
-                <svg className="mark" viewBox="0 0 40 40">
-                  <circle cx="20" cy="20" r="20" fill="#0090ff" />
-                </svg>
-                FocVault
-              </div>
-              <div className="foottag">{t.footer.tag}</div>
-            </div>
-            <div className="footcol">
-              <h5>{t.footer.product}</h5>
-              <a href="#produkt">{t.footer.cloud}</a>
-              <a href="#produkt">Secure Send</a>
-              <a href="#preise">{t.nav.pricing}</a>
-            </div>
-            <div className="footcol">
-              <h5>{t.footer.company}</h5>
-              <a href="#sicherheit">{t.nav.security}</a>
-              <a href="#faq">FAQ</a>
-            </div>
-            <div className="footcol">
-              <h5>{t.footer.legal}</h5>
-              <a href="#">{t.footer.privacy}</a>
-              <a href="#">{t.footer.terms}</a>
-              <a href="#">{t.footer.imprint}</a>
-            </div>
-          </div>
-          <div className="footbottom">
-            <span>{t.footer.copy}</span>
-            <a className="builton" href="https://www.filecoin.cloud" target="_blank" rel="noreferrer">
-              ⛓ {t.footer.builtOn}
-            </a>
-            <LocaleSwitch />
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

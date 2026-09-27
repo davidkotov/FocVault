@@ -41,6 +41,26 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Support, Dokumentation, Statusseite, Business-Zusatzspeicher (Migration v21)
+
+**/support** (nach Vorbild fil.one/support): Karten Dokumentation + Status (mit Live-Punkt), häufige Fragen
+(Akkordeon), Formular mit Vorname, Nachname, E-Mail, Firma, Beschreibung, Kategorien, Datenschutzhinweis,
+Antwortzeit. Honeypot + Rate-Limit; `?topic=storage&plan=…` füllt eine Speicher-Anfrage vor. Anfragen im
+Admin unter „Support“ (Status offen/beantwortet/erledigt, interne Notiz, Antwort per Mail-Link).
+**/docs**: 16 Artikel DE/EN (Erste Schritte, Sicherheit, Funktionen, Teams & Business, Entwickler,
+Abrechnung) mit Suche und Seitennavigation (`lib/docs/content.ts`).
+**/status** (nach Vorbild status.fil.one): Gesamtzustand, je Komponente (Web-App & API, Speicher Fil One,
+Filecoin, Speicher-API) 90-Tage-Balken aus echten Messungen (alle 5 Minuten in der Hintergrund-Wartung:
+DB-Abfrage, Schreib-/Lesetest im Speicher, letzter FOC-Lauf, S3-Endpunkt) plus Meldungen mit Verlauf.
+Störungen/Wartungen im Admin unter „Status“ melden und fortschreiben; RSS-Feed `/api/v1/status/rss`.
+**Zusatzspeicher Business:** 1, 3, 5, 50, 100, 1000 TB (`businessAddons` im Preisbuch); überall Kachel
+„Individuelle Menge → Anfrage senden“ (führt zum vorausgefüllten Support-Formular).
+**Kopf-/Fußzeile** als gemeinsame Komponente (`components/site/SiteChrome.tsx`), Links ohne Unterstreichung,
+neue Spalte „Ressourcen“ (Dokumentation, Support, Status); „Dokumentation“ zeigte vorher auf docs.fil.one.
+
+**Tests:** Vitest 121/121 (neu `server/status`), Playwright 13/13 (neu `e2e/site.spec.ts`; `emergency.spec`
+unter Parallel-Last gelegentlich zu langsam, einzeln grün).
+
 ### Business: Admin-Konsole, Richtlinien, Protokoll & PDF-Bericht, Firmen-Notfallzugriff, SSO (Migration v20)
 
 Neuer Seitenleisten-Abschnitt **Business** (Geteilte Tresore, Admin-Konsole; ohne Business Schloss).

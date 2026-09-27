@@ -102,7 +102,10 @@ const de = {
     cancel: 'Kündigen',
     cancelled: 'Zusatzspeicher gekündigt.',
     grant: 'Gutschrift',
-    yours: 'Deine Zusatzpakete'
+    yours: 'Deine Zusatzpakete',
+    custom: 'Individuelle Menge',
+    customLead: 'Mehr oder eine andere Grösse? Wir machen dir ein Angebot.',
+    customButton: 'Anfrage senden'
   },
   planChanged: 'Plan geändert: {plan}.',
   devNote: 'Entwicklungsmodus: Änderungen werden ohne Zahlung aktiviert.',
@@ -232,7 +235,10 @@ const en: typeof de = {
     cancel: 'Cancel',
     cancelled: 'Extra storage cancelled.',
     grant: 'Credit',
-    yours: 'Your add-ons'
+    yours: 'Your add-ons',
+    custom: 'Custom amount',
+    customLead: 'Need more or a different size? We will send you an offer.',
+    customButton: 'Send request'
   },
   planChanged: 'Plan changed: {plan}.',
   devNote: 'Development mode: changes are activated without payment.',

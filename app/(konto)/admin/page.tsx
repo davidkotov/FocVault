@@ -10,6 +10,8 @@ import PricingPanel from '@/components/admin/PricingPanel'
 import TreasuryPanel from '@/components/admin/TreasuryPanel'
 import FocPanel from '@/components/admin/FocPanel'
 import AccountsPanel from '@/components/admin/AccountsPanel'
+import SupportPanel from '@/components/admin/SupportPanel'
+import StatusPanel from '@/components/admin/StatusPanel'
 import { useAccount } from '@/features/account/AccountProvider'
 import { useI18n } from '@/features/i18n/I18nProvider'
 import { api, errorMessage, type EconomicsReport } from '@/features/api/client'
@@ -17,7 +19,7 @@ import type { AdminStats } from '@/lib/api-types'
 import { chf } from '@/lib/pricing'
 import { formatBytes } from '@/lib/vault'
 
-type Tab = 'overview' | 'economics' | 'scenario' | 'pricing' | 'foc' | 'treasury' | 'accounts'
+type Tab = 'overview' | 'economics' | 'scenario' | 'pricing' | 'foc' | 'treasury' | 'accounts' | 'support' | 'status'
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Übersicht' },
   { id: 'economics', label: 'Wirtschaftlichkeit' },
@@ -25,7 +27,9 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'pricing', label: 'Preisbuch' },
   { id: 'foc', label: 'Filecoin (FOC)' },
   { id: 'treasury', label: 'Finanzierung' },
-  { id: 'accounts', label: 'Konten' }
+  { id: 'accounts', label: 'Konten' },
+  { id: 'support', label: 'Support' },
+  { id: 'status', label: 'Status' }
 ]
 
 const EVENT_LABEL: Record<string, string> = {
@@ -204,6 +208,8 @@ export default function AdminPage() {
               {tab === 'foc' && <FocPanel />}
               {tab === 'treasury' && <TreasuryPanel />}
               {tab === 'accounts' && <AccountsPanel pricing={report.pricing} onChanged={() => void load()} />}
+              {tab === 'support' && <SupportPanel />}
+              {tab === 'status' && <StatusPanel />}
             </>
           )}
         </div>

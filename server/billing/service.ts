@@ -77,6 +77,7 @@ export interface PublicOffer {
   payg: PricingConfig['payg']
   plans: PricingConfig['plans']
   addons: PricingConfig['addons']
+  businessAddons: PricingConfig['businessAddons']
   trashDays: number
   versions: PricingConfig['versions']
   business: PricingConfig['business']
@@ -85,7 +86,7 @@ export interface PublicOffer {
 
 export async function offer(deps: Deps): Promise<PublicOffer> {
   const p = await getPricing(deps.db)
-  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, trashDays: p.trashDays, versions: p.versions, business: p.business, purchasesEnabled: purchasesEnabled() }
+  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, businessAddons: p.businessAddons, trashDays: p.trashDays, versions: p.versions, business: p.business, purchasesEnabled: purchasesEnabled() }
 }
 
 /** Währung wählen (nur solange kein Abo/Zusatzspeicher läuft – sonst Wechsel beim Planwechsel). */
@@ -169,7 +170,7 @@ export async function changePlan(
         [account.id]
       )
       for (const a of addons) {
-        const pack = pricing.addons.find(x => x.id === a.pack_id)
+        const pack = findAddon(pricing, a.pack_id)
         if (!pack) continue
         await tx.query('UPDATE account_addons SET currency = $2, billing_interval = $3, price = $4 WHERE id = $1', [
           a.id,
@@ -192,6 +193,16 @@ async function assertSeatsFit(deps: Deps, accountId: string, seats: number): Pro
   if (members > seats) throw new ApiError('BAD_REQUEST', `Dein Team hat ${members} Personen – bitte mindestens ${members} Nutzer wählen.`)
 }
 
+/** Zusatzspeicher-Paket finden (privat: Pro/Family, business: Business-Pakete). */
+export function findAddon(pricing: PricingConfig, id: string | null, audience?: 'private' | 'business') {
+  if (!id) return undefined
+  if (audience !== 'business') {
+    const p = pricing.addons.find(a => a.id === id)
+    if (p || audience === 'private') return p
+  }
+  return pricing.businessAddons.find(a => a.id === id)
+}
+
 export async function buyAddon(deps: Deps, session: SessionInfo, packId: string): Promise<BillingResult> {
   const account = await loadAccount(deps, session.accountId)
   if (account.plan !== 'pro' && account.plan !== 'family' && account.plan !== 'business') {
@@ -201,7 +212,7 @@ export async function buyAddon(deps: Deps, session: SessionInfo, packId: string)
     throw new ApiError('PLAN_REQUIRED', 'Zusatzspeicher für die Familie bucht der Family-Inhaber.')
   }
   const pricing = await getPricing(deps.db)
-  const pack = pricing.addons.find(a => a.id === packId)
+  const pack = findAddon(pricing, packId, account.plan === 'business' ? 'business' : 'private')
   if (!pack) throw new ApiError('NOT_FOUND', 'Paket nicht gefunden.')
   const gw = stripeGateway()
   if (gw) {

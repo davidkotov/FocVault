@@ -1,5 +1,5 @@
 const de = {
-  util: { docs: 'Dokumentation', security: 'Sicherheit', support: 'Support' },
+  util: { docs: 'Dokumentation', security: 'Sicherheit', support: 'Support', status: 'Status' },
   nav: { product: 'Produkt', security: 'Sicherheit', pricing: 'Preise', faq: 'FAQ' },
   login: 'Anmelden',
   register: 'Registrieren',
@@ -132,6 +132,7 @@ const de = {
     product: 'Produkt',
     company: 'Unternehmen',
     legal: 'Rechtliches',
+    resources: 'Ressourcen',
     cloud: 'Meine Cloud',
     privacy: 'Datenschutz',
     terms: 'AGB',
@@ -142,7 +143,7 @@ const de = {
 }
 
 const en: typeof de = {
-  util: { docs: 'Documentation', security: 'Security', support: 'Support' },
+  util: { docs: 'Documentation', security: 'Security', support: 'Support', status: 'Status' },
   nav: { product: 'Product', security: 'Security', pricing: 'Pricing', faq: 'FAQ' },
   login: 'Sign in',
   register: 'Sign up',
@@ -275,6 +276,7 @@ const en: typeof de = {
     product: 'Product',
     company: 'Company',
     legal: 'Legal',
+    resources: 'Resources',
     cloud: 'My cloud',
     privacy: 'Privacy',
     terms: 'Terms',

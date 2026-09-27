@@ -619,6 +619,53 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       );
       CREATE INDEX audit_events_at ON audit_events (at);
     `
+  },
+  {
+    version: 21,
+    name: 'support_status',
+    sql: `
+      CREATE TABLE support_tickets (
+        id uuid PRIMARY KEY,
+        account_id uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        first_name text NOT NULL,
+        last_name text NOT NULL,
+        email text NOT NULL,
+        company text,
+        categories text[] NOT NULL,
+        topic text,
+        message text NOT NULL,
+        status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'answered', 'closed')),
+        note text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX support_tickets_status ON support_tickets (status, created_at DESC);
+      -- Statusseite: automatische Messungen je Komponente und manuelle Meldungen (Störung/Wartung)
+      CREATE TABLE status_checks (
+        component text NOT NULL,
+        at timestamptz NOT NULL DEFAULT now(),
+        ok boolean NOT NULL,
+        degraded boolean NOT NULL DEFAULT false,
+        latency_ms integer,
+        PRIMARY KEY (component, at)
+      );
+      CREATE TABLE status_incidents (
+        id uuid PRIMARY KEY,
+        title text NOT NULL,
+        kind text NOT NULL CHECK (kind IN ('incident', 'maintenance')),
+        impact text NOT NULL CHECK (impact IN ('degraded', 'outage', 'maintenance')),
+        components text[] NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        resolved_at timestamptz
+      );
+      CREATE TABLE status_updates (
+        id uuid PRIMARY KEY,
+        incident_id uuid NOT NULL REFERENCES status_incidents(id) ON DELETE CASCADE,
+        status text NOT NULL CHECK (status IN ('investigating', 'identified', 'monitoring', 'resolved', 'scheduled', 'in_progress', 'completed')),
+        message text NOT NULL,
+        at timestamptz NOT NULL DEFAULT now()
+      );
+    `
   }
 ]
 

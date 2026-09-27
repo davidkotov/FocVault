@@ -43,6 +43,8 @@ export interface PricingConfig {
   payg: { perGbMonth: Money; minInvoice: Money; defaultCapGb: number; maxCapGb: number }
   plans: { pro: PlanPrice; family: PlanPrice & { seats: number } }
   addons: AddonPack[]
+  /** Zusatzspeicher für Business (grössere Pakete) */
+  businessAddons: AddonPack[]
   freeTier: { monthlyBudgetChf: number; inactiveWarnDays: number; inactiveDeleteDays: number }
   /** Business: drei Stufen, Nutzerplätze (inklusive + zusätzlich pro Nutzer) */
   business: {
@@ -113,6 +115,14 @@ export const DEFAULT_PRICING: PricingConfig = {
     { id: 'plus-500', gb: 500, monthly: { CHF: 5.9, EUR: 5.9, USD: 6.49 }, yearly: { CHF: 59, EUR: 59, USD: 64.9 } },
     { id: 'plus-1000', gb: 1000, monthly: { CHF: 9.9, EUR: 9.9, USD: 10.9 }, yearly: { CHF: 99, EUR: 99, USD: 109 } },
     { id: 'plus-2000', gb: 2000, monthly: { CHF: 17.9, EUR: 17.9, USD: 19.9 }, yearly: { CHF: 179, EUR: 179, USD: 199 } }
+  ],
+  businessAddons: [
+    { id: 'biz-1tb', gb: 1000, monthly: { CHF: 12.9, EUR: 12.9, USD: 13.9 }, yearly: { CHF: 129, EUR: 129, USD: 139 } },
+    { id: 'biz-3tb', gb: 3000, monthly: { CHF: 35, EUR: 35, USD: 38 }, yearly: { CHF: 350, EUR: 350, USD: 380 } },
+    { id: 'biz-5tb', gb: 5000, monthly: { CHF: 55, EUR: 55, USD: 59 }, yearly: { CHF: 550, EUR: 550, USD: 590 } },
+    { id: 'biz-50tb', gb: 50000, monthly: { CHF: 490, EUR: 490, USD: 529 }, yearly: { CHF: 4900, EUR: 4900, USD: 5290 } },
+    { id: 'biz-100tb', gb: 100000, monthly: { CHF: 890, EUR: 890, USD: 959 }, yearly: { CHF: 8900, EUR: 8900, USD: 9590 } },
+    { id: 'biz-1000tb', gb: 1000000, monthly: { CHF: 7900, EUR: 7900, USD: 8490 }, yearly: { CHF: 79000, EUR: 79000, USD: 84900 } }
   ],
   freeTier: { monthlyBudgetChf: 1000, inactiveWarnDays: 365, inactiveDeleteDays: 540 },
   business: {

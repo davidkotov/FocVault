@@ -16,7 +16,7 @@ type PaidPlan = 'pro' | 'family'
 /** Pakete, Pay-as-you-go und Zusatzspeicher – verständlich erklärt, in der Kontowährung. */
 export default function PlansView({ initialSegment }: { initialSegment?: 'private' | 'business' } = {}) {
   const { account, refreshAccount } = useAccount()
-  const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber, fmtDate } = useI18n()
+  const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber, fmtDate, path } = useI18n()
   const m = useMessages(billingMessages)
   const c = useMessages(commonMessages)
   const errText = useErrorText()
@@ -472,7 +472,7 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
             </div>
           )}
           <div className="storeoptions">
-            {offer.addons.map(a => {
+            {(account.plan === 'business' ? offer.businessAddons : offer.addons).map(a => {
               const label = a.gb >= 1000 ? `${tb(a.gb)} TB` : `${fmtNumber(a.gb)} GB`
               return (
                 <div className="storeoption" key={a.id}>
@@ -491,6 +491,13 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
                 </div>
               )
             })}
+            <div className="storeoption custom">
+              <span className="gb">{m.addons.custom}</span>
+              <span className="price">{m.addons.customLead}</span>
+              <a className="button small" href={path(`/support?topic=storage&plan=${account.plan}`)}>
+                {m.addons.customButton}
+              </a>
+            </div>
           </div>
         </div>
       )}

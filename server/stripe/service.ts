@@ -6,7 +6,7 @@ import type { SessionInfo } from '../auth/sessions'
 import type { Db } from '../db'
 import { audit, type Deps } from '../deps'
 import { getPricing } from '../billing/settings'
-import { planQuotaGb, type PlanChange } from '../billing/service'
+import { findAddon, planQuotaGb, type PlanChange } from '../billing/service'
 import { ApiError } from '../shared/errors'
 import { uuidv7 } from '../shared/ids'
 import { syncFamilyAfterPlanChange } from '../family/service'
@@ -196,7 +196,7 @@ export async function stripeBuyAddon(deps: Deps, gw: StripeGateway, session: Ses
     throw new ApiError('PLAN_REQUIRED', 'Zusatzspeicher gibt es für laufende Pro- und Family-Abos.')
   }
   const pricing = await getPricing(deps.db)
-  const pack = pricing.addons.find(a => a.id === packId)
+  const pack = findAddon(pricing, packId)
   if (!pack) throw new ApiError('NOT_FOUND', 'Paket nicht gefunden.')
   const products = await productIds(deps.db, gw)
   const price = priceOf(pack, acc.billing_interval, acc.currency)
