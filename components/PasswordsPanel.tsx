@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SecretEntry } from '@/lib/vault'
 import { parseCsv, toCsv, downloadText } from '@/lib/csv'
+import { fmt, useMessages } from '@/features/i18n/I18nProvider'
+import { secretsMessages } from '@/lib/i18n/messages/secrets'
 
 interface Props {
   entries: SecretEntry[]
@@ -55,6 +57,7 @@ async function copyText(text: string): Promise<void> {
 }
 
 export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }: Props) {
+  const { common: c, passwords: m } = useMessages(secretsMessages)
   const [form, setForm] = useState<FormState | null>(null)
   const [showPwForm, setShowPwForm] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
@@ -138,7 +141,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
     try {
       const text = await file.text()
       const rows = parseCsv(text)
-      if (rows.length < 2) throw new Error('keine Datenzeilen')
+      if (rows.length < 2) throw new Error(m.errNoRows)
       const headers = rows[0].map(h => h.trim().toLowerCase())
       const idx = (keys: string[]) => headers.findIndex(h => keys.includes(h))
       const nameI = idx(['name', 'title', 'bezeichnung', 'seite', 'site'])
@@ -146,7 +149,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
       const passI = idx(['password', 'passwort', 'pass', 'pwd'])
       const urlI = idx(['url', 'uri', 'webseite', 'website', 'link'])
       const folderI = idx(['folder', 'ordner', 'kategorie', 'category', 'group', 'gruppe', 'collection'])
-      if (nameI === -1 && passI === -1 && userI === -1) throw new Error('Spalten nicht erkannt')
+      if (nameI === -1 && passI === -1 && userI === -1) throw new Error(m.errNoColumns)
       const now = Date.now()
       const created: SecretEntry[] = []
       for (let r = 1; r < rows.length; r++) {
@@ -165,18 +168,18 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
           updatedAt: now
         })
       }
-      if (created.length === 0) throw new Error('keine verwertbaren Zeilen')
+      if (created.length === 0) throw new Error(m.errNoUsableRows)
       onSaveMany(created)
     } catch (err) {
-      alert(`CSV-Import fehlgeschlagen – ${(err as Error).message}.`)
+      alert(fmt(m.importFailed, { reason: (err as Error).message }))
     }
   }
 
   return (
     <div className="card">
       <h3>
-        Passwörter
-        <span>{entries.length} Einträge · AES-256 verschlüsselt im Vault</span>
+        {m.heading}
+        <span>{fmt(m.subtitle, { n: entries.length })}</span>
       </h3>
 
       {entries.length > 0 && (
@@ -185,10 +188,10 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
             className="searchinput"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Suchen: Titel, Benutzer, Webseite, Ordner…"
+            placeholder={m.searchPlaceholder}
           />
-          <button className="small" onClick={exportCsv}>CSV exportieren</button>
-          <button className="small" onClick={() => importRef.current?.click()}>CSV importieren</button>
+          <button className="small" onClick={exportCsv}>{m.exportCsv}</button>
+          <button className="small" onClick={() => importRef.current?.click()}>{m.importCsv}</button>
           <input
             ref={importRef}
             type="file"
@@ -209,7 +212,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
             className={folderFilter === 'all' ? 'chip active' : 'chip'}
             onClick={() => setFolderFilter('all')}
           >
-            Alle ({entries.length})
+            {fmt(m.all, { n: entries.length })}
           </button>
           {folders.map(f => (
             <button key={f} className={folderFilter === f ? 'chip active' : 'chip'} onClick={() => setFolderFilter(f)}>
@@ -226,19 +229,19 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
               <div className="secmain">
                 <div className="sectitle">{s.title}</div>
                 <div className="secmeta">
-                  {[s.username, s.url, s.folder].filter(Boolean).join(' · ') || 'Kein Zusatz'}
+                  {[s.username, s.url, s.folder].filter(Boolean).join(' · ') || m.noExtra}
                 </div>
               </div>
               <div className="secpw">
                 {revealed[s.id] ? s.password || '—' : '••••••••••••'}
-                <button className="iconbtn" title="Kopieren" onClick={() => void copyText(s.password ?? '')}>
+                <button className="iconbtn" title={c.copy} onClick={() => void copyText(s.password ?? '')}>
                   <svg className="icon" width="14" height="14" viewBox="0 0 24 24">
                     <rect x="9" y="9" width="12" height="12" rx="2" />
                     <path d="M5 15V5a2 2 0 0 1 2-2h10" />
                   </svg>
                 </button>
                 {s.password && (
-                  <button className="iconbtn" title={revealed[s.id] ? 'Ausblenden' : 'Anzeigen'} onClick={() => setRevealed(r => ({ ...r, [s.id]: !r[s.id] }))}>
+                  <button className="iconbtn" title={revealed[s.id] ? m.hide : m.show} onClick={() => setRevealed(r => ({ ...r, [s.id]: !r[s.id] }))}>
                     <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
                       <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
                       <circle cx="12" cy="12" r="3" />
@@ -247,13 +250,13 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
                 )}
               </div>
               <div className="secactions">
-                <button className="iconbtn" title="Bearbeiten" onClick={() => startEdit(s)}>
+                <button className="iconbtn" title={c.edit} onClick={() => startEdit(s)}>
                   <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
                     <path d="M12 20h9" />
                     <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                   </svg>
                 </button>
-                <button className="iconbtn danger" title="Löschen" onClick={() => onDelete(s.id)}>
+                <button className="iconbtn danger" title={c.delete} onClick={() => onDelete(s.id)}>
                   <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
                     <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                   </svg>
@@ -261,31 +264,28 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
               </div>
             </div>
           ))}
-          {filtered.length === 0 && <p className="dim">Keine Treffer.</p>}
+          {filtered.length === 0 && <p className="dim">{m.noMatches}</p>}
         </div>
       )}
 
       {entries.length === 0 && !form && (
-        <p className="dim">
-          Noch keine Passwörter gespeichert. Lege dein erstes an – es wird ausschließlich
-          verschlüsselt in deinem Vault gehalten.
-        </p>
+        <p className="dim">{m.empty}</p>
       )}
 
       {form ? (
         <form className="secform" onSubmit={submit}>
-          <h4>{form.id ? 'Passwort bearbeiten' : 'Neues Passwort'}</h4>
+          <h4>{form.id ? m.editTitle : m.newTitle}</h4>
           <div className="secfields">
             <label>
-              Titel <span className="req">*</span>
-              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="z. B. Google" autoFocus />
+              {c.title} <span className="req">*</span>
+              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={m.titlePlaceholder} autoFocus />
             </label>
             <label>
-              Benutzername
+              {m.username}
               <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} placeholder="name@example.com" />
             </label>
             <label>
-              Passwort
+              {m.password}
               <div className="pwrow">
                 <input
                   type={showPwForm ? 'text' : 'password'}
@@ -293,13 +293,13 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
                   onChange={e => setForm({ ...form, password: e.target.value })}
                   placeholder="••••••••"
                 />
-                <button type="button" className="iconbtn" title={showPwForm ? 'Ausblenden' : 'Einblenden'} onClick={() => setShowPwForm(v => !v)}>
+                <button type="button" className="iconbtn" title={showPwForm ? m.hide : m.reveal} onClick={() => setShowPwForm(v => !v)}>
                   <svg className="icon" width="16" height="16" viewBox="0 0 24 24">
                     <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
                 </button>
-                <button type="button" className="small" onClick={openGenerator}>Generieren</button>
+                <button type="button" className="small" onClick={openGenerator}>{c.generate}</button>
               </div>
             </label>
 
@@ -307,7 +307,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
               <div className="genpanel">
                 <div className="gensplit">
                   <label>
-                    Länge
+                    {m.length}
                     <input
                       type="number"
                       min={8}
@@ -317,7 +317,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
                     />
                   </label>
                   <div className="genchecks">
-                    <span className="gencheck-label">Zeichen:</span>
+                    <span className="gencheck-label">{m.chars}</span>
                     <label className="gencheck"><input type="checkbox" checked={genOpts.upper} onChange={e => changeGen({ upper: e.target.checked })} /> A–Z</label>
                     <label className="gencheck"><input type="checkbox" checked={genOpts.lower} onChange={e => changeGen({ lower: e.target.checked })} /> a–z</label>
                     <label className="gencheck"><input type="checkbox" checked={genOpts.digits} onChange={e => changeGen({ digits: e.target.checked })} /> 0–9</label>
@@ -325,19 +325,19 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
                   </div>
                 </div>
                 <div className="row" style={{ marginTop: 8 }}>
-                  <button type="button" className="small" onClick={() => doGenerate()}>🔄 Neu würfeln</button>
-                  <button type="button" className="small" onClick={() => void copyText(form.password ?? '')}>Kopieren</button>
+                  <button type="button" className="small" onClick={() => doGenerate()}>{m.reroll}</button>
+                  <button type="button" className="small" onClick={() => void copyText(form.password ?? '')}>{c.copy}</button>
                 </div>
               </div>
             )}
 
             <label>
-              Webseite
+              {m.website}
               <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://…" />
             </label>
             <label>
-              Ordner / Kategorie
-              <input value={form.folder} onChange={e => setForm({ ...form, folder: e.target.value })} placeholder="z. B. Arbeit, Finanzen, Shopping" list="pw-folders" />
+              {m.folder}
+              <input value={form.folder} onChange={e => setForm({ ...form, folder: e.target.value })} placeholder={m.folderPlaceholder} list="pw-folders" />
               <datalist id="pw-folders">
                 {folders.map(f => <option key={f} value={f} />)}
               </datalist>
@@ -345,14 +345,14 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete }
           </div>
           <div className="row" style={{ marginTop: 14 }}>
             <button className="primary" type="submit" disabled={form.title.trim() === ''}>
-              Speichern
+              {c.save}
             </button>
-            <button type="button" onClick={() => setForm(null)}>Abbrechen</button>
+            <button type="button" onClick={() => setForm(null)}>{c.cancel}</button>
           </div>
         </form>
       ) : (
         <div className="row" style={{ marginTop: 14 }}>
-          <button className="primary" onClick={startNew}>+ Neues Passwort</button>
+          <button className="primary" onClick={startNew}>{m.newButton}</button>
         </div>
       )}
     </div>

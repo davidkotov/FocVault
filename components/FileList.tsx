@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { appMessages } from '@/lib/i18n/messages/app'
 import { FOLDERS, formatBytes, type VaultEntry } from '@/lib/vault'
 
 interface Props {
@@ -11,7 +13,28 @@ interface Props {
   onDownload: (entry: VaultEntry) => void
   onDelete: (id: string) => void
   onShare: (entry: VaultEntry) => void
+  /** Mehrfachauswahl (IDs) */
+  selected?: Set<string>
+  onToggleSelect?: (id: string) => void
+  onSelectAll?: (ids: string[]) => void
+  /** Drag & Drop: gezogene Dateien (bei Auswahl alle markierten) */
+  dragIds?: (id: string) => string[]
+  /** Rechts in der Kopfzeile, z. B. der Papierkorb-Button */
+  headerAction?: ReactNode
+  /** Nachweis auf Filecoin anzeigen */
+  onProof?: (entry: VaultEntry) => void
+  /** Versionen einer Datei anzeigen */
+  onVersions?: (entry: VaultEntry) => void
+  /** Klick auf Vorschaubild/Name */
+  onPreview?: (entry: VaultEntry) => void
+  /** objectId → bestätigte Kopien auf Filecoin */
+  onFilecoin?: Record<string, { copies: number }>
+  /** Hinweis unter der Liste; Standard beschreibt den Wallet-Modus (Pieces bleiben on-chain). */
+  deleteNote?: string
 }
+
+/** Datentyp für gezogene Dateien (IDs als JSON) */
+export const DRAG_MIME = 'application/x-focvault-files'
 
 function iconFor(folder: string): string {
   const f = FOLDERS.find(x => x.id === folder)
@@ -31,8 +54,10 @@ function tileColor(folder: string): string {
   }
 }
 
-export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare }: Props) {
+export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote, selected, onToggleSelect, onSelectAll, dragIds }: Props) {
   const [active, setActive] = useState<string>('all')
+  const t = useMessages(appMessages)
+  const { fmtDate } = useI18n()
 
   const bySearch = searchQuery
     ? entries.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -45,10 +70,16 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
   return (
     <div className="card">
       <h3>
-        Meine Dateien
-        <span>
-          {entries.length} Dateien · {formatBytes(entries.reduce((s, e) => s + e.size, 0))}
-        </span>
+        {t.files.title}
+        <div className="h3right">
+          {onSelectAll && filtered.length > 0 && (
+            <button type="button" className="linkish selectall" onClick={() => onSelectAll(filtered.map(e => e.id))}>
+              {t.bulk.selectAll}
+            </button>
+          )}
+          <span>{fmt(t.files.count, { n: entries.length, size: formatBytes(entries.reduce((s, e) => s + e.size, 0)) })}</span>
+          {headerAction}
+        </div>
       </h3>
 
       {entries.length > 0 && (
@@ -58,7 +89,7 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
             if (f.id !== 'all' && n === 0) return null
             return (
               <button key={f.id} className={active === f.id ? 'chip active' : 'chip'} onClick={() => setActive(f.id)}>
-                {f.icon} {f.label} {n > 0 ? `(${n})` : ''}
+                {f.icon} {t.folders[f.id]} {n > 0 ? `(${n})` : ''}
               </button>
             )
           })}
@@ -66,31 +97,75 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
       )}
 
       {entries.length === 0 && (
-        <p className="dim">
-          Noch keine Dateien in deiner Cloud. Oben hochladen – Dateien landen automatisch im
-          passenden Ordner.
-        </p>
+        <p className="dim">{t.files.empty}</p>
       )}
 
-      {entries.length > 0 && filtered.length === 0 && <p className="dim">Keine Treffer.</p>}
+      {entries.length > 0 && filtered.length === 0 && <p className="dim">{t.files.noMatch}</p>}
 
       {filtered.length > 0 && (
         <div className="filegrid">
           {filtered.map(e => (
-            <div className="filecard" key={e.id}>
-              <div className="filetile" style={{ background: tileColor(e.folder) }}>
+            <div
+              className={`filecard ${selected?.has(e.id) ? 'selected' : ''}`}
+              key={e.id}
+              draggable={!!dragIds}
+              onDragStart={ev => {
+                if (!dragIds) return
+                const ids = dragIds(e.id)
+                ev.dataTransfer.setData(DRAG_MIME, JSON.stringify(ids))
+                ev.dataTransfer.setData('text/plain', ids.length > 1 ? fmt(t.bulk.selected, { n: ids.length }) : e.name)
+                ev.dataTransfer.effectAllowed = 'move'
+                document.body.classList.add('fv-dragging')
+              }}
+              onDragEnd={() => document.body.classList.remove('fv-dragging')}
+            >
+              {onToggleSelect && (
+                <label className="filecheck" title={t.bulk.select}>
+                  <input type="checkbox" checked={!!selected?.has(e.id)} onChange={() => onToggleSelect(e.id)} aria-label={`${t.bulk.select}: ${e.name}`} />
+                </label>
+              )}
+              <button
+                type="button"
+                className="filetile"
+                style={{ background: tileColor(e.folder) }}
+                aria-label={`${t.preview.open}: ${e.name}`}
+                disabled={!canDecrypt || !onPreview}
+                onClick={() => onPreview?.(e)}
+              >
                 {iconFor(e.folder)}
-              </div>
+              </button>
               <div className="filename" title={e.name}>
-                {e.name}
+                {onPreview ? (
+                  <button type="button" className="linkish" onClick={() => onPreview(e)}>
+                    {e.name}
+                  </button>
+                ) : (
+                  e.name
+                )}
               </div>
               <div className="filemeta">
-                {formatBytes(e.size)} · {new Date(e.storedAt).toLocaleDateString('de-DE')}
+                {formatBytes(e.size)} · {fmtDate(e.storedAt)}
+                {!!e.versions?.length && onVersions && (
+                  <button type="button" className="versionbadge" onClick={() => onVersions(e)}>
+                    {e.versions.length === 1 ? t.versions.badgeOne : fmt(t.versions.badge, { n: e.versions.length })}
+                  </button>
+                )}
+                {e.objectId && onFilecoin?.[e.objectId] && (
+                  <button
+                    type="button"
+                    className="focbadge"
+                    title={fmt(t.files.onFilecoinTitle, { copies: onFilecoin[e.objectId].copies })}
+                    onClick={() => onProof?.(e)}
+                  >
+                    {t.files.onFilecoin}
+                  </button>
+                )}
               </div>
               <div className="fileactions">
                 <button
                   className="iconbtn"
-                  title="Teilen"
+                  title={t.files.share}
+                  aria-label={t.files.share}
                   disabled={!canDecrypt || busyId === e.id}
                   onClick={() => onShare(e)}
                 >
@@ -103,7 +178,8 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                 </button>
                 <button
                   className="iconbtn"
-                  title="Herunterladen"
+                  title={t.files.download}
+                  aria-label={t.files.download}
                   disabled={!canDecrypt || busyId === e.id}
                   onClick={() => onDownload(e)}
                 >
@@ -114,7 +190,8 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                 </button>
                 <button
                   className="iconbtn danger"
-                  title="Entfernen"
+                  title={t.files.remove}
+                  aria-label={t.files.remove}
                   disabled={busyId === e.id}
                   onClick={() => onDelete(e.id)}
                 >
@@ -129,8 +206,8 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
       )}
 
       <p className="dim" style={{ marginTop: 14 }}>
-        „Entfernen" löscht nur den Vault-Eintrag – die verschlüsselten Pieces bleiben bis zum
-        Rail-Ablauf on-chain.
+        {deleteNote ??
+          '„Entfernen" löscht nur den Vault-Eintrag – die verschlüsselten Pieces bleiben bis zum Rail-Ablauf on-chain.'}
       </p>
     </div>
   )

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
+import { useMessages } from '@/features/i18n/I18nProvider'
+import { secretsMessages } from '@/lib/i18n/messages/secrets'
 
 interface Props {
   onDetected: (data: string) => void
@@ -11,7 +13,9 @@ interface Props {
 export default function QrScanModal({ onDetected, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const [cameraError, setCameraError] = useState<string | null>(null)
+  const { common: c, qr: m } = useMessages(secretsMessages)
+  // Fehler als Schlüssel speichern, damit ein Sprachwechsel den Text mitzieht
+  const [cameraError, setCameraError] = useState<'cameraUnavailable' | 'cameraUnsupported' | 'imageUnreadable' | null>(null)
   const [busy, setBusy] = useState(false)
 
   const decodeImageData = useCallback(
@@ -67,9 +71,9 @@ export default function QrScanModal({ onDetected, onClose }: Props) {
             raf = requestAnimationFrame(loop)
           }
         })
-        .catch(() => setCameraError('Kamera nicht verfügbar – nutze alternativ „Bild scannen".'))
+        .catch(() => setCameraError('cameraUnavailable'))
     } else {
-      setCameraError('Kamera wird von diesem Browser nicht unterstützt – nutze „Bild scannen".')
+      setCameraError('cameraUnsupported')
     }
 
     return () => {
@@ -91,7 +95,7 @@ export default function QrScanModal({ onDetected, onClose }: Props) {
       ctx.drawImage(bitmap, 0, 0)
       decodeImageData(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height)
     } catch {
-      setCameraError('Das Bild konnte nicht gelesen werden.')
+      setCameraError('imageUnreadable')
     } finally {
       setBusy(false)
     }
@@ -101,23 +105,21 @@ export default function QrScanModal({ onDetected, onClose }: Props) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="qrmodal" onClick={e => e.stopPropagation()}>
         <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
-          <h4>QR-Code scannen</h4>
-          <button className="iconbtn" title="Schließen" onClick={onClose}>
+          <h4>{m.title}</h4>
+          <button className="iconbtn" title={c.close} onClick={onClose}>
             <svg className="icon" width="16" height="16" viewBox="0 0 24 24">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
-        <p className="dim" style={{ margin: '8px 0 12px' }}>
-          Halte den otpauth://-QR-Code deines 2FA-Setups in die Kamera.
-        </p>
+        <p className="dim" style={{ margin: '8px 0 12px' }}>{m.lead}</p>
         <div className="qrvideo">
           <video ref={videoRef} playsInline muted />
-          {cameraError && <div className="qrerr">{cameraError}</div>}
+          {cameraError && <div className="qrerr">{m[cameraError]}</div>}
         </div>
         <div className="row" style={{ marginTop: 12, justifyContent: 'center' }}>
           <button className="small" disabled={busy} onClick={() => fileRef.current?.click()}>
-            {busy ? 'Lese Bild…' : 'Bild scannen'}
+            {busy ? m.readingImage : m.scanImage}
           </button>
         </div>
         <input

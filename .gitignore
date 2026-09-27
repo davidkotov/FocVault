@@ -30,3 +30,13 @@ next-env.d.ts
 # editor
 /.vscode/
 .idea/
+
+# Lokale Daten (PGlite-Datenbank, lokaler Storage, Dev-Secret)
+.data/
+
+# Playwright
+/test-results/
+/playwright-report/
+
+# gebautes Backup-Programm (npm run build:cli)
+/bin/

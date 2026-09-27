@@ -3,8 +3,13 @@ export interface ChunkMeta {
   iv: string
   padLen: number
   size: number
-  /** 'frame' = Streaming-Format (16-MiB-Frames, iv = baseIv); fehlt = Legacy-Einzel-Chunk. */
-  fmt?: 'frame'
+  /**
+   * 'frame'  = Streaming-Format (16-MiB-Frames, iv = baseIv); Wallet-Modus (Synapse)
+   * 'frame2' = wie 'frame', zusätzlich AAD-Bindung an Objekt + Piece-Index; Konto-Modus (Fil One)
+   * fehlt    = Legacy-Einzel-Chunk
+   * Im Konto-Modus ist `pieceCid` eine Referenz `<objectId>/<index>`, keine Filecoin-CID.
+   */
+  fmt?: 'frame' | 'frame2'
 }
 
 export type CloudFolder = 'documents' | 'photos' | 'videos' | 'backups'
@@ -40,7 +45,33 @@ export interface VaultEntry {
   chunks: ChunkMeta[]
   storedAt: number
   txHash?: string
+  /** Konto-Modus: Objekt-ID im Backend (Fil One Storage). Fehlt im Wallet-Modus. */
+  objectId?: string
+  /** Klartext-Bytes pro Piece; fehlt = CHUNK_SIZE (256 MiB, Wallet-Modus). */
+  pieceSize?: number
+  /** Ältere Fassungen (Pro/Family), neueste zuerst */
+  versions?: FileVersion[]
+  /** Familienordner: Generation des Ordner-Schlüssels, mit dem der Datei-Schlüssel verpackt ist */
+  spaceGen?: number
+  /** Familienordner: wer die Datei hinzugefügt hat */
+  addedBy?: string
+  /** S3-Gateway: ETag (MD5) wie vom Client erwartet */
+  etag?: string
+  /** Vom Backup-Programm gesichert: Quelle auf dem Gerät (für inkrementelle Backups) */
+  source?: { device: string; root: string; path: string; mtimeMs: number }
   v: 2
+}
+
+/** Ältere Fassung einer Datei: eigenes Objekt, eigener Datei-Schlüssel. */
+export interface FileVersion {
+  objectId: string
+  size: number
+  type: string
+  wrappedKey: string
+  wrapIv: string
+  chunks: ChunkMeta[]
+  pieceSize?: number
+  storedAt: number
 }
 
 /** Kleine strukturierte Datensätze (Passwörter, Notizen, 2FA/TOTP).
@@ -71,10 +102,18 @@ export interface SecretEntry {
   updatedAt: number
 }
 
+/** Datei im Papierkorb (Pro/Family): Metadaten bleiben verschlüsselt im Index, bis sie endgültig gelöscht wird. */
+export interface TrashEntry extends VaultEntry {
+  trashedAt: number
+}
+
 export interface VaultContainer {
   v: 3
   files: VaultEntry[]
   secrets: SecretEntry[]
+  trash?: TrashEntry[]
+  /** Schlüsselpaar für den Familienordner (privater Teil nur hier, im verschlüsselten Tresor) */
+  familyKey?: { publicJwk: JsonWebKey; privateJwk: JsonWebKey }
 }
 
 export const EMPTY_CONTAINER: VaultContainer = { v: 3, files: [], secrets: [] }
@@ -83,17 +122,17 @@ export const GiB = 1024 ** 3
 export const TiB = 1024 ** 4
 
 /**
- * Pricing- & Quota-Modell (abgestimmt mit Partner, 2026-09):
- *  - Free  5 GB  – danach Pay-as-you-go (Self-Pay, echte FOC-Kosten)
- *  - Pro   2 TB  @ 13.90 CHF/Monat – alle Module (später Stripe)
- *  - Family 2 TB @ 19.90 CHF/Monat – 2–6 Mitglieder, je eigene Vaults
+ * Pakete (Stand 27.09.2026, Konto-Modus rechnet live aus dem Preisbuch in `lib/pricing.ts`):
+ *  - Free   5 GB – danach Pay-as-you-go
+ *  - Pro    1 TB @ 13.90 CHF/Monat – alle Module, Zusatzspeicher buchbar
+ *  - Family 2 TB @ 19.90 CHF/Monat – bis 6 Mitglieder, Zusatzspeicher buchbar
  *  - Business/Custom – individuell
- * Free-Usage wird später über das Admin-/Backend-Konto bezahlt; Abos via Stripe.
+ * Einheiten dezimal (1 TB = 10^12 Byte), wie Fil One und die Konkurrenz.
  */
 export const TIERS = {
-  FREE: { label: 'Free', quotaLabel: '5 GB', maxBytes: 5 * GiB, priceChf: '0 CHF' },
-  PRO: { label: 'Pro', quotaLabel: '2 TB', maxBytes: 2 * TiB, priceChf: '13.90 CHF / Monat' },
-  FAMILY: { label: 'Family', quotaLabel: '2 TB geteilt', maxBytes: 2 * TiB, priceChf: '19.90 CHF / Monat' },
+  FREE: { label: 'Free', quotaLabel: '5 GB', maxBytes: 5e9, priceChf: '0 CHF' },
+  PRO: { label: 'Pro', quotaLabel: '1 TB', maxBytes: 1e12, priceChf: '13.90 CHF / Monat' },
+  FAMILY: { label: 'Family', quotaLabel: '2 TB geteilt', maxBytes: 2e12, priceChf: '19.90 CHF / Monat' },
   BUSINESS: { label: 'Business', quotaLabel: 'Individuell', maxBytes: Number.MAX_SAFE_INTEGER, priceChf: 'individuell' }
 } as const
 
@@ -150,7 +189,17 @@ export function parseVaultContainer(json: string): VaultContainer {
   if (parsed && typeof parsed === 'object' && Array.isArray(parsed.files)) {
     const files = parsed.files.map(normalize).filter((e: VaultEntry | null): e is VaultEntry => e !== null)
     const secrets = Array.isArray(parsed.secrets) ? parsed.secrets.filter(isSecret) : []
-    return { v: 3, files, secrets }
+    const trash = Array.isArray(parsed.trash)
+      ? parsed.trash
+          .map((t: any) => {
+            const e = normalize(t)
+            return e && typeof t.trashedAt === 'number' ? { ...e, trashedAt: t.trashedAt } : null
+          })
+          .filter((e: TrashEntry | null): e is TrashEntry => e !== null)
+      : []
+    const familyKey =
+      parsed.familyKey && typeof parsed.familyKey === 'object' && parsed.familyKey.privateJwk && parsed.familyKey.publicJwk ? parsed.familyKey : undefined
+    return { v: 3, files, secrets, ...(trash.length ? { trash } : {}), ...(familyKey ? { familyKey } : {}) }
   }
   return { v: 3, files: [], secrets: [] }
 }
@@ -181,10 +230,11 @@ export function tierFor(proActive: boolean, plan: 'FAMILY' | 'BUSINESS' | null =
   return proActive ? 'PRO' : 'FREE'
 }
 
+/** Dezimal wie Fil One und die Konkurrenz: 1 GB = 1 000 000 000 Byte. */
 export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
-  if (n < 1024 ** 4) return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
-  return `${(n / 1024 ** 4).toFixed(2)} TB`
+  if (n < 1e3) return `${n} B`
+  if (n < 1e6) return `${(n / 1e3).toFixed(1)} KB`
+  if (n < 1e9) return `${(n / 1e6).toFixed(1)} MB`
+  if (n < 1e12) return `${(n / 1e9).toFixed(2)} GB`
+  return `${(n / 1e12).toFixed(2)} TB`
 }
