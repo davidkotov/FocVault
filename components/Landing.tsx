@@ -2,16 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useConnect } from 'wagmi'
 import LocaleSwitch from '@/components/LocaleSwitch'
 import { api } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
-import { filecoinCalibration } from '@/lib/chains'
 import { landingMessages } from '@/lib/i18n/messages/landing'
 import { DEFAULT_PRICING, type Interval, type PricingConfig } from '@/lib/pricing'
-
-/** Konto-Modus (Fil One): in Dev immer, in Production erst mit NEXT_PUBLIC_ACCOUNTS_ENABLED=1. */
-const ACCOUNTS_ENABLED = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === '1'
 
 type Offer = Pick<PricingConfig, 'free' | 'payg' | 'plans' | 'addons'>
 
@@ -19,20 +14,15 @@ export default function Landing() {
   const router = useRouter()
   const { path, currency, fmtMoney, fmtNumber } = useI18n()
   const t = useMessages(landingMessages)
-  const { connect, connectors, isPending, error } = useConnect()
   const [interval, setIntervalState] = useState<Interval>('year')
   const [offer, setOffer] = useState<Offer>(DEFAULT_PRICING)
 
   useEffect(() => {
-    if (ACCOUNTS_ENABLED) api.offer().then(setOffer).catch(() => undefined)
+    api.offer().then(setOffer).catch(() => undefined)
   }, [])
 
-  const handleConnect = () => {
-    const connector = connectors.find(c => c.id === 'injected') ?? connectors.find(c => c.id === 'walletConnect') ?? connectors[0]
-    if (connector) connect({ connector, chainId: filecoinCalibration.id })
-  }
-  const goLogin = () => (ACCOUNTS_ENABLED ? router.push(path('/anmelden')) : handleConnect())
-  const goRegister = () => (ACCOUNTS_ENABLED ? router.push(path('/registrieren')) : handleConnect())
+  const goLogin = () => router.push(path('/anmelden'))
+  const goRegister = () => router.push(path('/registrieren'))
 
   const gb = offer.free.quotaGb
   const payg = fmtMoney(offer.payg.perGbMonth[currency], currency, 2)
@@ -55,13 +45,8 @@ export default function Landing() {
           </div>
           <div className="utilright">
             <LocaleSwitch showCurrency />
-            <a className="utilwallet hide-mobile" href="#" onClick={e => { e.preventDefault(); handleConnect() }}>
-              <WalletIcon />
-              {t.wallet}
-            </a>
           </div>
         </div>
-        {error && <div className="connecterror">{(error as Error).message}</div>}
       </div>
 
       <nav className="mainnav">
@@ -82,10 +67,10 @@ export default function Landing() {
             <a href="#faq">{t.nav.faq}</a>
           </div>
           <div className="navcta">
-            <button disabled={isPending} onClick={goLogin}>
+            <button onClick={goLogin}>
               {t.login}
             </button>
-            <button className="primary" disabled={isPending} onClick={goRegister}>
+            <button className="primary" onClick={goRegister}>
               {t.register}
             </button>
           </div>
@@ -104,8 +89,8 @@ export default function Landing() {
           </h1>
           <p className="lead">{t.hero.lead}</p>
           <div className="herobtns">
-            <button className="primary lg" disabled={isPending} onClick={goRegister}>
-              {isPending ? t.connecting : t.hero.cta}
+            <button className="primary lg" onClick={goRegister}>
+              {t.hero.cta}
             </button>
             <a href="#how">
               <button className="lg">{t.hero.demo}</button>
@@ -410,6 +395,9 @@ export default function Landing() {
           </div>
           <div className="footbottom">
             <span>{t.footer.copy}</span>
+            <a className="builton" href="https://www.filecoin.cloud" target="_blank" rel="noreferrer">
+              ⛓ {t.footer.builtOn}
+            </a>
             <LocaleSwitch />
           </div>
         </div>
@@ -444,16 +432,6 @@ function CheckIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" fill="none" />
-    </svg>
-  )
-}
-
-function WalletIcon() {
-  return (
-    <svg className="wicon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="6" width="18" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M16.5 12h.01" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-      <path d="M3 9.5h18" stroke="currentColor" strokeWidth="1.4" />
     </svg>
   )
 }

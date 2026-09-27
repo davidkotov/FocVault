@@ -34,4 +34,3 @@ export function usdfcFor(chainId: number | undefined): `0x${string}` | undefined
   return USDFC[chainId]
 }
 
-export const SUB_GATE_ADDRESS = (process.env.NEXT_PUBLIC_SUB_GATE_ADDRESS ?? '') as `0x${string}` | ''

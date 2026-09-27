@@ -3,8 +3,6 @@ const de = {
   nav: { product: 'Produkt', security: 'Sicherheit', pricing: 'Preise', faq: 'FAQ' },
   login: 'Anmelden',
   register: 'Registrieren',
-  wallet: 'Wallet verbinden',
-  connecting: 'Verbinde…',
   hero: {
     pill: 'NEU',
     pillText: 'Login mit Google, Apple oder Wallet',
@@ -112,6 +110,10 @@ const de = {
         a: 'Bei der Registrierung bekommst du ein Recovery-Kit mit 24 Wörtern. Damit setzt du eine neue Passphrase – ohne dass wir je Zugriff auf deine Daten hätten.'
       },
       {
+        q: 'Wo liegen meine Daten – und wie weiß ich, dass sie noch da sind?',
+        a: 'Verschlüsselt auf Filecoin Onchain Cloud, in zwei Kopien bei unabhängigen Speicheranbietern. Die Anbieter müssen laufend kryptografisch beweisen, dass sie deine Daten noch haben (Proof of Data Possession) – bezahlt wird nur für bewiesene Zeit. In deiner Cloud zeigt ein „Filecoin ✓“, welche Dateien so gesichert sind.'
+      },
+      {
         q: 'Brauche ich eine Kryptowährung?',
         a: 'Nein. Du meldest dich mit E-Mail, Google, Apple oder – wenn du willst – einer Wallet an und bezahlst in CHF, EUR oder USD.'
       }
@@ -132,7 +134,8 @@ const de = {
     privacy: 'Datenschutz',
     terms: 'AGB',
     imprint: 'Impressum',
-    copy: '© 2026 FocVault. Gespeichert auf Filecoin.'
+    copy: '© 2026 FocVault. Gespeichert auf Filecoin.',
+    builtOn: 'Gebaut auf Filecoin Onchain Cloud'
   }
 }
 
@@ -141,8 +144,6 @@ const en: typeof de = {
   nav: { product: 'Product', security: 'Security', pricing: 'Pricing', faq: 'FAQ' },
   login: 'Sign in',
   register: 'Sign up',
-  wallet: 'Connect wallet',
-  connecting: 'Connecting…',
   hero: {
     pill: 'NEW',
     pillText: 'Sign in with Google, Apple or a wallet',
@@ -250,6 +251,10 @@ const en: typeof de = {
         a: 'When you sign up, you get a recovery kit with 24 words. Use it to set a new passphrase – without us ever having access to your data.'
       },
       {
+        q: 'Where is my data – and how do I know it is still there?',
+        a: 'Encrypted on Filecoin Onchain Cloud, in two copies with independent storage providers. Providers must continuously prove cryptographically that they still hold your data (Proof of Data Possession) – they are only paid for proven time. In your cloud, a “Filecoin ✓” shows which files are secured this way.'
+      },
+      {
         q: 'Do I need cryptocurrency?',
         a: 'No. Sign in with email, Google, Apple or – if you like – a wallet, and pay in CHF, EUR or USD.'
       }
@@ -270,7 +275,8 @@ const en: typeof de = {
     privacy: 'Privacy',
     terms: 'Terms',
     imprint: 'Imprint',
-    copy: '© 2026 FocVault. Stored on Filecoin.'
+    copy: '© 2026 FocVault. Stored on Filecoin.',
+    builtOn: 'Built on Filecoin Onchain Cloud'
   }
 }
 

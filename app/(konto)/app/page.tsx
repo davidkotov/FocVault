@@ -14,6 +14,8 @@ import AuthShell, { Working } from '@/components/account/AuthShell'
 import AccountMenu from '@/components/account/AccountMenu'
 import AccountUpload from '@/components/account/AccountUpload'
 import PlansView from '@/components/account/PlansView'
+import ShareDialog from '@/components/account/ShareDialog'
+import SendView from '@/components/account/SendView'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
 import { ApiClientError, api } from '@/features/api/client'
@@ -153,6 +155,15 @@ export default function AppPage() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [sharing, setSharing] = useState<VaultEntry | null>(null)
+  const [onFilecoin, setOnFilecoin] = useState<Record<string, { copies: number }>>({})
+  useEffect(() => {
+    if (status !== 'ready') return
+    const load = () => api.filecoinStatus().then(r => setOnFilecoin(r.objects)).catch(() => undefined)
+    void load()
+    const t = setInterval(load, 60_000)
+    return () => clearInterval(t)
+  }, [status, vault.files.length])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [dl, setDl] = useState<{ name: string; pct: number } | null>(null)
   const dlAbort = useRef<AbortController | null>(null)
@@ -309,20 +320,15 @@ export default function AppPage() {
                 searchQuery={search}
                 onDownload={e => void onDownload(e)}
                 onDelete={id => void onDelete(id)}
-                onShare={() => setNotice(t.send.notice)}
+                onShare={e => setSharing(e)}
+                onFilecoin={onFilecoin}
                 deleteNote={t.files.deleteNote}
               />
             </>
           )}
 
-          {view === 'send' && (
-            <div className="card">
-              <h3>
-                {t.send.title} <span>{t.send.badge}</span>
-              </h3>
-              <p className="dim">{t.send.body}</p>
-            </div>
-          )}
+          {view === 'send' && <SendView files={vault.files} />}
+          {sharing && <ShareDialog entry={sharing} masterKey={masterKey} onClose={() => setSharing(null)} />}
 
           {view === 'plans' && <PlansView />}
 

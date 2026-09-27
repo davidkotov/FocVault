@@ -41,6 +41,41 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Filecoin Onchain Cloud als Speicher, Secure Send neu, Wallet-Modus entfernt
+
+**FOC-Anbindung (`server/foc/*`, Migration v5, Admin-Tab „Filecoin (FOC)“):** Der Server sichert
+alle fertig hochgeladenen Datei-Pieces und den jeweils neuesten Tresor-Index auf Filecoin Onchain
+Cloud. Bezahlt wird mit USDFC aus der Betreiber-Wallet (MetaMask): Einzahlen + Freigabe des
+Speicherdienstes in einer Transaktion (Monatslimit aus Speicherbudget), danach autorisiert die
+Wallet einen **Session Key** des Servers (Datensatz anlegen, Pieces hinzufügen/entfernen – kein
+Zugriff auf Guthaben). Der private Teil liegt AES-GCM-verschlüsselt (Schlüssel aus SERVER_SECRET)
+in der DB. Wirtschaftlich: alle Kunden teilen sich 2 Datensätze (0.12 $/Monat je Datensatz) und
+viele 32-MiB-Pieces werden zu Paketen bis 512 MiB gebündelt (FOC-Gebühr pro Piece). Gelöschte
+Dateien werden markiert, leere Pakete bei den Anbietern entfernt. Optional wird die schnelle Kopie
+(Fil One/lokal) nach X Stunden entfernt; gelesen wird dann per HTTP-Range direkt vom Anbieter
+(`FocBackedProvider`). Ampel: Warnung unter 21 Tagen Guthaben, Upload-Stopp unter 5 Tagen, Minus
+oder abgelaufener Schlüssel = kritisch. Abgleich im Hintergrund (`instrumentation.ts`) oder per
+Cron (`/api/v1/cron/foc`, `CRON_SECRET`). Synapse SDK 2.0.2 / synapse-core 0.10.0.
+Dashboard: „Filecoin ✓“ an jeder Datei, die vollständig auf Filecoin liegt.
+
+**Secure Send für Konten (Migration v6, `server/shares`, `/s/<id>#…`):** Link verweist auf die
+gespeicherte Datei (keine Kopie, keine Quota), Metadaten + Datei-Schlüssel mit dem Link-Schlüssel
+verschlüsselt, der nur im Fragment steht. Ablauf, Download-Limit (serverseitig, atomar gezählt),
+optionales Passwort (PBKDF2), Widerrufen, Übersicht unter „Secure Send“. Empfängerseite ohne
+Konto, zweisprachig.
+
+**Preisbuch:** Speicherart (Fil One / FOC / beides) bestimmt die Kosten; FOC-Preis je Kopie und
+Kopienzahl einstellbar; neue **Speicher-API**-Preise (1.5 Rp/GB, Download inklusive bis 1×) mit
+Aufschlag je Speicherart. PAYG-Aufschlag: +607 % (Fil One), +676 % (FOC), +270 % (beides).
+
+**Entfernt:** alter Wallet-Modus (Dashboard mit Wallet-Schlüssel, Pro-Gate-Contract, Top-up,
+Browser-Synapse, alte Share-Seite). Wallets bleiben als Login (Reown) und für den Admin (FOC).
+
+**Tests:** Vitest 70 → 78 (FOC-Abgleich mit Anbieter-Attrappe inkl. Range-Lesen und Aufräumen,
+Ampel, Schlüssel-Verschlüsselung, Secure Send), Playwright: Secure Send mit Passwort und
+Einmal-Link durch einen zweiten Browser ohne Konto. Live geprüft: Lesen von Filecoin Pay,
+Freigaben und Session-Key-Registry auf Calibration und Mainnet.
+
 ### Jahresabos, CHF/EUR/USD, Pay-as-you-go neu, Deutsch/Englisch, Responsive
 
 **Preismodell v2** (`lib/pricing.ts`, Migration v4): feste Preispunkte je Währung, Monats- und

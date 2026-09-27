@@ -83,3 +83,17 @@ describe('Preisbuch v2: Währungen, Jahresabos, Pay-as-you-go', () => {
     expect(money(13.9, 'EUR', 'en')).toBe('€13.90')
   })
 })
+
+describe('Speicherkosten je Anbieter und API-Preis', () => {
+  it('FOC mit 2 Kopien ist günstiger als Fil One, beides zusammen teurer', async () => {
+    const { DEFAULT_PRICING: P, costUsdPerGb, markupOf } = await import('./pricing')
+    expect(costUsdPerGb(P, 'filone')).toBeCloseTo(0.00499, 5)
+    expect(costUsdPerGb(P, 'foc')).toBeCloseTo(0.004547, 5)
+    expect(costUsdPerGb(P, 'both')).toBeCloseTo(0.009537, 5)
+    // Pay-as-you-go: deutlich über 100 % Aufschlag, auch wenn wir doppelt speichern
+    for (const c of ['CHF', 'EUR', 'USD'] as const) {
+      expect(markupOf(P, P.payg.perGbMonth[c], c, 'both').markupPct).toBeGreaterThan(200)
+      expect(markupOf(P, P.api.perGbMonth[c], c, 'foc').markupPct).toBeGreaterThan(100)
+    }
+  })
+})

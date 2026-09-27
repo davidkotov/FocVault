@@ -43,6 +43,8 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
+    // instrumentation.ts: Hintergrund-Abgleich mit Filecoin Onchain Cloud
+    instrumentationHook: true,
     // Zur Laufzeit aus node_modules laden statt bündeln (PGlite lädt WASM per Dateipfad).
     serverComponentsExternalPackages: ['@electric-sql/pglite', 'pg', '@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner']
   },

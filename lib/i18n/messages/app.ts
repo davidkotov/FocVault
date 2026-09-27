@@ -33,6 +33,8 @@ const de = {
     empty: 'Noch keine Dateien in deiner Cloud. Oben hochladen – Dateien landen automatisch im passenden Ordner.',
     noMatch: 'Keine Treffer.',
     share: 'Teilen',
+    onFilecoin: 'Filecoin ✓',
+    onFilecoinTitle: 'Auf Filecoin gesichert: {copies} Kopien bei unabhängigen Anbietern, laufend per Proof of Data Possession geprüft.',
     download: 'Herunterladen',
     remove: 'Entfernen',
     deleteNote: '„Entfernen" löscht die verschlüsselten Daten sofort aus dem Speicher und gibt den Platz frei. Ein Papierkorb folgt.',
@@ -61,9 +63,12 @@ const de = {
   syncError: 'Tresor nicht synchronisiert: {error}',
   send: {
     title: 'Secure Send',
-    badge: 'bald',
-    body: 'Share-Links werden im Konto-Modus vom Server abgesichert: Ablauf, Einmal-Link und Download-Limit gelten global, und jeder Link lässt sich sofort widerrufen. Empfänger brauchen weder Konto noch Wallet – der Schlüssel bleibt im Link und erreicht nie den Server.',
-    notice: 'Secure Send für Konto-Dateien kommt bald: widerrufbare Links mit echter Einmal- und Download-Grenze.'
+    badge: 'Ende-zu-Ende',
+    body: 'Teile Dateien per Link – mit Ablaufdatum, Download-Limit und optionalem Passwort. Empfänger brauchen kein Konto; der Schlüssel steckt nur im Link und erreicht nie unseren Server. Links lassen sich jederzeit widerrufen. Zum Teilen in „Meine Cloud“ bei einer Datei auf „Teilen“ klicken.',
+    notice: 'Links',
+    empty: 'Noch keine Links erstellt.',
+    file: 'Datei',
+    deleted: 'gelöschte Datei'
   },
   account: {
     title: 'Konto',
@@ -138,6 +143,8 @@ const en: typeof de = {
     empty: 'No files in your cloud yet. Upload above – files are sorted into the right folder automatically.',
     noMatch: 'No results.',
     share: 'Share',
+    onFilecoin: 'Filecoin ✓',
+    onFilecoinTitle: 'Secured on Filecoin: {copies} copies with independent providers, continuously checked with Proof of Data Possession.',
     download: 'Download',
     remove: 'Delete',
     deleteNote: '“Delete” removes the encrypted data from storage right away and frees the space. A trash bin is coming.',
@@ -166,9 +173,12 @@ const en: typeof de = {
   syncError: 'Vault not synced: {error}',
   send: {
     title: 'Secure Send',
-    badge: 'soon',
-    body: 'In account mode, share links are protected by the server: expiry, one-time links and download limits apply everywhere, and every link can be revoked instantly. Recipients need neither an account nor a wallet – the key stays in the link and never reaches the server.',
-    notice: 'Secure Send for account files is coming soon: revocable links with real one-time and download limits.'
+    badge: 'end-to-end',
+    body: 'Share files by link – with an expiry date, a download limit and an optional password. Recipients need no account; the key lives only in the link and never reaches our server. Links can be revoked at any time. To share, click “Share” on a file in “My cloud”.',
+    notice: 'Links',
+    empty: 'No links created yet.',
+    file: 'File',
+    deleted: 'deleted file'
   },
   account: {
     title: 'Account',

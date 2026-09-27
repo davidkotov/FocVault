@@ -10,6 +10,7 @@ import { usedBytes } from '../accounts/plans'
 import { quotaFor } from '../billing/quota'
 import { getPricing } from '../billing/settings'
 import { objectPieceKey } from '../storage/provider'
+import { assertFocWritable } from '../foc/health'
 
 const UPLOAD_URL_TTL_SEC = 60 * 60
 const DOWNLOAD_URL_TTL_SEC = 15 * 60
@@ -87,6 +88,7 @@ export async function createObject(
   input: z.output<typeof createObjectSchema>
 ): Promise<CreateObjectResult> {
   await releaseStaleUploads(deps, session.accountId)
+  await assertFocWritable(deps.db)
   const total = input.pieces.reduce((n, p) => n + p.cipherBytes, 0)
   const objectId = uuidv7()
   await deps.db.tx(async tx => {

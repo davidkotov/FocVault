@@ -57,12 +57,11 @@ kein Master-Key und kein Share-Passwort verlässt je das Endgerät. Backend und 
 
 ```
 app/                 Next.js 14 App Router, alles 'use client' außer layout.tsx
-  page.tsx           Monolith (~700 Z.): Landing/Dashboard, Master-Key, Vault-State, Sync, Download
-  s/[cid]/page.tsx   Secure-Send-Empfängerseite v2 (Fragment bare | s.<key> | p.<salt>.<iv>.<cipher>)
+  page.tsx           Landing (Wallet-Modus entfernt, 09/2026)
+  s/[id]/page.tsx    Secure-Send-Empfängerseite v3 (Konto-Modus, Link-ID + Fragment s.<key> | p.<salt>.<iv>.<cipher>)
   providers.tsx      wagmi (Calibration 314159 + Mainnet 314, injected + optional WalletConnect)
-components/          Landing, Sidebar, Topbar, WalletBar, VaultUnlock, UploadZone, FileList,
-                     ShareDialog, ProPanel, AccountPanel, TopUpPanel, UpgradeWall,
-                     PasswordsPanel, NotesPanel, TotpPanel, QrScanModal
+components/          Landing, Sidebar, Topbar, FileList, account/* (Auth, Pakete, Secure Send), admin/* (inkl. FOC),
+                     UpgradeWall, PasswordsPanel, NotesPanel, TotpPanel, QrScanModal
 lib/
   crypto.ts          HKDF-Master-Key, AES-256-GCM, File-Key-Wrap, Frame-Format, Share-Fragmente, PBKDF2
   vault.ts           VaultContainer v3 {files, secrets}, TIERS, folderFor, localStorage-Index

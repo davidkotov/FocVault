@@ -5,6 +5,7 @@ export type ErrorCode =
   | 'REAUTH_REQUIRED'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
+  | 'GONE'
   | 'VERSION_CONFLICT'
   | 'EMAIL_TAKEN'
   | 'ALREADY_REGISTERED'
@@ -23,6 +24,7 @@ const STATUS: Record<ErrorCode, number> = {
   REAUTH_REQUIRED: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
+  GONE: 410,
   VERSION_CONFLICT: 409,
   EMAIL_TAKEN: 409,
   ALREADY_REGISTERED: 409,

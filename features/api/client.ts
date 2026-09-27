@@ -13,6 +13,13 @@ import type {
   RegisterInput
 } from '@/lib/api-types'
 import type { Economics, PricingConfig } from '@/lib/pricing'
+import type { FocSettings } from '@/server/foc/config'
+import type { FocAdminStatus } from '@/server/foc/service'
+import type { FocSyncResult } from '@/server/foc/sync'
+import type { PublicShare, ShareSummary } from '@/server/shares/service'
+import type { FilecoinFileStatus } from '@/server/foc/proofs'
+
+export type { FilecoinFileStatus, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
 export class ApiClientError extends Error {
   constructor(
@@ -134,6 +141,19 @@ export const api = {
   adminTreasury: () => call<TreasuryStatus>('GET', '/admin/treasury'),
   adminSaveTreasury: (t: { address: string; chainId: 314 | 314159; label: string }) =>
     call<TreasuryStatus>('PUT', '/admin/treasury', t),
+  adminFoc: () => call<FocAdminStatus>('GET', '/admin/foc'),
+  adminSaveFoc: (s: FocSettings) => call<FocAdminStatus>('PUT', '/admin/foc', s),
+  adminFocSessionKey: (network: FocSettings['network']) => call<{ address: string }>('POST', '/admin/foc/session-key', { network }),
+  adminFocSync: () => call<FocSyncResult>('POST', '/admin/foc/sync'),
+
+  filecoinStatus: () => call<FilecoinFileStatus>('GET', '/objects/filecoin'),
+  createShare: (input: { objectId: string; meta: string; expiresInHours: number | null; maxDownloads: number | null }) =>
+    call<ShareSummary>('POST', '/shares', input),
+  listShares: (objectId?: string) =>
+    call<{ shares: ShareSummary[] }>('GET', `/shares${objectId ? `?objectId=${encodeURIComponent(objectId)}` : ''}`),
+  revokeShare: (id: string) => call<{ ok: true }>('DELETE', `/shares/${encodeURIComponent(id)}`),
+  publicShare: (id: string) => call<PublicShare>('GET', `/public/shares/${encodeURIComponent(id)}`),
+  shareDownload: (id: string) => call<DownloadResult>('POST', `/public/shares/${encodeURIComponent(id)}/download`),
 
   offer: () => call<PublicOffer>('GET', '/billing/offer'),
   buyAddon: (packId: string) => call<AccountView>('POST', '/billing/addons', { packId }),

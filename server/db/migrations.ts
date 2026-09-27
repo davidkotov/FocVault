@@ -192,6 +192,58 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       -- Preisbuch v1 (nur CHF) ist mit v2 nicht kompatibel → Standardwerte v2 greifen.
       DELETE FROM settings WHERE key = 'pricing';
     `
+  },
+  {
+    version: 5,
+    name: 'filecoin_onchain_cloud',
+    sql: `
+      -- Pakete auf Filecoin Onchain Cloud: viele verschlüsselte Pieces werden zu einem FOC-Piece
+      -- (bis ~1 GiB) gebündelt – die FOC-Gebühren fallen pro Piece an, nicht pro Byte.
+      CREATE TABLE foc_packs (
+        id uuid PRIMARY KEY,
+        network text NOT NULL CHECK (network IN ('mainnet', 'calibration')),
+        state text NOT NULL CHECK (state IN ('stored', 'removing', 'removed')),
+        bytes bigint NOT NULL CHECK (bytes > 0),
+        piece_cid text NOT NULL,
+        copies jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        removal_requested_at timestamptz
+      );
+      CREATE INDEX foc_packs_state ON foc_packs (state);
+
+      -- Welche Storage-Keys in welchem Paket liegen (Byte-Bereich). deleted_at = Key gelöscht,
+      -- evicted_at = schnelle Kopie (Fil One / lokal) entfernt, gelesen wird dann von Filecoin.
+      CREATE TABLE foc_members (
+        storage_key text PRIMARY KEY,
+        pack_id uuid NOT NULL REFERENCES foc_packs(id),
+        byte_offset bigint NOT NULL CHECK (byte_offset >= 0),
+        byte_length bigint NOT NULL CHECK (byte_length > 0),
+        deleted_at timestamptz,
+        evicted_at timestamptz
+      );
+      CREATE INDEX foc_members_pack ON foc_members (pack_id);
+    `
+  },
+  {
+    version: 6,
+    name: 'secure_send_accounts',
+    sql: `
+      -- Secure Send im Konto-Modus: der Link verweist auf eine gespeicherte Datei (keine Kopie).
+      -- meta ist mit dem Link-Schlüssel verschlüsselt (liegt nur im URL-Fragment beim Empfänger).
+      CREATE TABLE shares (
+        id text PRIMARY KEY,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        object_id uuid NOT NULL REFERENCES objects(id) ON DELETE CASCADE,
+        meta bytea NOT NULL,
+        expires_at timestamptz,
+        max_downloads integer CHECK (max_downloads IS NULL OR max_downloads > 0),
+        downloads integer NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        revoked_at timestamptz
+      );
+      CREATE INDEX shares_account ON shares (account_id, created_at DESC);
+      CREATE INDEX shares_object ON shares (object_id);
+    `
   }
 ]
 

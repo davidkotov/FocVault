@@ -6,6 +6,7 @@ import {
   CURRENCIES,
   chf,
   costChfPerGb,
+  markupOf,
   stripeFee,
   toChf,
   yearlySavingsPct,
@@ -96,6 +97,8 @@ export default function PricingPanel({ onSaved }: { onSaved: () => void }) {
   }
 
   const paygMarkup = toChf(p, p.payg.perGbMonth.CHF, 'CHF') / costChfPerGb(p)
+  const worstMarkup = (price: Money) => Math.min(...CURRENCIES.map(c => markupOf(p, price[c], c).markupPct))
+  const backendName = { filone: 'Fil One', foc: 'Filecoin (FOC)', both: 'Fil One + FOC' }[p.storage.backend]
 
   return (
     <>
@@ -120,7 +123,7 @@ export default function PricingPanel({ onSaved }: { onSaved: () => void }) {
 
       <div className="card">
         <h3>
-          Pay-as-you-go <span>{paygMarkup.toFixed(1)}× Aufschlag auf Fil One</span>
+          Pay-as-you-go <span>{paygMarkup.toFixed(1)}× unsere Kosten ({backendName})</span>
         </h3>
         <MoneyRow label="Preis pro GB/Monat" value={p.payg.perGbMonth} step={0.001} onChange={(c, v) => set(d => void (d.payg.perGbMonth[c] = v))} />
         <MoneyRow label="Mindestrechnung" value={p.payg.minInvoice} onChange={(c, v) => set(d => void (d.payg.minInvoice[c] = v))} />
@@ -129,7 +132,7 @@ export default function PricingPanel({ onSaved }: { onSaved: () => void }) {
           <Num label="Maximale Obergrenze" unit="GB" step={100} value={p.payg.maxCapGb} onChange={v => set(d => void (d.payg.maxCapGb = v))} />
         </div>
         <span className="hint">
-          Marge {((1 - 1 / paygMarkup) * 100).toFixed(0)} % · 1 TB PAYG = {chf(p.payg.perGbMonth.CHF * 1000)} (Pro 1 TB {chf(p.plans.pro.monthly.CHF)}) →
+          Aufschlag {worstMarkup(p.payg.perGbMonth).toFixed(0)} % · Marge {((1 - 1 / paygMarkup) * 100).toFixed(0)} % · 1 TB PAYG = {chf(p.payg.perGbMonth.CHF * 1000)} (Pro 1 TB {chf(p.plans.pro.monthly.CHF)}) →
           Pro lohnt sich ab {Math.ceil(p.plans.pro.monthly.CHF / p.payg.perGbMonth.CHF)} GB extra. Beträge unter der Mindestrechnung werden übertragen.
         </span>
       </div>
@@ -171,14 +174,40 @@ export default function PricingPanel({ onSaved }: { onSaved: () => void }) {
         </div>
       </div>
 
+      <div className="card">
+        <h3>
+          Speicher-API <span>für Entwickler (später) – {worstMarkup(p.api.perGbMonth).toFixed(0)} % Aufschlag in der schlechtesten Währung</span>
+        </h3>
+        <MoneyRow label="Preis pro GB/Monat" value={p.api.perGbMonth} step={0.001} onChange={(c, v) => set(d => void (d.api.perGbMonth[c] = v))} />
+        <MoneyRow label="Download pro GB" value={p.api.egressPerGb} step={0.001} onChange={(c, v) => set(d => void (d.api.egressPerGb[c] = v))} />
+        <MoneyRow label="Mindestbetrag/Monat" value={p.api.minMonthly} onChange={(c, v) => set(d => void (d.api.minMonthly[c] = v))} />
+        <div className="formgrid">
+          <Num label="Download inklusive" unit="× gespeicherte Menge" step={0.5} value={p.api.includedEgressRatio} onChange={v => set(d => void (d.api.includedEgressRatio = v))} />
+        </div>
+        <span className="hint">
+          Aufschlag nach Speicherart: Fil One {markupOf(p, p.api.perGbMonth.CHF, 'CHF', 'filone').markupPct.toFixed(0)} % · FOC{' '}
+          {markupOf(p, p.api.perGbMonth.CHF, 'CHF', 'foc').markupPct.toFixed(0)} % · beides {markupOf(p, p.api.perGbMonth.CHF, 'CHF', 'both').markupPct.toFixed(0)} %. Ziel ≥ 100 %.
+        </span>
+      </div>
+
       <div className="grid2">
         <div className="card">
           <h3>Kosten, Kurse &amp; Gebühren</h3>
+          <label className="field">
+            <span>Speicherart (bestimmt unsere Kosten)</span>
+            <select value={p.storage.backend} onChange={e => set(d => void (d.storage.backend = e.target.value as PricingConfig['storage']['backend']))}>
+              <option value="filone">Fil One (S3)</option>
+              <option value="foc">Filecoin Onchain Cloud direkt</option>
+              <option value="both">Fil One + FOC (schnelle + geprüfte Kopie)</option>
+            </select>
+          </label>
           <div className="formgrid">
             <Num label="Fil One" unit="USD/TB/Monat" value={p.filOneUsdPerTbMonth} onChange={v => set(d => void (d.filOneUsdPerTbMonth = v))} />
             <Num label="Fil One Minimum" unit="USD/Monat" value={p.filOneMinUsd} onChange={v => set(d => void (d.filOneMinUsd = v))} />
             <Num label="Kurs USD" unit="CHF je USD" step={0.001} value={p.fx.usdToChf} onChange={v => set(d => void (d.fx.usdToChf = v))} />
             <Num label="Kurs EUR" unit="CHF je EUR" step={0.001} value={p.fx.eurToChf} onChange={v => set(d => void (d.fx.eurToChf = v))} />
+            <Num label="FOC" unit="USD/TiB/Monat je Kopie" value={p.storage.focUsdPerTibMonthPerCopy} onChange={v => set(d => void (d.storage.focUsdPerTibMonthPerCopy = v))} />
+            <Num label="FOC Kopien" step={1} value={p.storage.focCopies} onChange={v => set(d => void (d.storage.focCopies = v))} />
             <Num label="Stripe" unit="%" step={0.1} value={p.stripePercent} onChange={v => set(d => void (d.stripePercent = v))} />
             <Num label="Stripe fix" unit="CHF/Rechnung" value={p.stripeFixedChf} onChange={v => set(d => void (d.stripeFixedChf = v))} />
           </div>

@@ -8,6 +8,7 @@ import EconomicsPanel from '@/components/admin/EconomicsPanel'
 import ScenarioPanel from '@/components/admin/ScenarioPanel'
 import PricingPanel from '@/components/admin/PricingPanel'
 import TreasuryPanel from '@/components/admin/TreasuryPanel'
+import FocPanel from '@/components/admin/FocPanel'
 import AccountsPanel from '@/components/admin/AccountsPanel'
 import { useAccount } from '@/features/account/AccountProvider'
 import { useI18n } from '@/features/i18n/I18nProvider'
@@ -16,12 +17,13 @@ import type { AdminStats } from '@/lib/api-types'
 import { chf } from '@/lib/pricing'
 import { formatBytes } from '@/lib/vault'
 
-type Tab = 'overview' | 'economics' | 'scenario' | 'pricing' | 'treasury' | 'accounts'
+type Tab = 'overview' | 'economics' | 'scenario' | 'pricing' | 'foc' | 'treasury' | 'accounts'
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Übersicht' },
   { id: 'economics', label: 'Wirtschaftlichkeit' },
   { id: 'scenario', label: 'Szenario-Rechner' },
   { id: 'pricing', label: 'Preisbuch' },
+  { id: 'foc', label: 'Filecoin (FOC)' },
   { id: 'treasury', label: 'Finanzierung' },
   { id: 'accounts', label: 'Konten' }
 ]
@@ -45,7 +47,10 @@ const EVENT_LABEL: Record<string, string> = {
   'billing.payg_enabled': 'Pay-as-you-go aktiviert',
   'billing.payg_disabled': 'Pay-as-you-go deaktiviert',
   'admin.pricing_changed': 'Preisbuch geändert',
-  'admin.treasury_changed': 'Reserve geändert'
+  'admin.treasury_changed': 'Reserve geändert',
+  'admin.foc_changed': 'FOC-Einstellungen geändert',
+  'admin.foc_session_key': 'FOC-Server-Schlüssel erzeugt',
+  'foc.pack_stored': 'Paket auf Filecoin gesichert'
 }
 
 /** Admin: nur Aggregate und Metadaten – keine Inhalte, keine Dateinamen (Zero-Knowledge). */
@@ -181,6 +186,7 @@ export default function AdminPage() {
               {tab === 'economics' && <EconomicsPanel report={report} />}
               {tab === 'scenario' && <ScenarioPanel pricing={report.pricing} />}
               {tab === 'pricing' && <PricingPanel onSaved={() => void load()} />}
+              {tab === 'foc' && <FocPanel />}
               {tab === 'treasury' && <TreasuryPanel />}
               {tab === 'accounts' && <AccountsPanel pricing={report.pricing} onChanged={() => void load()} />}
             </>

@@ -1,7 +1,6 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import WalletBar from '@/components/WalletBar'
 import { useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 
@@ -10,7 +9,7 @@ interface Props {
   search?: string
   onSearchChange?: (v: string) => void
   showSearch?: boolean
-  /** Rechter Bereich; Standard ist die Wallet-Leiste (Wallet-Modus). */
+  /** Rechter Bereich (Kontomenü). */
   right?: ReactNode
 }
 
@@ -28,7 +27,7 @@ export default function Topbar({ title, search, onSearchChange, showSearch, righ
           <input placeholder={m.search} value={search ?? ''} onChange={e => onSearchChange?.(e.target.value)} />
         </div>
       )}
-      {right ?? <WalletBar />}
+      {right}
     </div>
   )
 }

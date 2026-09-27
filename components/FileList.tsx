@@ -13,6 +13,8 @@ interface Props {
   onDownload: (entry: VaultEntry) => void
   onDelete: (id: string) => void
   onShare: (entry: VaultEntry) => void
+  /** objectId → bestätigte Kopien auf Filecoin */
+  onFilecoin?: Record<string, { copies: number }>
   /** Hinweis unter der Liste; Standard beschreibt den Wallet-Modus (Pieces bleiben on-chain). */
   deleteNote?: string
 }
@@ -35,7 +37,7 @@ function tileColor(folder: string): string {
   }
 }
 
-export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, deleteNote }: Props) {
+export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onFilecoin, deleteNote }: Props) {
   const [active, setActive] = useState<string>('all')
   const t = useMessages(appMessages)
   const { fmtDate } = useI18n()
@@ -87,6 +89,11 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
               </div>
               <div className="filemeta">
                 {formatBytes(e.size)} · {fmtDate(e.storedAt)}
+                {e.objectId && onFilecoin?.[e.objectId] && (
+                  <span className="focbadge" title={fmt(t.files.onFilecoinTitle, { copies: onFilecoin[e.objectId].copies })}>
+                    {t.files.onFilecoin}
+                  </span>
+                )}
               </div>
               <div className="fileactions">
                 <button

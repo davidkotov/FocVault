@@ -21,7 +21,7 @@ Feste Preispunkte je Währung (nicht umgerechnet). Jahresabo = 2 Monate geschenk
 **Pay-as-you-go (Free):** 3 Rp / 3 ct / 3.5 ¢ pro GB und Monat über den 5 GB – abgerechnet nach dem
 durchschnittlich belegten Speicher des Monats (wie Fil One uns abrechnet), Mindestrechnung 2 CHF/2 €/$2.50.
 Kleinere Beträge werden in den Folgemonat übertragen (verfallen nicht). Eigene Obergrenze (Standard 100 GB).
-Marge ≈ 86 % (30 CHF/TB bei 4.24 CHF Kosten). Ab ~464 GB extra ist Pro günstiger – das zeigt die App an.
+Aufschlag +607 % bzw. Marge ≈ 86 % (30 CHF/TB bei 4.24 CHF Kosten mit Fil One; mit FOC direkt 3.87 CHF). Ab ~464 GB extra ist Pro günstiger – das zeigt die App an.
 
 Alle Werte sind im Admin unter **Preisbuch** änderbar und wirken sofort (Quota, Auswertung).
 Einheiten dezimal (1 TB = 1000 GB), wie Fil One, Dropbox und MEGA.
@@ -53,6 +53,23 @@ gewinnen wir über Produkt, Vertrauen (MEGA-Vergangenheit), Passwort-Manager/2FA
 Dropbox/Tresorit/Proton), z. B. Pro 139 CHF/Jahr, Family 199 CHF/Jahr.
 
 ## 3. Unsere Kosten
+
+| Speicherart | Kosten pro GB/Monat | pro TB/Monat | PAYG 3 Rp: Aufschlag · Marge | API 1.5 Rp: Aufschlag · Marge |
+|---|---|---|---|---|
+| **Filecoin Onchain Cloud** direkt (2 Kopien, PDP) | 0.39 Rp ($0.00455) | 3.87 CHF | **+676 % · 87 %** | **+288 % · 74 %** |
+| Fil One (S3) | 0.42 Rp ($0.00499) | 4.24 CHF | +607 % · 86 % | +254 % · 72 % |
+| beides (schnelle Kopie + FOC) | 0.81 Rp | 8.11 CHF | +270 % · 73 % | +85 % · 46 % |
+
+Aufschlag = Preis ÷ Kosten − 1 (100 % = doppelte Kosten); Marge = Gewinn ÷ Preis (kann nie über
+100 % liegen). **Pay-as-you-go liegt in jeder Variante deutlich über 100 % Aufschlag.**
+
+**FOC im Detail** (docs.filecoin.cloud, 09/2026): $2.50 / TiB / Monat **pro Kopie**, plus 0.12 $ pro
+Datensatz und Monat, einmalig 0.025 $ je neuem Datensatz, 0.008 $ + 0.003 $ pro Piece je
+Hinzufügen, 0.007 $ je Löschauftrag. Bezahlt in USDFC über Filecoin Pay, 30 Tage Kosten als Reserve.
+Deshalb: alle Kunden teilen sich **2 Datensätze** (0.24 $/Monat fix statt pro Konto) und wir bündeln
+viele verschlüsselte 32-MiB-Pieces zu **Paketen bis 512 MiB** – ohne Bündelung würden 1 GB
+Kundendaten einmalig ≈ 0.66 $ Gebühren kosten (30 Pieces × 0.011 $ × 2 Kopien), mit Bündelung ≈ 0.04 $
+(2 Pakete, einmalig ≈ 1.3 Monate PAYG-Umsatz dieses GB) – bei 0.39 Rp Speicherkosten pro GB und Monat ein großer Unterschied. Download ohne CDN: keine Gebühr.
 
 - **Fil One:** $4.99 / TB / Monat auf den **Tagesdurchschnitt der belegten Bytes**, keine
   Egress-/Request-Gebühren, Minimum $4.99 / Monat. Bezahlt per Kreditkarte (Stripe).
@@ -109,7 +126,16 @@ Annahmen: 25 % der Zahlenden Family, 30 % Auslastung, 10 % der Abos mit Zusatzsp
 100 000 Nutzer bei 3 % ≈ **610 000 CHF Jahresumsatz**. Der Free-Tier ist kein Kostenproblem – die
 Fil-One-Preise (keine Egress-Gebühren, Tagesdurchschnitt) machen ihn sehr günstig.
 
-## 7. Offene Punkte
+## 7. Speicher-API (später, für Entwickler)
+
+Voreinstellung im Preisbuch (änderbar): **1.5 Rp / 1.5 ct / 1.6 ¢ pro GB und Monat** (= 15 CHF/TB),
+Download inklusive bis zur gespeicherten Menge, darüber 1 Rp/GB, Mindestbetrag 5 pro Monat.
+Mit FOC direkt +288 % Aufschlag. Einordnung: AWS S3 ≈ $23/TB, Backblaze B2 $6/TB, Wasabi $6.99/TB –
+wir liegen im Premium-Bereich, weil jedes Objekt Ende-zu-Ende verschlüsselt und auf Filecoin
+nachweisbar gespeichert ist. Für die API muss FOC die Hauptablage sein (schnelle Kopie nach X
+Stunden entfernen), sonst sinkt der Aufschlag auf ~85 %.
+
+## 8. Offene Punkte
 
 1. **MWST:** Endkundenpreise in der Schweiz inkl. 8.1 % MWST angeben → 13.90 CHF brutto = 12.86 netto.
    Die Kalkulation oben rechnet mit Bruttopreisen; die Margen sinken dadurch um ~1 Prozentpunkt.

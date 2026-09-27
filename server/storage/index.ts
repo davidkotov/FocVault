@@ -1,5 +1,7 @@
 import path from 'node:path'
 import { dataDir, isProd } from '../shared/env'
+import { FocBackedProvider } from '../foc/provider'
+import { getDb } from '../db'
 import { FilOneS3Provider } from './filone'
 import { LocalFsProvider } from './local'
 import type { StorageProvider } from './provider'
@@ -27,6 +29,7 @@ function create(): StorageProvider {
 }
 
 export function getStorage(): StorageProvider {
-  if (!g.__fvStorage) g.__fvStorage = create()
+  // Filecoin Onchain Cloud sichert im Hintergrund; fehlt die schnelle Kopie, wird von dort gelesen.
+  if (!g.__fvStorage) g.__fvStorage = new FocBackedProvider(create(), getDb)
   return g.__fvStorage
 }

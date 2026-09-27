@@ -44,7 +44,16 @@ export interface PricingConfig {
   plans: { pro: PlanPrice; family: PlanPrice & { seats: number } }
   addons: AddonPack[]
   freeTier: { monthlyBudgetChf: number; inactiveWarnDays: number; inactiveDeleteDays: number }
+  /**
+   * Womit wir speichern (bestimmt die Kosten): Fil One (S3), Filecoin Onchain Cloud direkt
+   * (USDFC, PDP-geprüft) oder beides (Fil One als schnelle Kopie + FOC als geprüfte Kopie).
+   */
+  storage: { backend: StorageBackend; focUsdPerTibMonthPerCopy: number; focCopies: number }
+  /** Speicher-API für Entwickler (später): Preis pro GB/Monat, Download über Inklusivmenge. */
+  api: { perGbMonth: Money; egressPerGb: Money; includedEgressRatio: number; minMonthly: Money }
 }
+
+export type StorageBackend = 'filone' | 'foc' | 'both'
 
 export const DEFAULT_PRICING: PricingConfig = {
   v: 2,
@@ -81,7 +90,14 @@ export const DEFAULT_PRICING: PricingConfig = {
     { id: 'plus-1000', gb: 1000, monthly: { CHF: 9.9, EUR: 9.9, USD: 10.9 }, yearly: { CHF: 99, EUR: 99, USD: 109 } },
     { id: 'plus-2000', gb: 2000, monthly: { CHF: 17.9, EUR: 17.9, USD: 19.9 }, yearly: { CHF: 179, EUR: 179, USD: 199 } }
   ],
-  freeTier: { monthlyBudgetChf: 1000, inactiveWarnDays: 365, inactiveDeleteDays: 540 }
+  freeTier: { monthlyBudgetChf: 1000, inactiveWarnDays: 365, inactiveDeleteDays: 540 },
+  storage: { backend: 'filone', focUsdPerTibMonthPerCopy: 2.5, focCopies: 2 },
+  api: {
+    perGbMonth: { CHF: 0.015, EUR: 0.015, USD: 0.016 },
+    egressPerGb: { CHF: 0.01, EUR: 0.01, USD: 0.01 },
+    includedEgressRatio: 1,
+    minMonthly: { CHF: 5, EUR: 5, USD: 5 }
+  }
 }
 
 export function round2(n: number): number {
@@ -108,9 +124,26 @@ export function yearlySavingsPct(item: { monthly: Money; yearly: Money }, curren
   return twelve > 0 ? Math.round((1 - item.yearly[currency] / twelve) * 100) : 0
 }
 
+/** GB (10^9) pro TiB (2^40) – FOC rechnet in TiB, wir in GB. */
+const GB_PER_TIB = 2 ** 40 / GB
+
+/** Speicherkosten pro GB und Monat in USD je Anbieter. */
+export function costUsdPerGb(p: PricingConfig, backend: StorageBackend = p.storage.backend): number {
+  const filone = p.filOneUsdPerTbMonth / 1000
+  const foc = (p.storage.focUsdPerTibMonthPerCopy * p.storage.focCopies) / GB_PER_TIB
+  return backend === 'filone' ? filone : backend === 'foc' ? foc : filone + foc
+}
+
 /** Kosten pro gespeichertem GB und Monat in CHF (ohne Fil-One-Minimum). */
-export function costChfPerGb(p: PricingConfig): number {
-  return (p.filOneUsdPerTbMonth / 1000) * p.fx.usdToChf
+export function costChfPerGb(p: PricingConfig, backend: StorageBackend = p.storage.backend): number {
+  return costUsdPerGb(p, backend) * p.fx.usdToChf
+}
+
+/** Aufschlag (Preis ÷ Kosten − 1) und Marge (Gewinn ÷ Preis) für einen GB-Preis. */
+export function markupOf(p: PricingConfig, pricePerGb: number, currency: Currency, backend: StorageBackend = p.storage.backend) {
+  const price = toChf(p, pricePerGb, currency)
+  const cost = costChfPerGb(p, backend)
+  return { markupPct: cost > 0 ? (price / cost - 1) * 100 : 0, marginPct: price > 0 ? (1 - cost / price) * 100 : 0 }
 }
 
 export function stripeFee(p: PricingConfig, amountChf: number): number {

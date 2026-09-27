@@ -34,6 +34,17 @@ export const pricingSchema = z.object({
     monthlyBudgetChf: amount,
     inactiveWarnDays: z.number().int().min(30).max(3650),
     inactiveDeleteDays: z.number().int().min(60).max(3650)
+  }),
+  storage: z.object({
+    backend: z.enum(['filone', 'foc', 'both']),
+    focUsdPerTibMonthPerCopy: amount,
+    focCopies: z.number().int().min(1).max(5)
+  }),
+  api: z.object({
+    perGbMonth: z.object({ CHF: z.number().min(0).max(10), EUR: z.number().min(0).max(10), USD: z.number().min(0).max(10) }),
+    egressPerGb: z.object({ CHF: z.number().min(0).max(10), EUR: z.number().min(0).max(10), USD: z.number().min(0).max(10) }),
+    includedEgressRatio: z.number().min(0).max(100),
+    minMonthly: moneySchema
   })
 })
 
@@ -68,7 +79,8 @@ async function write(db: Db, key: string, value: unknown, by: string | null): Pr
 export async function getPricing(db: Db): Promise<PricingConfig> {
   const stored = await read<Partial<PricingConfig>>(db, 'pricing')
   if (!stored || stored.v !== 2) return DEFAULT_PRICING
-  const parsed = pricingSchema.safeParse(stored)
+  // Neue Abschnitte (z. B. storage, api) mit Standardwerten ergänzen, statt alles zu verwerfen.
+  const parsed = pricingSchema.safeParse({ ...DEFAULT_PRICING, ...stored })
   return parsed.success ? parsed.data : DEFAULT_PRICING
 }
 
