@@ -15,7 +15,13 @@ export async function generateMetadata(): Promise<Metadata> {
       : 'Ende-zu-Ende-verschlüsselter Cloud-Speicher auf Filecoin. Dateien, Passwörter und 2FA in einem Tresor.',
     manifest: '/manifest.webmanifest',
     appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'FocVault' },
-    icons: { icon: '/icon192.png', apple: '/icon192.png' },
+    icons: {
+      icon: [
+        { url: '/favicon.svg', type: 'image/svg+xml' },
+        { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' }
+      ],
+      apple: '/apple-touch-icon.png'
+    },
     alternates: { languages: { de: '/de', en: '/en' } }
   }
 }

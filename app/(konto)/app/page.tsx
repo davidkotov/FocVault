@@ -24,6 +24,8 @@ import FamilyPanel from '@/components/account/FamilyPanel'
 import ProofDialog from '@/components/account/ProofDialog'
 import PasskeysPanel from '@/components/account/PasskeysPanel'
 import FamilyFolderView from '@/components/account/FamilyFolderView'
+import StorageApiView from '@/components/account/StorageApiView'
+import { storageApiMessages } from '@/lib/i18n/messages/storage-api'
 import { passkeySupported } from '@/features/keys/passkey'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
@@ -185,6 +187,7 @@ export default function AppPage() {
   const t = useMessages(appMessages)
   const errText = useErrorText()
   const { status, account, masterKey, vault, mutate, refreshAccount, syncError, bootError } = useAccount()
+  const sApi = useMessages(storageApiMessages)
   const [view, setView] = useState<ViewId>('cloud')
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -518,7 +521,8 @@ export default function AppPage() {
     notes: t.nav.notes,
     '2fa': t.nav.totp,
     passkeys: t.nav.passkeys,
-    familyFolder: t.nav.familyFolder
+    familyFolder: t.nav.familyFolder,
+    storageApi: sApi.nav
   }
 
   return (
@@ -532,6 +536,8 @@ export default function AppPage() {
         tier={tier}
         showPlans
         pro={isPro}
+        storageApi={account.plan === 'business'}
+        storageApiLabel={sApi.nav}
       />
       <div className="main">
         <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
@@ -693,6 +699,8 @@ export default function AppPage() {
           {sharing && <ShareDialog entry={sharing} masterKey={masterKey} onClose={() => setSharing(null)} />}
 
           {view === 'plans' && <PlansView />}
+
+          {view === 'storageApi' && account.plan === 'business' && <StorageApiView />}
 
           {view === 'familyFolder' && account.plan === 'family' && (
             <>

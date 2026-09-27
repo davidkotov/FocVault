@@ -41,6 +41,32 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Speicher-API (S3) für Business, unlöschbare Backups, Aufbewahrungsregeln, 5-TiB-Dateien
+
+**S3-Server (`server/s3/*`, Migration v13):** Protokoll aus dem Backup-Programm nach `server/s3/protocol.ts`
+verschoben und auf Streaming umgebaut (kein Zwischenspeichern, auch im lokalen Gateway nur noch dort, wo
+auf dem Gerät verschlüsselt wird). Mehrmandantenfähig: Access Key → Konto (`s3_keys`, Secret mit
+SERVER_SECRET verschlüsselt). `AccountS3Store` schreibt Bodies direkt in 32-MiB-Teile als normale Objekte
+(fmt `s3`) → Quota, Abrechnung, Filecoin-Sicherung und Nachweis gelten automatisch. Multipart bis 10 000
+Teile à 5 GiB, Teile laufen direkt in Piece-Bereiche und werden beim Abschluss durchnummeriert.
+**Object Lock** (GOVERNANCE mit Bypass, COMPLIANCE nicht aufhebbar, nur verlängerbar), Standardfrist je
+Bucket und Frist je Objekt, Schutz vor Löschen und Überschreiben. **Aufbewahrungsregeln (GFS)** je Bucket
+und Präfix, in der Wartung angewendet; alte Multipart-Uploads werden nach 7 Tagen abgebrochen.
+Lokal startet die API mit dem Dev-Server auf Port 9000; Production als eigener Prozess (`STORAGE-API.md`).
+Dashboard „Speicher-API“ (nur Business): Endpoint, Schlüssel (Secret einmalig), Buckets mit Object Lock,
+Aufbewahrung, Filecoin-Status, Schnellstart für restic, pgBackRest, WAL-G, rclone, Proxmox/Veeam/Synology.
+
+**Große Dateien:** App-Uploads bis 160 000 Teile (≈ 5 TiB); Upload-URLs kommen in Etappen (erst 64).
+Leere Objekte sind erlaubt (0-Byte-Teile) und werden von der Filecoin-Bündelung übersprungen.
+
+**Oberfläche:** Secure Send, Familienordner und Papierkorb als Buttons in „Meine Cloud“, Passkeys unter
+„Konto & Sicherheit“. Favicon und App-Icons im FocVault-Design (statt „FV“ in Gelb).
+
+**Tests:** Vitest 99/99 (Speicher-API mit dem offiziellen AWS-SDK: 70-MiB-Objekt über drei Teile, Range über
+Teilgrenzen, Quota, Überschreiben/Freigeben, leere Objekte, Multipart 41 MiB, Object Lock COMPLIANCE/
+GOVERNANCE, GFS-Regeln, Filecoin-Sicherung von S3-Objekten; 5-TiB-Anmeldung mit URLs in Etappen).
+Live gegen localhost: Schlüssel und Bucket im Dashboard angelegt, 50 MB per AWS-SDK hoch/runter identisch.
+
 ### Gemeinsamer Familienordner (Ende-zu-Ende) und Englisch für Passwörter/Notizen/2FA
 
 **Familienordner (Migration v12, `server/family/space.ts`, `features/family/*`):** Jedes Konto erzeugt ein

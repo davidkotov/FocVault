@@ -169,3 +169,20 @@ describe('Dateiversionen (Pro/Family)', () => {
     expect(await usedBytes(deps.db, session.accountId)).toBe(100)
   })
 })
+
+describe('Große Dateien', () => {
+  beforeEach(() => resetRateLimits())
+
+  it('bis 5 TiB anmeldbar; Upload-URLs kommen in Etappen', async () => {
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'gross@example.com')
+    await deps.db.query(`UPDATE accounts SET plan = 'business' WHERE id = $1`, [session.accountId])
+    const pieces = Array.from({ length: 20_000 }, (_, index) => ({ index, cipherBytes: MAX_PIECE_CIPHER_BYTES }))
+    const input = createObjectSchema.parse({ fmt: 'frame2', pieces })
+    const created = await createObject(deps, session, input)
+    expect(created.pieces).toHaveLength(64)
+    const { refreshUploadUrls } = await import('./service')
+    const more = await refreshUploadUrls(deps, session, created.objectId, [19_999])
+    expect(more.pieces[0].index).toBe(19_999)
+  })
+})

@@ -26,7 +26,7 @@ export interface PackCopy {
 const LIVE_KEYS = `
   SELECT op.storage_key, op.cipher_bytes::float8 AS bytes, o.stored_at AS since
     FROM object_pieces op JOIN objects o ON o.id = op.object_id
-   WHERE o.state IN ('stored', 'version', 'trashed')
+   WHERE o.state IN ('stored', 'version', 'trashed') AND op.cipher_bytes > 0
   UNION ALL
   SELECT storage_key, size::float8 AS bytes, created_at AS since FROM (
     SELECT DISTINCT ON (account_id) account_id, storage_key, size, created_at

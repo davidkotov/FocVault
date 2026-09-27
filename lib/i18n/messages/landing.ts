@@ -86,7 +86,7 @@ const de = {
     business: 'Business / Custom',
     businessPrice: 'Individuell',
     businessDesc: 'Teams, Compliance-Anforderungen, dedizierte Kapazität.',
-    businessFeatures: ['Datenresidenz CH/EU', 'Migration von S3', 'API, SLA & Audit-Logs', 'Verwaltete Schlüssel'],
+    businessFeatures: ['S3-Speicher-API für Server- & Datenbank-Backups', 'Unlöschbare Backups (Object Lock) & Aufbewahrungsregeln', 'Öffentlich prüfbare Speicherbeweise auf Filecoin', 'Datenresidenz CH/EU, SLA & Audit-Logs'],
     businessCta: 'Kontakt',
     vat: 'Preise inkl. MWST.'
   },
@@ -227,7 +227,7 @@ const en: typeof de = {
     business: 'Business / custom',
     businessPrice: 'Custom',
     businessDesc: 'Teams, compliance requirements, dedicated capacity.',
-    businessFeatures: ['Data residency CH/EU', 'Migration from S3', 'API, SLA & audit logs', 'Managed keys'],
+    businessFeatures: ['S3 storage API for server & database backups', 'Immutable backups (Object Lock) & retention rules', 'Publicly verifiable storage proofs on Filecoin', 'Data residency CH/EU, SLA & audit logs'],
     businessCta: 'Contact us',
     vat: 'Prices include VAT.'
   },

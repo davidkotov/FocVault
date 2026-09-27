@@ -114,3 +114,14 @@ export function verifySigV4(req: SigV4Request, secretFor: (accessKey: string) =>
   }
   return { accessKey, payloadHash }
 }
+
+/** Access Key aus Authorization-Header bzw. signiertem Link (vor der Prüfung, zum Nachschlagen des Kontos). */
+export function accessKeyOf(req: SigV4Request): string | null {
+  const auth = header(req.headers, 'authorization')
+  const m = /Credential=([^/,\s]+)\//.exec(auth)
+  if (m) return m[1]
+  const q = req.url.indexOf('?')
+  if (q < 0) return null
+  const cred = new URLSearchParams(req.url.slice(q + 1)).get('X-Amz-Credential')
+  return cred ? cred.split('/')[0] : null
+}

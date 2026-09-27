@@ -20,8 +20,9 @@ import type { PublicShare, ShareSummary } from '@/server/shares/service'
 import type { FilecoinFileStatus, ProofCertificate } from '@/server/foc/proofs'
 import type { FamilyView } from '@/server/family/service'
 import type { SpaceState } from '@/server/family/space'
+import type { RetentionRule, S3Overview } from '@/server/s3/service'
 
-export type { SpaceState, FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
+export type { RetentionRule, S3Overview, SpaceState, FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
 /** Weiterleitung zu Stripe (Checkout, Kundenportal) */
 export interface Redirect {
@@ -209,6 +210,12 @@ export const api = {
   addPasskey: (input: { credentialId: string; label: string; salt: string; iv: string; cipher: string }) =>
     call<AccountView>('POST', '/account/passkeys', input),
   removePasskey: (credentialId: string) => call<AccountView>('DELETE', `/account/passkeys/${encodeURIComponent(credentialId)}`),
+  s3Overview: () => call<S3Overview>('GET', '/s3'),
+  s3CreateKey: (label: string) => call<{ accessKey: string; secretKey: string }>('POST', '/s3/keys', { label }),
+  s3RevokeKey: (accessKey: string) => call<{ ok: true }>('DELETE', `/s3/keys/${encodeURIComponent(accessKey)}`),
+  s3CreateBucket: (name: string, objectLock: boolean) => call<{ ok: true }>('POST', '/s3/buckets', { name, objectLock }),
+  s3UpdateBucket: (name: string, input: { lock?: { mode: 'GOVERNANCE' | 'COMPLIANCE'; days: number } | null; retention?: RetentionRule | null }) =>
+    call<{ ok: true }>('PATCH', `/s3/buckets/${encodeURIComponent(name)}`, input),
   filecoinStatus: () => call<FilecoinFileStatus>('GET', '/objects/filecoin'),
   createShare: (input: { objectId: string; meta: string; expiresInHours: number | null; maxDownloads: number | null }) =>
     call<ShareSummary>('POST', '/shares', input),

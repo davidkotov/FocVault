@@ -376,6 +376,71 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       ALTER TABLE objects ADD COLUMN space_owner uuid REFERENCES families(owner_account_id) ON DELETE SET NULL;
       CREATE INDEX objects_space ON objects (space_owner) WHERE space_owner IS NOT NULL;
     `
+  },
+  {
+    version: 13,
+    name: 's3_api',
+    sql: `
+      -- Speicher-API (S3-kompatibel, Business). Werkzeuge wie restic/pgBackRest/WAL-G verschlüsseln
+      -- selbst; wir speichern ihre Objekte als normale Objekte (Quota, Filecoin-Sicherung, Abrechnung).
+      CREATE TABLE s3_keys (
+        access_key text PRIMARY KEY,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        secret_enc text NOT NULL,
+        label text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_used_at timestamptz,
+        revoked_at timestamptz
+      );
+      CREATE INDEX s3_keys_account ON s3_keys (account_id);
+      CREATE TABLE s3_buckets (
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        object_lock boolean NOT NULL DEFAULT false,
+        lock_mode text CHECK (lock_mode IN ('GOVERNANCE', 'COMPLIANCE')),
+        lock_days integer CHECK (lock_days IS NULL OR lock_days BETWEEN 1 AND 36500),
+        retention jsonb,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (account_id, name)
+      );
+      CREATE TABLE s3_objects (
+        account_id uuid NOT NULL,
+        bucket text NOT NULL,
+        key text NOT NULL,
+        object_id uuid NOT NULL REFERENCES objects(id),
+        size bigint NOT NULL,
+        etag text NOT NULL,
+        content_type text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        lock_mode text CHECK (lock_mode IN ('GOVERNANCE', 'COMPLIANCE')),
+        retain_until timestamptz,
+        PRIMARY KEY (account_id, bucket, key),
+        FOREIGN KEY (account_id, bucket) REFERENCES s3_buckets(account_id, name) ON DELETE CASCADE
+      );
+      CREATE INDEX s3_objects_list ON s3_objects (account_id, bucket, key text_pattern_ops);
+      CREATE TABLE s3_uploads (
+        upload_id text PRIMARY KEY,
+        account_id uuid NOT NULL,
+        bucket text NOT NULL,
+        key text NOT NULL,
+        object_id uuid NOT NULL REFERENCES objects(id),
+        content_type text NOT NULL,
+        lock_mode text,
+        retain_until timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        FOREIGN KEY (account_id, bucket) REFERENCES s3_buckets(account_id, name) ON DELETE CASCADE
+      );
+      CREATE TABLE s3_parts (
+        upload_id text NOT NULL REFERENCES s3_uploads(upload_id) ON DELETE CASCADE,
+        part_number integer NOT NULL CHECK (part_number BETWEEN 1 AND 10000),
+        size bigint NOT NULL,
+        etag text NOT NULL,
+        PRIMARY KEY (upload_id, part_number)
+      );
+      -- Leere Objekte (0 Byte) sind in S3 üblich
+      ALTER TABLE object_pieces DROP CONSTRAINT object_pieces_cipher_bytes_check;
+      ALTER TABLE object_pieces ADD CONSTRAINT object_pieces_cipher_bytes_check CHECK (cipher_bytes >= 0);
+    `
   }
 ]
 

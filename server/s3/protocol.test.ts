@@ -15,16 +15,17 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { MemoryS3Store, startS3Gateway } from './s3'
+import { MemoryS3Store, startS3Server } from './protocol'
 import { verifySigV4 } from './sigv4'
 
 const AK = 'FVTESTACCESSKEY0001'
 const SK = 'test-secret-key-0123456789abcdefghij'
-let gw: Awaited<ReturnType<typeof startS3Gateway>>
+let gw: Awaited<ReturnType<typeof startS3Server>>
 let s3: S3Client
 
 beforeAll(async () => {
-  gw = await startS3Gateway({ store: new MemoryS3Store(), accessKey: AK, secretKey: SK, port: 0 })
+  const store = new MemoryS3Store()
+  gw = await startS3Server({ resolve: async ak => (ak === AK ? { secret: SK, store } : null), port: 0 })
   // Das offizielle AWS-SDK (inkl. Standard-Prüfsummen/aws-chunked) als Client
   s3 = new S3Client({ endpoint: gw.url, region: 'us-east-1', forcePathStyle: true, credentials: { accessKeyId: AK, secretAccessKey: SK } })
 })

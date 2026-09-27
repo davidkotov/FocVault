@@ -17,7 +17,7 @@ import { api } from '@/features/api/client'
 import { formatBytes } from '@/lib/vault'
 import { randomBytes } from 'node:crypto'
 import { backupFolder, listFiles, login, readConfig, restore, unlock, writeConfig } from './core'
-import { startS3Gateway } from './s3'
+import { startS3Server } from '../server/s3/protocol'
 import { VaultS3Store } from './s3-store'
 
 const VERSION = '1.0.0'
@@ -142,7 +142,7 @@ async function main() {
       const store = new VaultS3Store(s)
       await store.init()
       const port = Number(flags.port ?? 9000)
-      const gw = await startS3Gateway({ store, accessKey: c.s3AccessKey!, secretKey: c.s3SecretKey!, port, host: '127.0.0.1' })
+      const gw = await startS3Server({ resolve: async ak => (ak === c.s3AccessKey ? { secret: c.s3SecretKey!, store } : null), port, host: '127.0.0.1' })
       console.log(`✓ S3-Gateway läuft auf ${gw.url} (nur dieses Gerät) – Ende mit Strg+C
 
   Endpoint:    ${gw.url}

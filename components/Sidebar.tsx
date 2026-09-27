@@ -5,7 +5,7 @@ import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 import { formatBytes, type TierName } from '@/lib/vault'
 
-export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder'
+export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder' | 'storageApi'
 
 interface Props {
   view: ViewId
@@ -20,6 +20,9 @@ interface Props {
   pro?: boolean
   /** Familienordner anzeigen (Family-Mitglieder und -Inhaber) */
   family?: boolean
+  /** Speicher-API (Business) */
+  storageApi?: boolean
+  storageApiLabel?: string
 }
 
 const ICONS: Record<ViewId, JSX.Element> = {
@@ -68,6 +71,12 @@ const ICONS: Record<ViewId, JSX.Element> = {
       <path d="M12 7v5l3.5 2" />
     </>
   ),
+  storageApi: (
+    <>
+      <ellipse cx="12" cy="6" rx="8" ry="3" />
+      <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+    </>
+  ),
   familyFolder: (
     <>
       <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -84,7 +93,7 @@ const ICONS: Record<ViewId, JSX.Element> = {
 }
 
 /** Seitenleiste; auf dem Handy als ausklappbares Menü (Burger-Button in der Topbar-Zeile). */
-export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, family = false }: Props) {
+export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, storageApi = false, storageApiLabel = 'Speicher-API' }: Props) {
   const m = useMessages(appMessages).nav
   const [open, setOpen] = useState(false)
   const pct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0
@@ -129,6 +138,7 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
 
       <nav className="navlist">
         <Item id="cloud" label={m.cloud} />
+        {storageApi && <Item id="storageApi" label={storageApiLabel} />}
         {showPlans && <Item id="plans" label={m.plans} />}
         <Item id="account" label={m.account} />
 

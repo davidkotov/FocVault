@@ -2159,3 +2159,11 @@ a.linkbtn:hover { border-color: var(--accent-border); background: var(--accent-s
 .passkeyform { margin-top: 14px; }
 .familybtn { color: var(--accent-dark); border-color: var(--accent-border); }
 .lockedcard h3 .navlock { margin-left: auto; margin-right: 8px; }
+
+/* ---------- Speicher-API ---------- */
+.bucketrow { align-items: flex-start; }
+.bucketedit { width: 100%; padding: 12px; background: var(--card-soft); border: 1px solid var(--border); border-radius: 12px; }
+.snippet { margin: 8px 0; }
+.snippet summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.snippet .previewtext { height: auto; max-height: 260px; border: 1px solid var(--border); border-radius: 10px; margin: 8px 0; }
+.sharelink .row .mono { overflow-wrap: anywhere; }

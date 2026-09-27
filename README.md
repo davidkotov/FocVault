@@ -58,6 +58,11 @@ inklusive Marge je Speicherart (Fil One, FOC, beides).
 `npm run build:cli` → `bin/focvault.mjs`: verschlüsseltes, inkrementelles Backup von Ordnern und ein
 lokales S3-Gateway für rclone, Cyberduck, AWS CLI oder NAS-Backups. Anleitung: `BACKUP.md`.
 
+## Speicher-API (Business)
+
+S3-kompatibel für Server-, Datenbank- und NAS-Backups: Zugangsschlüssel, unlöschbare Buckets
+(Object Lock), Aufbewahrungsregeln, Streaming ohne Zwischendatei. Anleitung: `STORAGE-API.md`.
+
 ## Secure Send
 
 Link mit Ablauf, Download-Limit (serverseitig, global) und optionalem Passwort. Der Link

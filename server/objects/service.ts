@@ -16,8 +16,10 @@ import { spaceOwnerOf } from '../family/space'
 
 const UPLOAD_URL_TTL_SEC = 60 * 60
 const DOWNLOAD_URL_TTL_SEC = 15 * 60
-/** 10 000 Pieces à 32 MiB ≈ 312 GiB pro Datei */
-const MAX_PIECES = 10_000
+/** 160 000 Pieces à 32 MiB ≈ 5 TiB pro Datei (wie S3) */
+const MAX_PIECES = 160_000
+/** Upload-URLs werden in Etappen ausgestellt; der Client holt weitere über /urls. */
+const PRESIGN_FIRST = 64
 /** Größtes erlaubtes Ciphertext-Piece (volles Piece inkl. Frame-Header und GCM-Tags). */
 export const MAX_PIECE_CIPHER_BYTES = streamCipherPlan(ACCOUNT_PIECE_SIZE).paddedSize
 
@@ -41,7 +43,7 @@ export const createObjectSchema = z
     path: ['pieces']
   })
 
-export const refreshUrlsSchema = z.object({ pieces: z.array(z.number().int().min(0)).min(1).max(MAX_PIECES) })
+export const refreshUrlsSchema = z.object({ pieces: z.array(z.number().int().min(0)).min(1).max(256) })
 
 interface ObjectRow {
   id: string
@@ -146,7 +148,7 @@ export async function createObject(
   })
   const pieces = await presignUploads(
     deps,
-    input.pieces.map(p => ({ index: p.index, key: objectPieceKey(session.accountId, objectId, p.index), cipherBytes: p.cipherBytes }))
+    input.pieces.slice(0, PRESIGN_FIRST).map(p => ({ index: p.index, key: objectPieceKey(session.accountId, objectId, p.index), cipherBytes: p.cipherBytes }))
   )
   await audit(deps.db, session.accountId, 'user', 'object.upload_started', { pieces: input.pieces.length, bytes: total })
   return { objectId, pieces }
