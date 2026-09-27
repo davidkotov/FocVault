@@ -41,6 +41,32 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Business: Admin-Konsole, Richtlinien, Protokoll & PDF-Bericht, Firmen-Notfallzugriff, SSO (Migration v20)
+
+Neuer Seitenleisten-Abschnitt **Business** (Geteilte Tresore, Admin-Konsole; ohne Business Schloss).
+**Rollen:** Inhaber, Admin, Mitglied (`family_members.role`); Admin vergibt nur der Inhaber; Mitglieder sehen
+die Konsole nicht. **Richtlinien** (`team_policies`): Passkey-Pflicht, Mindestlänge der Passphrase, Auto-Sperre
+(Minuten, auf allen Geräten), Secure-Send-Links erlauben / höchstens N Tage (serverseitig in `createShare`
+durchgesetzt), Firmen-Notfallzugriff verlangen. Passphrase-Länge meldet das Gerät beim Entsperren/Ändern
+(`/account/attest`) – Zero-Knowledge, der Server kann sie nicht selbst prüfen. Mitglieder sehen Hinweise im
+Dashboard; die Mitgliederübersicht zeigt je Person Passkeys, Passphrase-Länge, Hinterlegung, zuletzt aktiv
+und Richtlinien-Status. **Protokoll:** alle Ereignisse des Teams mit Filtern (Person, Bereich, Zeitraum),
+CSV-Export, **Compliance-Bericht als PDF** (eigener kleiner PDF-Erzeuger `lib/pdf.ts`, ohne Abhängigkeit):
+Team, Richtlinien, Personen-Status, Speicher und Filecoin-Beweise, Notfallzugriffe, Ereignisse.
+**Firmen-Notfallzugriff (Vier-Augen):** Inhaber erzeugt im Browser einen Team-Schlüssel (ECDH), der private
+Teil liegt nur je Admin verpackt vor (Admins geben ihn automatisch weiter). Mitglieder hinterlegen ihren
+Master-Key mit der Passphrase. Admin stellt Antrag mit Begründung → ein **anderer** Admin gibt frei (DB-Check
+`approved_by <> requested_by`) → 24 h Lesezugriff nur für die beiden Beteiligten. Die Person sieht jeden
+Zugriff mit Begründung. Neuer Team-Schlüssel → alle hinterlegen neu.
+**SSO (Enterprise):** OpenID Connect mit PKCE, Nonce, State; ID-Token-Prüfung (RS256/ES256 über JWKS mit
+`node:crypto`), Domains, Client-Secret mit SERVER_SECRET verschlüsselt. „SSO erzwingen“ sperrt die
+Passphrase-Anmeldung für die Domains (Inhaber ausgenommen); „automatisch beitreten“ erzeugt beim ersten
+SSO-Login eine Team-Einladung. SSO ersetzt nur die Anmeldung, entschlüsselt wird weiter mit Passphrase/Passkey.
+Redirect-URI: `<APP_ORIGIN>/api/v1/auth/sso/callback`.
+
+**Tests:** Vitest 119/119 (neu `server/team/*`, `lib/pdf`), Playwright 12/12 (neu `e2e/team-admin.spec.ts`
+mit drei Konten: Rollen, Richtlinien, Vier-Augen-Zugriff mit Datei-Download, Protokoll, PDF, SSO-Fehlerfall).
+
 ### Passwort-Check
 
 Leiste über der Passwortliste: **schwach** (Entropie-Schätzung mit Abzügen für Wörterbuch-, Wiederholungs-,

@@ -107,6 +107,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       if (!env) throw new Error('Kein Passphrase-Schlüssel für dieses Konto.')
       const { kek } = await deriveFromPassphrase(passphrase, view.kdf)
       await enter(view, await unwrapMasterKey(env, kek))
+      // Team-Richtlinie: Länge der Passphrase melden (der Server kann sie nicht selbst prüfen)
+      const chars = [...passphrase.normalize('NFKC')].length
+      if (view.team && view.team.passphraseChars !== chars) void api.attestPassphrase(chars).catch(() => undefined)
     },
     [enter]
   )
@@ -191,10 +194,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   // Auto-Lock nach Inaktivität (ARCHITECTURE §9.2)
   useEffect(() => {
     if (status !== 'ready') return
-    let timer = setTimeout(lock, AUTO_LOCK_MS)
+    const ms = account?.team ? account.team.policy.autoLockMinutes * 60_000 : AUTO_LOCK_MS
+    let timer = setTimeout(lock, ms)
     const reset = () => {
       clearTimeout(timer)
-      timer = setTimeout(lock, AUTO_LOCK_MS)
+      timer = setTimeout(lock, ms)
     }
     const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const
     events.forEach(ev => window.addEventListener(ev, reset, { passive: true }))
@@ -202,7 +206,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       clearTimeout(timer)
       events.forEach(ev => window.removeEventListener(ev, reset))
     }
-  }, [status, lock])
+  }, [status, lock, account?.team?.policy.autoLockMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const value = useMemo<AccountContextValue>(
     () => ({

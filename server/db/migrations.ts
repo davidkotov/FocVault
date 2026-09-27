@@ -548,6 +548,77 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       CREATE UNIQUE INDEX emergency_pair ON emergency_contacts (grantor, grantee) WHERE grantee IS NOT NULL;
       CREATE INDEX emergency_grantee ON emergency_contacts (grantee);
     `
+  },
+  {
+    version: 20,
+    name: 'team_admin',
+    sql: `
+      -- Business-Admin-Konsole: Rollen, Richtlinien, Firmen-Notfallzugriff (Vier-Augen), SSO
+      ALTER TABLE family_members ADD COLUMN role text NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member'));
+      -- vom Gerät gemeldete Passphrase-Länge (der Server kann sie nicht prüfen – Zero-Knowledge)
+      ALTER TABLE accounts ADD COLUMN passphrase_chars integer;
+      CREATE TABLE team_policies (
+        owner_account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        policy jsonb NOT NULL DEFAULT '{}'::jsonb,
+        updated_by uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      -- Team-Wiederherstellungsschlüssel (ECDH): öffentlicher Teil + je Admin verpackter privater Teil
+      CREATE TABLE team_recovery_keys (
+        owner_account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        generation integer NOT NULL DEFAULT 1,
+        public_key jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE team_recovery_grants (
+        owner_account_id uuid NOT NULL REFERENCES team_recovery_keys(owner_account_id) ON DELETE CASCADE,
+        generation integer NOT NULL,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        wrapped jsonb NOT NULL,
+        PRIMARY KEY (owner_account_id, generation, account_id)
+      );
+      -- Master-Key jedes Mitglieds, verpackt für den Team-Wiederherstellungsschlüssel
+      CREATE TABLE team_escrow (
+        account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        owner_account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        generation integer NOT NULL,
+        wrapped jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE team_recovery_requests (
+        id uuid PRIMARY KEY,
+        owner_account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        target uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        requested_by uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        reason text NOT NULL,
+        approved_by uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        approved_at timestamptz,
+        rejected_at timestamptz,
+        expires_at timestamptz NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CHECK (approved_by IS NULL OR approved_by <> requested_by)
+      );
+      CREATE INDEX team_recovery_requests_owner ON team_recovery_requests (owner_account_id, created_at DESC);
+      CREATE TABLE team_sso (
+        owner_account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        issuer text NOT NULL,
+        client_id text NOT NULL,
+        client_secret bytea,
+        domains text[] NOT NULL,
+        enforce boolean NOT NULL DEFAULT false,
+        auto_join boolean NOT NULL DEFAULT true,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE sso_states (
+        state text PRIMARY KEY,
+        owner_account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        verifier text NOT NULL,
+        nonce text NOT NULL,
+        redirect_uri text NOT NULL,
+        expires_at timestamptz NOT NULL
+      );
+      CREATE INDEX audit_events_at ON audit_events (at);
+    `
   }
 ]
 

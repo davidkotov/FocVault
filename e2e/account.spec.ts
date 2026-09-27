@@ -116,7 +116,7 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await expect(page).toHaveURL(/\/anmelden$/)
   await page.getByLabel('E-Mail').fill(email)
   await page.getByLabel('Passphrase').fill(PASS)
-  await page.getByRole('button', { name: 'Anmelden' }).click()
+  await page.getByRole('button', { name: 'Anmelden', exact: true }).click()
   await expect(page).toHaveURL(/\/app$/)
   await expectFileListed(page, fileName)
 
@@ -137,10 +137,10 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await page.getByRole('button', { name: 'Abmelden' }).click()
   await page.getByLabel('E-Mail').fill(email)
   await page.getByLabel('Passphrase').fill(PASS)
-  await page.getByRole('button', { name: 'Anmelden' }).click()
+  await page.getByRole('button', { name: 'Anmelden', exact: true }).click()
   await expect(page.getByText('E-Mail oder Passphrase ist falsch.')).toBeVisible()
   await page.getByLabel('Passphrase').fill(NEW_PASS)
-  await page.getByRole('button', { name: 'Anmelden' }).click()
+  await page.getByRole('button', { name: 'Anmelden', exact: true }).click()
   await expect(page).toHaveURL(/\/app$/)
 
   // 8) Admin: Konto sichtbar, Speicher gebucht – ohne Dateinamen

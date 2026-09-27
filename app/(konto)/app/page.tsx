@@ -21,6 +21,9 @@ import EmergencyVaultView from '@/components/account/EmergencyVaultView'
 import { emergencyMessages } from '@/lib/i18n/messages/emergency'
 import { ensureKeypair } from '@/features/emergency/client'
 import { vaultsMessages } from '@/lib/i18n/messages/vaults'
+import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
+import TeamAdminView from '@/components/account/TeamAdminView'
+import TeamNotices, { TeamEscrowCard } from '@/components/account/TeamNotices'
 import SendView from '@/components/account/SendView'
 import TrashView from '@/components/account/TrashView'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -137,7 +140,12 @@ function ChangePassphraseCard() {
   const [next2, setNext2] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const ta = useMessages(teamAdminMessages)
   if (!account) return null
+  // Team-Richtlinie: Mindestlänge
+  const minChars = account.team?.policy.minPassphraseChars ?? 0
+  const longEnough = [...next.normalize('NFKC')].length >= minChars
+  const ready = !!current && passphraseReady(next, next2) && longEnough
   const submit = async () => {
     setBusy(true)
     setMsg(null)
@@ -151,6 +159,7 @@ function ChangePassphraseCard() {
       } finally {
         raw.fill(0)
       }
+      if (account.team) await api.attestPassphrase([...next.normalize('NFKC')].length).catch(() => undefined)
       await refreshAccount()
       setCurrent('')
       setNext('')
@@ -169,7 +178,7 @@ function ChangePassphraseCard() {
       <form
         onSubmit={e => {
           e.preventDefault()
-          if (current && passphraseReady(next, next2) && !busy) void submit()
+          if (ready && !busy) void submit()
         }}
       >
         <div className="field">
@@ -177,10 +186,11 @@ function ChangePassphraseCard() {
           <input id="cur" type="password" autoComplete="current-password" value={current} onChange={e => setCurrent(e.target.value)} />
         </div>
         <PassphraseFields value={next} confirm={next2} onChange={setNext} onConfirmChange={setNext2} label={m.newLabel} />
+        {minChars > 0 && next && !longEnough && <p className="hint" style={{ color: 'var(--red)' }}>{fmt(ta.notices.passphrase, { n: minChars })}</p>}
         {busy ? (
           <Working label={m.working} />
         ) : (
-          <button className="primary" type="submit" disabled={!current || !passphraseReady(next, next2)}>
+          <button className="primary" type="submit" disabled={!ready}>
             {m.submit}
           </button>
         )}
@@ -197,6 +207,7 @@ export default function AppPage() {
   const { status, account, masterKey, vault, mutate, refreshAccount, syncError, bootError } = useAccount()
   const sApi = useMessages(storageApiMessages)
   const vm = useMessages(vaultsMessages)
+  const ta = useMessages(teamAdminMessages)
   const [view, setView] = useState<ViewId>('cloud')
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -667,7 +678,8 @@ export default function AppPage() {
     familyFolder: account?.plan === 'business' ? t.team.folder : t.nav.familyFolder,
     storageApi: sApi.nav,
     sharedVaults: vm.nav,
-    emergency: em.title
+    emergency: em.title,
+    teamAdmin: ta.nav
   }
 
   return (
@@ -689,6 +701,8 @@ export default function AppPage() {
         apiSection={sApi.section}
         apiLockTip={sApi.lockTip}
         sharedVaultsLabel={vm.nav}
+        businessSection={ta.section}
+        teamAdminLabel={ta.nav}
       />
       <div className="main">
         <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
@@ -914,6 +928,27 @@ export default function AppPage() {
 
           {view === 'plans' && <PlansView key={planSegment ?? 'auto'} initialSegment={planSegment} />}
 
+          {view !== 'account' && <TeamNotices onOpenAccount={() => setView('account')} />}
+          {view === 'teamAdmin' &&
+            (account.plan !== 'business' ? (
+              <UpgradeWall
+                title={ta.title}
+                description={ta.upgradeLead}
+                body={ta.upgradeBody}
+                cta={ta.upgradeCta}
+                onUpgrade={() => {
+                  setPlanSegment('business')
+                  setView('plans')
+                }}
+              />
+            ) : account.team?.role === 'member' ? (
+              <div className="card">
+                <h3>{ta.title}</h3>
+                <p className="dim">{ta.adminsOnly}</p>
+              </div>
+            ) : (
+              <TeamAdminView />
+            ))}
           {view === 'sharedVaults' &&
             (account.plan === 'business' ? (
               <SharedVaultsView />
@@ -1108,6 +1143,7 @@ export default function AppPage() {
                 </div>
               </div>
               <ChangePassphraseCard />
+              <TeamEscrowCard />
               <EmergencyPanel
                 onOpen={(id, name) => {
                   setEmOpen({ id, name })

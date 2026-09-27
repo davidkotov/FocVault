@@ -5,6 +5,7 @@ import { audit, type Deps } from '../deps'
 import type { SessionInfo } from '../auth/sessions'
 import { ApiError } from '../shared/errors'
 import { isUuid } from '../shared/ids'
+import { policyFor } from '../team/service'
 
 const DOWNLOAD_URL_TTL_SEC = 15 * 60
 const MAX_ACTIVE_SHARES = 500
@@ -102,6 +103,11 @@ function newId(): string {
 export async function createShare(deps: Deps, session: SessionInfo, input: z.output<typeof createShareSchema>): Promise<ShareSummary> {
   const ids = input.objectIds ?? (input.objectId ? [input.objectId] : [])
   if (!ids.length && !input.payload) throw new ApiError('BAD_REQUEST', 'Datei oder Inhalt erforderlich.')
+  const policy = await policyFor(deps.db, session.accountId)
+  if (policy && !policy.allowShareLinks) throw new ApiError('FORBIDDEN', 'Secure-Send-Links sind in deinem Team per Richtlinie deaktiviert.')
+  if (policy?.maxShareDays && (input.expiresInHours === null || input.expiresInHours > policy.maxShareDays * 24)) {
+    throw new ApiError('FORBIDDEN', `Richtlinie deines Teams: Links höchstens ${policy.maxShareDays} Tage gültig.`)
+  }
   if (new Set(ids).size !== ids.length) throw new ApiError('BAD_REQUEST', 'Dateien doppelt ausgewählt.')
   const owned = await deps.db.query<{ id: string }>(
     `SELECT id FROM objects WHERE id = ANY($1::uuid[]) AND owner_account_id = $2 AND state = 'stored'`,

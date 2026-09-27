@@ -44,6 +44,40 @@ export interface AccountView {
   /** Passkeys zum Entsperren (nur Pro/Family): Envelope + PRF-Salt je Passkey */
   passkeys: PasskeyEnvelope[]
   isAdmin: boolean
+  /** Business-Team: Rolle, Richtlinien, Firmen-Notfallzugriff (sonst null) */
+  team: TeamInfo | null
+}
+
+export type TeamRole = 'owner' | 'admin' | 'member'
+
+/** Richtlinien eines Business-Teams (von Admins gesetzt, für alle Mitglieder gültig). */
+export interface TeamPolicy {
+  /** jedes Mitglied braucht mindestens einen Passkey */
+  passkeyRequired: boolean
+  /** Mindestlänge der Passphrase (Zeichen) */
+  minPassphraseChars: number
+  /** automatisch sperren nach … Minuten Inaktivität */
+  autoLockMinutes: number
+  /** Secure-Send-Links erlaubt */
+  allowShareLinks: boolean
+  /** längste Gültigkeit von Links in Tagen (null = frei) */
+  maxShareDays: number | null
+  /** Firmen-Notfallzugriff: Mitglieder hinterlegen ihren Schlüssel für das Team (Vier-Augen-Prinzip) */
+  recoveryRequired: boolean
+}
+
+export interface TeamInfo {
+  ownerId: string
+  ownerLabel: string
+  role: TeamRole
+  tier: 'starter' | 'business' | 'enterprise' | null
+  policy: TeamPolicy
+  /** vom Gerät gemeldete Passphrase-Länge */
+  passphraseChars: number | null
+  /** Firmen-Notfallzugriff: Team-Schlüssel, für den der eigene Master-Key hinterlegt werden soll */
+  recovery: { generation: number; publicKey: JsonWebKey; escrowed: boolean } | null
+  /** durchgeführte Firmen-Zugriffe auf den eigenen Tresor */
+  accessedBy: Array<{ at: string; requestedBy: string; approvedBy: string; reason: string }>
 }
 
 export interface PasskeyEnvelope {

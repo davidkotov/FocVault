@@ -22,9 +22,12 @@ import type { FamilyView } from '@/server/family/service'
 import type { SpaceState } from '@/server/family/space'
 import type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview } from '@/server/vaults/service'
 import type { EmergencyOverview } from '@/server/emergency/service'
+import type { ComplianceData, TeamAdminView, TeamAuditEvent } from '@/server/team/service'
+import type { SsoConfigView } from '@/server/team/sso'
+import type { TeamPolicy } from '@/lib/api-types'
 import type { RetentionRule, S3Overview } from '@/server/s3/service'
 
-export type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview, EmergencyOverview }
+export type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview, EmergencyOverview, ComplianceData, TeamAdminView, TeamAuditEvent, SsoConfigView }
 export type { RetentionRule, S3Overview, SpaceState, FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
 /** Weiterleitung zu Stripe (Checkout, Kundenportal) */
@@ -137,6 +140,26 @@ export const api = {
 
   setPublicKey: (publicKey: JsonWebKey) => call<{ ok: true }>('PUT', '/account/pubkey', { publicKey }),
   familySpace: () => call<SpaceState>('GET', '/family/space'),
+  team: () => call<TeamAdminView>('GET', '/team'),
+  setTeamPolicy: (p: TeamPolicy) => call<TeamPolicy>('PUT', '/team/policy', p),
+  setTeamRole: (id: string, role: 'admin' | 'member') => call<{ ok: true }>('PATCH', `/team/members/${encodeURIComponent(id)}`, { role }),
+  teamAudit: (q: { from?: string; to?: string; member?: string; kind?: string; limit?: number }) =>
+    call<{ events: TeamAuditEvent[] }>('GET', `/team/audit?${new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)]))}`),
+  teamReport: (days: number) => call<ComplianceData>('GET', `/team/report?days=${days}`),
+  attestPassphrase: (passphraseChars: number) => call<{ ok: true }>('POST', '/account/attest', { passphraseChars }),
+  setRecoveryKey: (publicKey: JsonWebKey, wrapped: unknown) => call<{ generation: number }>('POST', '/team/recovery/key', { publicKey, wrapped }),
+  grantRecoveryKey: (generation: number, grants: Array<{ accountId: string; wrapped: unknown }>) => call<{ ok: true }>('POST', '/team/recovery/grants', { generation, grants }),
+  escrow: (generation: number, wrapped: unknown) => call<{ ok: true }>('POST', '/team/escrow', { generation, wrapped }),
+  recoveryRequest: (target: string, reason: string) => call<{ id: string }>('POST', '/team/recovery/requests', { target, reason }),
+  recoveryDecide: (id: string, approve: boolean) => call<{ ok: true }>('POST', `/team/recovery/requests/${encodeURIComponent(id)}/${approve ? 'approve' : 'reject'}`),
+  recoveryVault: (id: string) =>
+    call<{ targetId: string; generation: number; escrow: unknown; teamKey: unknown; teamPublicKey: JsonWebKey; body: string | null }>('GET', `/team/recovery/requests/${encodeURIComponent(id)}/vault`),
+  recoveryDownload: (id: string, objectId: string) =>
+    call<DownloadResult>('GET', `/team/recovery/requests/${encodeURIComponent(id)}/objects/${encodeURIComponent(objectId)}/download`),
+  sso: () => call<{ config: SsoConfigView | null }>('GET', '/team/sso'),
+  setSso: (c: { issuer: string; clientId: string; clientSecret?: string; domains: string[]; enforce: boolean; autoJoin: boolean }) =>
+    call<{ config: SsoConfigView }>('PUT', '/team/sso', c),
+  deleteSso: () => call<{ ok: true }>('DELETE', '/team/sso'),
   emergency: () => call<EmergencyOverview>('GET', '/emergency'),
   createEmergency: (waitHours: number) => call<{ id: string; token: string }>('POST', '/emergency', { waitHours }),
   emergencyInvite: (token: string) => call<{ grantorLabel: string | null; waitHours: number }>('GET', `/emergency/invite/${encodeURIComponent(token)}`),

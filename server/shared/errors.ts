@@ -16,6 +16,7 @@ export type ErrorCode =
   | 'PAYLOAD_TOO_LARGE'
   | 'UPLOAD_SIZE_MISMATCH'
   | 'STORAGE_UNAVAILABLE'
+  | 'SSO_REQUIRED'
   | 'INTERNAL'
 
 const STATUS: Record<ErrorCode, number> = {
@@ -35,6 +36,7 @@ const STATUS: Record<ErrorCode, number> = {
   PAYLOAD_TOO_LARGE: 413,
   UPLOAD_SIZE_MISMATCH: 409,
   STORAGE_UNAVAILABLE: 503,
+  SSO_REQUIRED: 403,
   INTERNAL: 500
 }
 

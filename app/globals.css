@@ -2293,3 +2293,28 @@ input.mono { font-family: var(--mono); }
 .pwbadge { display: inline-block; margin-left: 8px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 999px; vertical-align: 1px; }
 .pwbadge.warn { background: #fff4e0; color: #9a5b00; }
 .pwbadge.bad { background: var(--red-soft); color: var(--red); }
+
+/* ---------- Admin-Konsole ---------- */
+.tablewrap { overflow-x: auto; margin: 8px 0; }
+.datatable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.datatable th { text-align: left; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-mute); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.datatable td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+.datatable td.nowrap { white-space: nowrap; }
+.datatable select { width: auto; padding: 4px 8px; font-size: 13px; }
+.datatable .badge { margin-right: 4px; }
+.badge.warn { background: #fff4e0; color: #9a5b00; }
+.policyform { display: flex; flex-direction: column; gap: 12px; max-width: 720px; }
+.policyrow { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--card-soft); }
+.policyrow input[type='checkbox'] { width: auto; margin-top: 3px; accent-color: var(--accent); }
+.policyrow > span { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.policyrow.num { align-items: center; }
+.policyrow.num input { width: 110px; }
+.auditfilters { gap: 8px; align-items: center; margin: 8px 0; }
+.auditfilters select { width: auto; }
+.recform { display: flex; gap: 8px; flex-wrap: wrap; }
+.recform select { width: auto; min-width: 180px; }
+.recform input { flex: 1; min-width: 240px; }
+.ssoform { display: flex; flex-direction: column; gap: 12px; max-width: 640px; }
+.ssoform label:not(.policyrow) { display: flex; flex-direction: column; gap: 4px; font-weight: 500; font-size: 13.5px; }
+.ssobox { margin: 12px 0 4px; text-align: center; }
+.ssobox .field { text-align: left; }
