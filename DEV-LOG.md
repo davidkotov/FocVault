@@ -41,6 +41,47 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Phase 1 – Konten, Backend, Fil-One-Storage (ARCHITECTURE §15)
+
+**Was man auf localhost sieht:** `/registrieren` (4 Schritte inkl. Recovery-Kit und Wortprüfung),
+`/anmelden`, `/wiederherstellen`, `/app` (Dashboard im bestehenden Design: Cloud, Passwörter,
+Notizen, 2FA, Konto & Sicherheit), `/admin` (Konten, Speicher, Kosten, MRR, Audit-Log).
+Die Landing-Buttons „Anmelden/Registrieren/Kostenlos starten“ führen dorthin (Production erst mit
+`NEXT_PUBLIC_ACCOUNTS_ENABLED=1`); „Wallet verbinden“ bleibt der bisherige Wallet-Modus.
+
+**Backend (`server/`, Route-Handler unter `app/api/v1/`)**
+- `db/`: `Db`-Interface, lokal PGlite (`.data/pglite`), Production `pg` über `DATABASE_URL`; Migration v1
+- `storage/`: `StorageProvider` mit `FilOneS3Provider` (SigV4, Path-Style, Flexible Checksums aus),
+  `LocalFsProvider` (Dev, signierte URLs), `MemoryProvider` (Tests); Proxy-Route `/api/v1/storage/*`
+- `auth/`: Sessions (HttpOnly-Cookie, Token nur als SHA-256 in der DB), scrypt-Hash des Auth-Keys,
+  Rate-Limit, Re-Auth für sensible Aktionen; CSRF über Pflicht-Header `x-fv-client`
+- `accounts/`, `vault/`, `objects/`, `admin/`: Registrierung, Pre-Login ohne User-Enumeration,
+  Login, Recovery, Passphrase-Wechsel (meldet andere Geräte ab), versionierter Index mit
+  optimistischem Locking, Objekte mit Quota-Reservierung (Zeilensperre), Größenprüfung beim Abschluss,
+  Usage-Ledger, Audit-Log
+- Health: `GET /api/v1/health`
+
+**Client (`features/`, `lib/`)**
+- `features/keys/kdf.ts`: Argon2id (64 MiB, t=3) → HKDF → KEK + Auth-Key; zufälliger Master-Key,
+  gewrappt für Passphrase **und** Recovery-Kit (24 BIP39-Wörter) → **Audit C1 strukturell behoben**
+- `features/vault/`: Index verschlüsselt (AAD = Konto-ID), Sync mit 3-Wege-Merge (`lib/merge.ts`)
+- `features/objects/transfer.ts`: Upload in 32-MiB-Pieces (`frame2`, AAD = Objekt + Piece),
+  Retry/Backoff, URL-Erneuerung, Fortschritt; Download streamend, große Dateien direkt auf die Platte
+- `features/account/AccountProvider.tsx`: Master-Key nur im RAM, Auto-Lock 30 Min.
+
+**Gefunden und behoben:** leere Dateien ergaben 20 Byte zu kurze Pieces (auch im Wallet-Modus).
+Hinweistext unter der Dateiliste war im Konto-Modus falsch (dort wird wirklich gelöscht).
+
+**Tests:** Vitest 52/52 (neu: Server gegen echtes Postgres im RAM, Known-Answer-Test der
+Schlüsselableitung, `frame2`-Angriffe, 3-Wege-Merge) · Playwright-E2E `npm run test:e2e` 3/3.
+
+**Neu/abweichend dokumentiert:** ARCHITECTURE §17a (ein PUT pro Piece, Proxy-Modus wegen
+unklarem CORS → Entscheidung **E11**, 32-MiB-Pieces, SQL statt Drizzle), `.env.local.example`
+(Audit M2).
+
+**Noch nicht in Phase 1:** Secure Send für Konto-Dateien, Papierkorb, Stripe, E-Mail-Verifikation,
+Passkeys, Family-Spaces – siehe ARCHITECTURE §15 Phase 2/3.
+
 ### Phase 0 – Hotfix D1 + Härtung (ARCHITECTURE §15)
 
 **D1 behoben – Secure Send für neue Uploads**

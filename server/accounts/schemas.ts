@@ -1,0 +1,51 @@
+import { z } from 'zod'
+
+/** base64url mit exakter Byte-Länge. */
+export const b64u = (bytes: number) =>
+  z
+    .string()
+    .regex(/^[A-Za-z0-9_-]+$/, 'base64url erwartet')
+    .refine(s => Buffer.from(s, 'base64url').length === bytes, `genau ${bytes} Byte erwartet`)
+
+export const emailSchema = z.string().trim().toLowerCase().pipe(z.email('Ungültige E-Mail-Adresse').max(254))
+
+/** Argon2id-Parameter; Untergrenze = OWASP-Empfehlung (19 MiB, t=2). */
+export const kdfSchema = z.object({
+  alg: z.literal('argon2id'),
+  v: z.literal(1),
+  salt: b64u(16),
+  m: z.number().int().min(19_456).max(1_048_576),
+  t: z.number().int().min(2).max(10),
+  p: z.number().int().min(1).max(4)
+})
+
+export const envelopeSchema = z.object({
+  kekType: z.enum(['passphrase', 'recovery']),
+  iv: b64u(12),
+  cipher: b64u(48)
+})
+
+export const registerSchema = z
+  .object({
+    email: emailSchema,
+    authKey: b64u(32),
+    recoveryAuthKey: b64u(32),
+    kdf: kdfSchema,
+    envelopes: z.array(envelopeSchema).length(2)
+  })
+  .refine(v => new Set(v.envelopes.map(e => e.kekType)).size === 2, {
+    message: 'Passphrase- und Recovery-Envelope erforderlich',
+    path: ['envelopes']
+  })
+
+export const preloginSchema = z.object({ email: emailSchema })
+export const loginSchema = z.object({ email: emailSchema, authKey: b64u(32) })
+export const recoverySchema = z.object({ email: emailSchema, recoveryAuthKey: b64u(32) })
+
+export const passphraseSchema = z.object({
+  authKey: b64u(32),
+  kdf: kdfSchema,
+  envelope: envelopeSchema.refine(e => e.kekType === 'passphrase', { message: 'Passphrase-Envelope erwartet' })
+})
+
+export const planSchema = z.object({ plan: z.enum(['free', 'pro', 'family', 'business']) })

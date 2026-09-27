@@ -163,6 +163,10 @@ npm test                         # Vitest (einmal)
 
 - **Tests:** `lib/share.test.ts` (Share-Fragmente, Passwort-Wrap, falsches Passwort),
   `lib/totp.test.ts` (RFC-6238-Vektoren), `lib/csv.test.ts` (Roundtrip/Quoting)
+- **E2E:** `npm run test:e2e` (Playwright gegen den Dev-Server; einmalig `npx playwright install chromium`)
+- **Konto-Modus lokal:** ohne Env-Variablen läuft alles lokal – PGlite-Datenbank und Datei-Storage
+  unter `.data/`. Seiten: `/registrieren`, `/anmelden`, `/wiederherstellen`, `/app`, `/admin`.
+  Für Fil One und Production siehe `.env.local.example` und `ARCHITECTURE.md` §17a.
 - **CI:** `.github/workflows/ci.yml` – `npm ci --legacy-peer-deps` → `tsc --noEmit` → `npm test`
 - Bewusst **kein** `next build` in CI: die Client-Wallet-Pfade (wagmi/`window`) bauen
   nicht headless.

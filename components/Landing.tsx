@@ -1,9 +1,15 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useConnect } from 'wagmi'
 import { filecoinCalibration } from '@/lib/chains'
 
+/** Konto-Modus (Fil One): in Dev immer, in Production erst mit NEXT_PUBLIC_ACCOUNTS_ENABLED=1. */
+const ACCOUNTS_ENABLED =
+  process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === '1'
+
 export default function Landing() {
+  const router = useRouter()
   const { connect, connectors, isPending, error } = useConnect()
   const injected = connectors.find(c => c.id === 'injected')
   const walletConnectC = connectors.find(c => c.id === 'walletConnect')
@@ -12,6 +18,8 @@ export default function Landing() {
     const connector = injected ?? walletConnectC
     if (connector) connect({ connector, chainId: filecoinCalibration.id })
   }
+  const goLogin = () => (ACCOUNTS_ENABLED ? router.push('/anmelden') : handleConnect())
+  const goRegister = () => (ACCOUNTS_ENABLED ? router.push('/registrieren') : handleConnect())
 
   return (
     <div>
@@ -25,10 +33,10 @@ export default function Landing() {
             <a href="#faq">Support</a>
           </div>
           <div>
-            <a href="#" onClick={e => { e.preventDefault(); handleConnect() }}>
+            <a href="#" onClick={e => { e.preventDefault(); goLogin() }}>
               Anmelden
             </a>
-            <a href="#" onClick={e => { e.preventDefault(); handleConnect() }}>
+            <a href="#" onClick={e => { e.preventDefault(); goRegister() }}>
               Registrieren
             </a>
             <a className="utilwallet" href="#" onClick={e => { e.preventDefault(); handleConnect() }}>
@@ -58,10 +66,10 @@ export default function Landing() {
             <a href="#faq">FAQ</a>
           </div>
           <div className="navcta">
-            <button disabled={isPending} onClick={handleConnect}>
+            <button disabled={isPending} onClick={goLogin}>
               Anmelden
             </button>
-            <button disabled={isPending} onClick={handleConnect}>
+            <button disabled={isPending} onClick={goRegister}>
               Registrieren
             </button>
             <button className="primary" disabled={isPending} onClick={handleConnect}>
@@ -88,7 +96,7 @@ export default function Landing() {
             Niemand außer dir sieht deine Daten — nicht einmal wir.
           </p>
           <div className="herobtns">
-            <button className="primary lg" disabled={isPending} onClick={handleConnect}>
+            <button className="primary lg" disabled={isPending} onClick={goRegister}>
               {isPending ? 'Verbinde…' : 'Kostenlos starten'}
             </button>
             <a href="#produkt">
@@ -328,7 +336,7 @@ export default function Landing() {
                 <li><CheckIcon />Secure Send</li>
                 <li><CheckIcon />Modul-Quota ohne Cloud-Speicher</li>
               </ul>
-              <button onClick={handleConnect}>Kostenlos starten</button>
+              <button onClick={goRegister}>Kostenlos starten</button>
             </div>
             <div className="plan highlight">
               <span className="tag">Beliebt</span>
@@ -342,7 +350,7 @@ export default function Landing() {
                 <li><CheckIcon />Vault-Sync über alle Geräte</li>
                 <li><CheckIcon />Priorisierter Support</li>
               </ul>
-              <button className="primary" onClick={handleConnect}>Pro aktivieren</button>
+              <button className="primary" onClick={goRegister}>Pro aktivieren</button>
             </div>
             <div className="plan">
               <h3>Family</h3>
@@ -354,7 +362,7 @@ export default function Landing() {
                 <li><CheckIcon />Alle Module für jedes Mitglied</li>
                 <li><CheckIcon />Echtes Privacy-Versprechen für die ganze Familie</li>
               </ul>
-              <button onClick={handleConnect}>Family starten</button>
+              <button onClick={goRegister}>Family starten</button>
             </div>
             <div className="plan">
               <h3>Business / Custom</h3>
@@ -429,7 +437,7 @@ export default function Landing() {
             <h2>Bereit für deine eigene Privacy Cloud?</h2>
             <p>5 GB kostenlos. Keine Kreditkarte. In 2 Minuten startklar.</p>
             <div className="herobtns" style={{ justifyContent: 'center' }}>
-              <button className="primary lg" onClick={handleConnect}>
+              <button className="primary lg" onClick={goRegister}>
                 {isPending ? 'Verbinde…' : 'Kostenlos starten'}
               </button>
               <button className="lg">Mit uns sprechen</button>

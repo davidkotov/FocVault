@@ -11,6 +11,8 @@ interface Props {
   onDownload: (entry: VaultEntry) => void
   onDelete: (id: string) => void
   onShare: (entry: VaultEntry) => void
+  /** Hinweis unter der Liste; Standard beschreibt den Wallet-Modus (Pieces bleiben on-chain). */
+  deleteNote?: string
 }
 
 function iconFor(folder: string): string {
@@ -31,7 +33,7 @@ function tileColor(folder: string): string {
   }
 }
 
-export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare }: Props) {
+export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, deleteNote }: Props) {
   const [active, setActive] = useState<string>('all')
 
   const bySearch = searchQuery
@@ -129,8 +131,8 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
       )}
 
       <p className="dim" style={{ marginTop: 14 }}>
-        „Entfernen" löscht nur den Vault-Eintrag – die verschlüsselten Pieces bleiben bis zum
-        Rail-Ablauf on-chain.
+        {deleteNote ??
+          '„Entfernen" löscht nur den Vault-Eintrag – die verschlüsselten Pieces bleiben bis zum Rail-Ablauf on-chain.'}
       </p>
     </div>
   )

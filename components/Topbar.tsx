@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import WalletBar from '@/components/WalletBar'
 
 interface Props {
@@ -7,9 +8,11 @@ interface Props {
   search?: string
   onSearchChange?: (v: string) => void
   showSearch?: boolean
+  /** Rechter Bereich; Standard ist die Wallet-Leiste (Wallet-Modus). */
+  right?: ReactNode
 }
 
-export default function Topbar({ title, search, onSearchChange, showSearch }: Props) {
+export default function Topbar({ title, search, onSearchChange, showSearch, right }: Props) {
   return (
     <div className="topbar">
       <h1>{title}</h1>
@@ -26,7 +29,7 @@ export default function Topbar({ title, search, onSearchChange, showSearch }: Pr
           />
         </div>
       )}
-      <WalletBar />
+      {right ?? <WalletBar />}
     </div>
   )
 }

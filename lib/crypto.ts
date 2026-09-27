@@ -87,9 +87,37 @@ export interface StreamPlan {
  * Anzahl der 16-MiB-Frames im Piece `chunkIndex` einer Datei mit `fileSize` Klartext-Bytes.
  * Pieces sind CHUNK_SIZE groß, nur das letzte ist kürzer.
  */
-export function framesForChunk(fileSize: number, chunkIndex: number, chunkCount: number): number {
-  const clearSize = chunkIndex === chunkCount - 1 ? fileSize - chunkIndex * CHUNK_SIZE : CHUNK_SIZE
+export function framesForChunk(
+  fileSize: number,
+  chunkIndex: number,
+  chunkCount: number,
+  pieceSize: number = CHUNK_SIZE
+): number {
+  const clearSize = chunkIndex === chunkCount - 1 ? fileSize - chunkIndex * pieceSize : pieceSize
   return Math.max(1, Math.ceil(clearSize / STREAM_BLOCK_SIZE))
+}
+
+/**
+ * Konto-Modus (Fil One S3): kleinere Pieces, weil ein Objekt dort nichts extra kostet.
+ * Ein Piece = ein Presigned PUT (≤ 32 MiB + Frame-Overhead) → wenig RAM, Retry pro Piece.
+ * Muss ein Vielfaches von STREAM_BLOCK_SIZE sein.
+ */
+export const ACCOUNT_PIECE_SIZE = 32 * 1024 * 1024
+
+/**
+ * AAD für Frame-Format v2 (`fmt: 'frame2'`, ARCHITECTURE §4.6, Audit M4): bindet jeden Frame
+ * an Objekt und Piece-Position. Vertauschte oder fremde Pieces scheitern an der GCM-Prüfung.
+ * Die Frame-Position innerhalb des Pieces ist bereits über die IV (baseIv + Zähler) gebunden.
+ */
+export function frameAad(objectId: string, pieceIndex: number): Bytes {
+  const hex = objectId.replace(/-/g, '')
+  if (!/^[0-9a-f]{32}$/i.test(hex)) throw new Error('frameAad: ungültige Objekt-ID')
+  const prefix = enc.encode('focvault/frame/v2')
+  const out = new Uint8Array(prefix.length + 16 + 4)
+  out.set(prefix, 0)
+  for (let i = 0; i < 16; i++) out[prefix.length + i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  new DataView(out.buffer).setUint32(prefix.length + 16, pieceIndex, false)
+  return out as Bytes
 }
 
 /** Exakt berechnete Kapsel-Groesse eines verschlusselten Chunks:
@@ -233,7 +261,8 @@ export function encryptedPieceStream(
   fileKey: CryptoKey,
   baseIv: Uint8Array<ArrayBuffer>,
   padding: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  aad?: Bytes
 ): ReadableStream<Uint8Array<ArrayBuffer>> {
   const source = file.slice(start, end).stream() as ReadableStream<Uint8Array>
   const reader = source.getReader()
@@ -244,9 +273,8 @@ export function encryptedPieceStream(
 
   const encryptBlock = async (block: Uint8Array, ctr: number): Promise<Uint8Array<ArrayBuffer>> => {
     const iv = frameIv(baseIv, ctr)
-    const cipher = new Uint8Array(
-      await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, fileKey, block as Bytes)
-    )
+    const params: AesGcmParams = aad ? { name: 'AES-GCM', iv, additionalData: aad } : { name: 'AES-GCM', iv }
+    const cipher = new Uint8Array(await crypto.subtle.encrypt(params, fileKey, block as Bytes))
     const frame = new Uint8Array(FRAME_HEADER + cipher.byteLength)
     new DataView(frame.buffer).setUint32(0, cipher.byteLength, true)
     frame.set(cipher, FRAME_HEADER)
@@ -278,6 +306,8 @@ export function encryptedPieceStream(
         controller.enqueue(await encryptBlock(queue.take(queue.length), counter++))
       }
       if (eof && queue.length === 0) {
+        // Leere Datei: genau ein leerer Frame, wie von streamCipherPlan geplant (frames ≥ 1).
+        if (counter === 0) controller.enqueue(await encryptBlock(new Uint8Array(0), counter++))
         ended = true
         if (padding > 0) controller.enqueue(new Uint8Array(padding))
         controller.close()
@@ -298,7 +328,8 @@ export async function decryptPieceFrames(
   fileKey: CryptoKey,
   baseIvB64: string,
   frames: number,
-  onBlock: (plain: Uint8Array<ArrayBuffer>) => void | Promise<void>
+  onBlock: (plain: Uint8Array<ArrayBuffer>) => void | Promise<void>,
+  aad?: Bytes
 ): Promise<void> {
   const baseIv = fromB64(baseIvB64)
   const reader = stream.getReader()
@@ -319,13 +350,9 @@ export async function decryptPieceFrames(
       }
       queue.take(FRAME_HEADER)
       const cipher = queue.take(len)
-      const plain = new Uint8Array(
-        await crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv: frameIv(baseIv, counter) },
-          fileKey,
-          cipher as Bytes
-        )
-      )
+      const iv = frameIv(baseIv, counter)
+      const params: AesGcmParams = aad ? { name: 'AES-GCM', iv, additionalData: aad } : { name: 'AES-GCM', iv }
+      const plain = new Uint8Array(await crypto.subtle.decrypt(params, fileKey, cipher as Bytes))
       counter++
       await onBlock(plain)
     }

@@ -3,8 +3,13 @@ export interface ChunkMeta {
   iv: string
   padLen: number
   size: number
-  /** 'frame' = Streaming-Format (16-MiB-Frames, iv = baseIv); fehlt = Legacy-Einzel-Chunk. */
-  fmt?: 'frame'
+  /**
+   * 'frame'  = Streaming-Format (16-MiB-Frames, iv = baseIv); Wallet-Modus (Synapse)
+   * 'frame2' = wie 'frame', zusätzlich AAD-Bindung an Objekt + Piece-Index; Konto-Modus (Fil One)
+   * fehlt    = Legacy-Einzel-Chunk
+   * Im Konto-Modus ist `pieceCid` eine Referenz `<objectId>/<index>`, keine Filecoin-CID.
+   */
+  fmt?: 'frame' | 'frame2'
 }
 
 export type CloudFolder = 'documents' | 'photos' | 'videos' | 'backups'
@@ -40,6 +45,10 @@ export interface VaultEntry {
   chunks: ChunkMeta[]
   storedAt: number
   txHash?: string
+  /** Konto-Modus: Objekt-ID im Backend (Fil One Storage). Fehlt im Wallet-Modus. */
+  objectId?: string
+  /** Klartext-Bytes pro Piece; fehlt = CHUNK_SIZE (256 MiB, Wallet-Modus). */
+  pieceSize?: number
   v: 2
 }
 

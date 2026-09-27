@@ -11,7 +11,8 @@ const isDev = process.env.NODE_ENV !== 'production'
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+  // 'wasm-unsafe-eval': Argon2id (hash-wasm) läuft als WebAssembly im Browser.
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
@@ -39,6 +40,10 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // Zur Laufzeit aus node_modules laden statt bündeln (PGlite lädt WASM per Dateipfad).
+    serverComponentsExternalPackages: ['@electric-sql/pglite', 'pg', '@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner']
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }]
   }

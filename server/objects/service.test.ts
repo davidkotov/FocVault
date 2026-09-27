@@ -1,0 +1,103 @@
+import { beforeEach, describe, expect, it } from 'vitest'
+import { resetRateLimits } from '../auth/ratelimit'
+import { usedBytes } from '../accounts/plans'
+import { objectPieceKey } from '../storage/provider'
+import { newAccount, testDeps } from '../testing'
+import {
+  MAX_PIECE_CIPHER_BYTES,
+  completeObject,
+  createObject,
+  createObjectSchema,
+  deleteObject,
+  downloadObject
+} from './service'
+
+const bytes = (n: number) => new Blob([new Uint8Array(n)]).stream()
+
+describe('Objekte & Quota', () => {
+  beforeEach(() => resetRateLimits())
+
+  it('Lebenszyklus: anlegen → hochladen → abschließen → herunterladen → löschen', async () => {
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'a@example.com')
+    const created = await createObject(deps, session, {
+      fmt: 'frame2',
+      pieces: [
+        { index: 0, cipherBytes: 1000 },
+        { index: 1, cipherBytes: 500 }
+      ]
+    })
+    expect(created.pieces.map(p => p.index)).toEqual([0, 1])
+    expect(await usedBytes(deps.db, session.accountId)).toBe(1500)
+
+    await expect(completeObject(deps, session, created.objectId)).rejects.toMatchObject({
+      code: 'UPLOAD_SIZE_MISMATCH'
+    })
+
+    const k0 = objectPieceKey(session.accountId, created.objectId, 0)
+    const k1 = objectPieceKey(session.accountId, created.objectId, 1)
+    await deps.storage.writeStream(k0, bytes(1000), 1000)
+    await expect(deps.storage.writeStream(k1, bytes(499), 500)).rejects.toMatchObject({ code: 'UPLOAD_SIZE_MISMATCH' })
+    await deps.storage.writeStream(k1, bytes(500), 500)
+
+    expect(await completeObject(deps, session, created.objectId)).toEqual({ state: 'stored', cipherBytes: 1500 })
+    expect(await completeObject(deps, session, created.objectId)).toEqual({ state: 'stored', cipherBytes: 1500 })
+
+    const dl = await downloadObject(deps, session, created.objectId)
+    expect(dl.pieces.map(p => [p.index, p.cipherBytes])).toEqual([
+      [0, 1000],
+      [1, 500]
+    ])
+
+    await deleteObject(deps, session, created.objectId)
+    expect(deps.storage.objects.size).toBe(0)
+    expect(await usedBytes(deps.db, session.accountId)).toBe(0)
+    await expect(downloadObject(deps, session, created.objectId)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+
+    const ledger = await deps.db.query<{ reason: string; delta: number }>(
+      'SELECT reason, delta_bytes::float8 AS delta FROM usage_ledger ORDER BY id'
+    )
+    expect(ledger).toEqual([
+      { reason: 'store', delta: 1500 },
+      { reason: 'delete', delta: -1500 }
+    ])
+  })
+
+  it('Quota zählt Ciphertext inkl. laufender Uploads und verhindert Überbuchung', async () => {
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'b@example.com')
+    const pieces = (n: number) => Array.from({ length: n }, (_, index) => ({ index, cipherBytes: MAX_PIECE_CIPHER_BYTES }))
+
+    // 161 volle Pieces ≈ 5,40 GB > 5 GiB Free-Quota
+    await expect(createObject(deps, session, { fmt: 'frame2', pieces: pieces(161) })).rejects.toMatchObject({
+      code: 'QUOTA_EXCEEDED'
+    })
+    // 100 Pieces passen – und bleiben reserviert, solange der Upload läuft
+    await createObject(deps, session, { fmt: 'frame2', pieces: pieces(100) })
+    await expect(createObject(deps, session, { fmt: 'frame2', pieces: pieces(100) })).rejects.toMatchObject({
+      code: 'QUOTA_EXCEEDED',
+      details: { neededBytes: 100 * MAX_PIECE_CIPHER_BYTES }
+    })
+  })
+
+  it('fremde Objekte sind nicht sichtbar', async () => {
+    const deps = await testDeps()
+    const owner = await newAccount(deps, 'owner@example.com')
+    const intruder = await newAccount(deps, 'intruder@example.com')
+    const created = await createObject(deps, owner.session, { fmt: 'frame2', pieces: [{ index: 0, cipherBytes: 10 }] })
+    for (const call of [completeObject, downloadObject, deleteObject]) {
+      await expect(call(deps, intruder.session, created.objectId)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    }
+    await expect(downloadObject(deps, intruder.session, 'kein-uuid')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('Schema: Pieces lückenlos ab 0 und nicht größer als ein volles Piece', () => {
+    expect(createObjectSchema.safeParse({ fmt: 'frame2', pieces: [{ index: 1, cipherBytes: 5 }] }).success).toBe(false)
+    expect(
+      createObjectSchema.safeParse({ fmt: 'frame2', pieces: [{ index: 0, cipherBytes: MAX_PIECE_CIPHER_BYTES + 1 }] })
+        .success
+    ).toBe(false)
+    expect(createObjectSchema.safeParse({ fmt: 'frame', pieces: [{ index: 0, cipherBytes: 5 }] }).success).toBe(false)
+    expect(createObjectSchema.safeParse({ fmt: 'frame2', pieces: [{ index: 0, cipherBytes: 5 }] }).success).toBe(true)
+  })
+})

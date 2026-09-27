@@ -751,8 +751,38 @@ Kein `main`-Direkt-Push; Feature-Branches `feat/<phase>-<thema>`.
 | E8 | SubscriptionGate-Vertrag behalten („Pay with Crypto“) oder archivieren? | Archivieren (README-Hinweis), Re-Deploy nur bei Nachfrage mit H1/M5/M6-Fixes | Partner |
 | E9 | Zweite Region (us-east-1) für Nicht-EU-Kunden? | Nicht vor Phase 4 | Partner |
 | E10 | Marketing-Claim „on-chain“: künftig „auf Filecoin gesichert, Nachweise durch Fil One“ | Anpassen (README, Landing) | Beide |
+| E11 | Unterstützt Fil One CORS für Browser-Uploads per Presigned PUT? (in der Doku nicht erwähnt) | Mit Fil One klären. Bis dahin Proxy-Modus (Standard); `FILONE_BROWSER_DIRECT=true` erst nach Test | Partner |
 
 ---
+
+## 17a. Umsetzungsstand & Präzisierungen (Phase 0 + 1, 27.09.2026)
+
+Umgesetzt auf `feat/phase1-accounts-storage` (Phase 0 separat in PR #5). Wo die Umsetzung von
+§5–§8 abweicht, gilt dieser Abschnitt – jeweils mit Grund:
+
+| Thema | Plan (§) | Umgesetzt | Grund |
+|---|---|---|---|
+| Upload pro Piece | Multipart, Parts 16 MiB (§5.4) | **ein Presigned PUT pro Piece** | Fil One bestätigt Presigned PUT; nennt Multipart-Checksums „unreliable“. Pieces sind klein genug. |
+| Piece-Größe Konto-Modus | 256 MiB | **32 MiB** (`ACCOUNT_PIECE_SIZE`) | Objekte kosten bei Fil One nichts extra → wenig RAM, Retry pro Piece, feinerer Fortschritt |
+| Browser ↔ Fil One | direkt (§5.4) | **Proxy über `/api/v1/storage` als Standard**, direkt per `FILONE_BROWSER_DIRECT=true` | CORS bei Fil One nicht dokumentiert (E11) |
+| Flexible Checksums AWS SDK | – | **abgeschaltet** (`WHEN_REQUIRED`) | Fil One: „Additional-checksum operations are unreliable“ |
+| Index-Blobs | Presigned (§8.2) | **über die API** (`PUT/GET /vault/index`, ≤ 8 MB) | klein, spart einen Roundtrip; Storage-Key mit Zufallsanteil gegen Wettläufe |
+| Passphrase-Login | HMAC-Challenge (§8.1) | **Auth-Key** (HKDF-getrennt vom KEK) wird gesendet, Server speichert scrypt-Hash | gleiches Schutzziel (Passphrase/KEK verlassen nie das Gerät), einfacher, bewährt |
+| ORM | Drizzle (§6.1) | **parametrisiertes SQL** hinter `Db`-Interface; lokal **PGlite**, Prod `pg` | keine Codegenerierung, gleiches SQL in Tests (echtes Postgres im RAM) |
+| Frame-Format | `frame2` mit Frame-Index in AAD (§4.6) | AAD = `focvault/frame/v2` ‖ Objekt-ID ‖ Piece-Index | Frame-Position ist bereits über die IV (baseIv + Zähler) gebunden |
+| Löschen | Papierkorb 30 Tage (§9.6) | **sofortiges Löschen** | Papierkorb in Phase 2 |
+| Secure Send Konto-Dateien | §9.5 | **noch nicht** (Hinweis in der UI) | Phase 2 |
+| E-Mail-Verifikation | §8.1 | **noch nicht** (`email_verified_at` bleibt leer) | braucht E-Mail-Provider |
+| Rate-Limit | Redis (§12.4) | **prozesslokal** | eine Instanz in Phase 1; Redis mit Phase 3 |
+
+**Gefundene und behobene Fehler:** leere Dateien erzeugten 20 Byte zu kurze Pieces
+(`encryptedPieceStream` gab keinen Frame aus, `streamCipherPlan` plante einen) – betraf auch den
+Wallet-Modus. Test „0 B“ ergänzt.
+
+**Verifikation:** Vitest 52/52 (u. a. Server gegen echtes Postgres im RAM: keine User-Enumeration,
+Rate-Limit, keine Quota-Überbuchung, kein Fremdzugriff; Known-Answer-Test der Schlüsselableitung;
+`frame2`-Angriffe) · Playwright-E2E (Registrierung → Upload → Sperren → Login → Recovery → Download
+byte-identisch → Admin) 3/3 grün.
 
 ## 17. Anhang
 

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ACCOUNT_PIECE_SIZE,
   ByteQueue,
   CHUNK_SIZE,
+  frameAad,
   STREAM_BLOCK_SIZE,
   encryptFileChunked,
   encryptedPieceStream,
@@ -144,8 +146,80 @@ describe('framesForChunk', () => {
   })
 })
 
+/** Verschlüsselt wie der Konto-Upload (frame2, AAD = Objekt-ID + Piece-Index). */
+async function encryptFrame2(data: Uint8Array<ArrayBuffer>, objectId: string, pieceSize: number) {
+  const file = new File([data], 'konto.bin')
+  const key = await crypto.subtle.importKey('raw', crypto.getRandomValues(new Uint8Array(32)), 'AES-GCM', false, [
+    'encrypt',
+    'decrypt'
+  ])
+  const store = new Map<string, Bytes>()
+  const chunks: ChunkMeta[] = []
+  const total = Math.max(1, Math.ceil(file.size / pieceSize))
+  for (let i = 0; i < total; i++) {
+    const start = i * pieceSize
+    const end = Math.min(start + pieceSize, file.size)
+    const plan = streamCipherPlan(end - start)
+    const baseIv = crypto.getRandomValues(new Uint8Array(12))
+    const piece = await collect(
+      encryptedPieceStream(file, start, end, key, baseIv, plan.paddedSize - plan.cipherSize, undefined, frameAad(objectId, i))
+    )
+    store.set(`${objectId}/${i}`, piece)
+    chunks.push({ pieceCid: `${objectId}/${i}`, iv: toB64(baseIv), padLen: 0, size: plan.paddedSize, fmt: 'frame2' })
+  }
+  const source: PieceSource = {
+    openStream: async cid => jaggedStream(store.get(cid)!),
+    download: async cid => store.get(cid)!
+  }
+  return { key, chunks, source }
+}
+
+describe('frame2 – AAD-Bindung an Objekt und Piece (Audit M4)', () => {
+  const OBJ = '0192f6a0-1c2d-7e3f-8a4b-5c6d7e8f9a0b'
+  const OTHER = '0192f6a0-1c2d-7e3f-8a4b-5c6d7e8f9a0c'
+
+  it('Roundtrip über 2 Pieces', async () => {
+    const data = pattern(STREAM_BLOCK_SIZE + 4096)
+    const { key, chunks, source } = await encryptFrame2(data, OBJ, STREAM_BLOCK_SIZE)
+    expect(chunks).toHaveLength(2)
+    const parts = await decryptSharedChunks(
+      { size: data.byteLength, chunks, objectId: OBJ, pieceSize: STREAM_BLOCK_SIZE },
+      key,
+      source
+    )
+    expectSameBytes(join(parts), data)
+  })
+
+  it('fremde Objekt-ID scheitert', async () => {
+    const data = pattern(5000)
+    const { key, chunks, source } = await encryptFrame2(data, OBJ, ACCOUNT_PIECE_SIZE)
+    await expect(
+      decryptSharedChunks({ size: data.byteLength, chunks, objectId: OTHER, pieceSize: ACCOUNT_PIECE_SIZE }, key, source)
+    ).rejects.toThrow()
+  })
+
+  it('vertauschte Pieces scheitern – selbst wenn Bytes und Metadaten mitgetauscht werden', async () => {
+    const data = pattern(2 * STREAM_BLOCK_SIZE)
+    const { key, chunks, source } = await encryptFrame2(data, OBJ, STREAM_BLOCK_SIZE)
+    const swapped = [chunks[1], chunks[0]]
+    await expect(
+      decryptSharedChunks(
+        { size: data.byteLength, chunks: swapped, objectId: OBJ, pieceSize: STREAM_BLOCK_SIZE },
+        key,
+        source
+      )
+    ).rejects.toThrow()
+  })
+
+  it('frame2 ohne Objekt-ID wird abgelehnt', async () => {
+    const { key, chunks, source } = await encryptFrame2(pattern(10), OBJ, ACCOUNT_PIECE_SIZE)
+    await expect(decryptSharedChunks({ size: 10, chunks }, key, source)).rejects.toThrow(/Objekt-ID/)
+  })
+})
+
 describe('decryptSharedChunks – Secure Send (Befund D1)', () => {
   it.each([
+    ['0 B (leere Datei)', 0],
     ['10 B (auf 127 B gepolstert)', 10],
     ['1 MiB', 1024 * 1024],
     ['16 MiB + 5 B (2 Frames)', STREAM_BLOCK_SIZE + 5]
