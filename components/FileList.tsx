@@ -121,6 +121,17 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
 
       {filtered.length > 0 && (
         <div className={`filegrid${layout === 'list' ? ' aslist' : ''}`}>
+          {layout === 'list' && (
+            <div className="filelisthead" aria-hidden="true">
+              {onToggleSelect && <span />}
+              <span />
+              <span>{t.files.colName}</span>
+              <span>{t.files.colSize}</span>
+              <span>{t.files.colDate}</span>
+              <span>{t.files.colBackup}</span>
+              <span />
+            </div>
+          )}
           {filtered.map(e => (
             <div
               className={`filecard ${selected?.has(e.id) ? 'selected' : ''}`}
@@ -159,14 +170,22 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                 ) : (
                   e.name
                 )}
-              </div>
-              <div className="filemeta">
-                {formatBytes(e.size)} · {fmtDate(e.storedAt)}
-                {!!e.versions?.length && onVersions && (
+                {layout === 'list' && !!e.versions?.length && onVersions && (
                   <button type="button" className="versionbadge" onClick={() => onVersions(e)}>
                     {e.versions.length === 1 ? t.versions.badgeOne : fmt(t.versions.badge, { n: e.versions.length })}
                   </button>
                 )}
+              </div>
+              <div className="filemeta">
+                <span className="fm-size">{formatBytes(e.size)}</span>
+                <span className="fm-sep"> · </span>
+                <span className="fm-date">{fmtDate(e.storedAt)}</span>
+                {layout !== 'list' && !!e.versions?.length && onVersions && (
+                  <button type="button" className="versionbadge" onClick={() => onVersions(e)}>
+                    {e.versions.length === 1 ? t.versions.badgeOne : fmt(t.versions.badge, { n: e.versions.length })}
+                  </button>
+                )}
+                {e.objectId && !onFilecoin?.[e.objectId] && <span className="fm-pending" title={t.files.euTitle}>{t.files.eu}</span>}
                 {e.objectId && onFilecoin?.[e.objectId] && (
                   <button
                     type="button"
@@ -175,6 +194,7 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                     onClick={() => onProof?.(e)}
                   >
                     {t.files.onFilecoin}
+                    <span className="fm-copies"> · {fmt(t.files.copies, { n: onFilecoin[e.objectId].copies })}</span>
                   </button>
                 )}
               </div>

@@ -54,6 +54,34 @@ import { formatBytes, type FileVersion, type SecretEntry, type TierName, type Tr
 const TIER: Record<string, TierName> = { free: 'FREE', pro: 'PRO', family: 'FAMILY', business: 'BUSINESS' }
 const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Business' }
 
+/** Untermenü für Konto & Sicherheit: springt zu Abschnitten, markiert den sichtbaren. */
+function AccountNav({ items }: { items: Array<[string, string]> }) {
+  const [active, setActive] = useState(items[0][0])
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      es => {
+        const vis = es.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+        if (vis) setActive(vis.target.id)
+      },
+      { rootMargin: '-80px 0px -60% 0px' }
+    )
+    items.forEach(([id]) => {
+      const el = document.getElementById(id)
+      if (el) obs.observe(el)
+    })
+    return () => obs.disconnect()
+  }, [items])
+  return (
+    <nav className="accnav card">
+      {items.map(([id, label]) => (
+        <button key={id} className={`navitem${active === id ? ' active' : ''}`} onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+          {label}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
 function UnlockScreen() {
   const { account, unlock, unlockWithPasskey, logout } = useAccount()
   const pk = useMessages(appMessages).passkeys
@@ -1185,15 +1213,21 @@ export default function AppPage() {
             />
           )}
           {view === 'account' && (
-            <>
+            <div className="acclayout">
+              <AccountNav items={[['acc-overview', t.accnav.overview], ['acc-credits', t.accnav.credits], ['acc-profile', t.accnav.profile], ['acc-passphrase', t.accnav.passphrase], ['acc-passkeys', t.accnav.passkeys], ['acc-emergency', t.accnav.emergency], ['acc-team', t.accnav.team]]} />
+              <div className="accmain">
+              <section id="acc-overview">
               <SecurityStatus
                 onAction={target => {
                   if (target === 'plans') return setView('plans')
-                  document.getElementById(target === 'passkeys' ? 'passkeys-card' : 'emergency-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  document.getElementById(target === 'passkeys' ? 'acc-passkeys' : 'acc-emergency')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
               />
+              </section>
+              <section id="acc-credits">
               <CreditsCard onChanged={() => void refreshAccount()} />
-              <FamilyPanel freeGb={freeGb} />
+              </section>
+              <section id="acc-profile">
               <div className="grid2">
                 <div className="card">
                   <h3>{t.account.title}</h3>
@@ -1254,15 +1288,11 @@ export default function AppPage() {
                   </div>
                 </div>
               </div>
+              </section>
+              <section id="acc-passphrase">
               <ChangePassphraseCard />
-              <TeamEscrowCard />
-              <EmergencyPanel
-                onOpen={(id, name) => {
-                  setEmOpen({ id, name })
-                  setView('emergency')
-                }}
-                onUpgrade={() => setView('plans')}
-              />
+              </section>
+              <section id="acc-passkeys">
               {isPro ? (
                 <PasskeysPanel />
               ) : (
@@ -1280,7 +1310,22 @@ export default function AppPage() {
                   </button>
                 </div>
               )}
-            </>
+              </section>
+              <section id="acc-emergency">
+              <TeamEscrowCard />
+              <EmergencyPanel
+                onOpen={(id, name) => {
+                  setEmOpen({ id, name })
+                  setView('emergency')
+                }}
+                onUpgrade={() => setView('plans')}
+              />
+              </section>
+              <section id="acc-team">
+              <FamilyPanel freeGb={freeGb} />
+              </section>
+              </div>
+            </div>
           )}
         </div>
       </div>

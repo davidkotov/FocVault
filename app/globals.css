@@ -2942,3 +2942,50 @@ button.kpi { display: block; }
 .loadbar b { display: block; width: 40%; height: 100%; border-radius: 3px; background: #0b1220; animation: loadslide 1.2s ease-in-out infinite; }
 @keyframes loadslide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
 @media (prefers-reduced-motion: reduce) { .loadring, .loadbar b { animation: none; } }
+/* Liste als Tabelle (1:1 Mockup) */
+.filegrid.aslist .filecard, .filelisthead { grid-template-columns: 28px 38px minmax(0, 1fr) 110px 120px 190px auto; }
+.filegrid.aslist .filecard:not(:has(.filecheck)), .filegrid.aslist:not(:has(.filecheck)) .filelisthead { grid-template-columns: 38px minmax(0, 1fr) 110px 120px 190px auto; }
+.filelisthead { display: grid; gap: 12px; align-items: center; padding: 10px 14px; background: #fff; border-bottom: 1px solid #e8ebf0; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #8a93a3; }
+.filegrid.aslist .filemeta { display: contents; }
+.filegrid.aslist .fm-sep { display: none; }
+.filegrid.aslist .fm-size, .filegrid.aslist .fm-date { color: #8a93a3; font-size: 13px; }
+.filegrid.aslist .fm-size { grid-column: -5; }
+.filegrid.aslist .fm-date { grid-column: -4; }
+.filegrid.aslist .focbadge, .filegrid.aslist .fm-pending { grid-column: -3; justify-self: start; }
+.filegrid.aslist .versionbadge { display: none; }
+.filegrid.aslist .filename .versionbadge { display: inline-flex; }
+.filegrid.aslist .fileactions { grid-column: -2; }
+.fm-copies { display: none; }
+.filegrid.aslist .fm-copies { display: inline; }
+.fm-pending { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #eef6ff; color: #0070cc; }
+.filegrid.aslist .focbadge { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: #eaf8ef; color: #148a52; border: 0; }
+@media (max-width: 900px) { .filegrid.aslist .filecard, .filelisthead { grid-template-columns: 28px 38px minmax(0, 1fr) auto; } .filelisthead span:nth-child(n+4):not(:last-child), .filegrid.aslist .fm-size, .filegrid.aslist .fm-date, .filegrid.aslist .focbadge, .filegrid.aslist .fm-pending { display: none; } }
+.acclayout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
+.accnav { position: sticky; top: 76px; padding: 8px; display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.accmain section { scroll-margin-top: 76px; }
+@media (max-width: 1000px) { .acclayout { grid-template-columns: 1fr; } .accnav { position: static; flex-direction: row; flex-wrap: wrap; } .accnav .navitem { width: auto; } }
+.planhero { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-bottom: 14px; }
+.planhero .card { margin: 0; }
+.badge.dark { background: #0b1220; color: #fff; }
+.planhero-name { font-size: 18px; color: #0b1220; }
+.planhero-used { display: flex; align-items: baseline; gap: 10px; margin: 16px 0 8px; }
+.planhero-used b { font-size: 26px; color: #0b1220; letter-spacing: -0.01em; }
+.planbar { height: 10px; border-radius: 6px; background: #eef0f4; overflow: hidden; display: flex; }
+.planbar b { display: block; height: 100%; }
+.planlegend { display: flex; gap: 18px; margin-top: 10px; font-size: 12.5px; color: #5b6475; flex-wrap: wrap; }
+.planlegend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+.planhero-side { display: flex; flex-direction: column; gap: 4px; }
+.planhero-total { font-size: 26px; font-weight: 700; color: #0b1220; }
+.planhero-rows { margin-top: 12px; border-top: 1px solid #e8ebf0; }
+.planhero-rows > div { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #e8ebf0; font-size: 13.5px; }
+.plancards, .planrow { gap: 14px; }
+.plancard { border-color: #e8ebf0 !important; border-radius: 14px !important; }
+.plancard.current { border-color: #0b1220 !important; box-shadow: 0 0 0 1px #0b1220; }
+.audienceswitch { background: #eef0f4 !important; border-radius: 999px !important; padding: 3px !important; width: fit-content; }
+.audienceswitch button { border: 0 !important; border-radius: 999px !important; background: transparent; }
+.audienceswitch button.active { background: #fff !important; color: #0b1220 !important; box-shadow: 0 1px 2px rgba(15, 20, 32, 0.12); }
+@media (max-width: 1000px) { .planhero { grid-template-columns: 1fr; } }
+.fm-pending { background: #f2f4f7; color: #5b6475; }
+.filegrid.aslist .filename { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.filegrid.aslist .filename .versionbadge { display: inline-flex; flex: none; }
+.filegrid.aslist .filename > .linkish { overflow: hidden; text-overflow: ellipsis; }

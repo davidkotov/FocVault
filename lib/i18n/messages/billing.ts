@@ -94,6 +94,7 @@ const de = {
     disabled: 'Pay-as-you-go ist deaktiviert.',
     capSaved: 'Obergrenze gespeichert.'
   },
+  hero: { current: 'Aktuell', extra: 'Zusatz', files: 'Dateien', versions: 'Versionen', trash: 'Papierkorb', paygOn: 'aktiv · bis {gb} GB', paygOff: 'aus', addons: 'Zusatzspeicher' },
   addons: {
     title: 'Zusatzspeicher',
     intro: 'Mehr Platz für dein Abo – im gleichen Rhythmus wie dein Abo, jederzeit kündbar.',
@@ -227,6 +228,7 @@ const en: typeof de = {
     disabled: 'Pay-as-you-go is off.',
     capSaved: 'Limit saved.'
   },
+  hero: { current: 'Current', extra: 'extra', files: 'Files', versions: 'Versions', trash: 'Trash', paygOn: 'on · up to {gb} GB', paygOff: 'off', addons: 'Extra storage' },
   addons: {
     title: 'Extra storage',
     intro: 'More space for your plan – billed with your subscription, cancel any time.',

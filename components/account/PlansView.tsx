@@ -15,7 +15,7 @@ type PaidPlan = 'pro' | 'family'
 
 /** Pakete, Pay-as-you-go und Zusatzspeicher – verständlich erklärt, in der Kontowährung. */
 export default function PlansView({ initialSegment }: { initialSegment?: 'private' | 'business' } = {}) {
-  const { account, refreshAccount } = useAccount()
+  const { account, refreshAccount, vault } = useAccount()
   const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber, fmtDate, path } = useI18n()
   const m = useMessages(billingMessages)
   const c = useMessages(commonMessages)
@@ -237,26 +237,69 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
     <>
       {msg && <div className={msg.ok ? 'notice' : 'errorbox'}>{msg.text}</div>}
 
-      <div className="card planhead">
-        <div>
-          <h3 style={{ marginBottom: 6 }}>{m.title}</h3>
-          <p className="dim">{m.subtitle}</p>
+      <div className="planhero">
+        <div className="card planhero-main">
+          <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+            <span className="badge dark">{m.hero.current}</span>
+            <b className="planhero-name">
+              {account.plan === 'business' && biz ? offer.business[biz.tier === 'enterprise' ? 'business' : biz.tier].label : account.plan === 'free' ? 'Free' : offer.plans[account.plan as PaidPlan].label}
+              {account.plan !== 'free' && ` · ${b.interval === 'year' ? m.yearly : m.monthly}`}
+            </b>
+            <span style={{ flex: 1 }} />
+            {b.subscription.periodEnd && (
+              <span className="dim">{fmt(b.subscription.cancelAtPeriodEnd ? m.stripe.ends : m.stripe.renews, { date: fmtDate(b.subscription.periodEnd) })}</span>
+            )}
+          </div>
+          <div className="planhero-used">
+            <b>{formatBytes(account.usedBytes)}</b>
+            <span className="dim">
+              {m.of} {formatBytes(account.quotaBytes)}
+              {b.addons.length > 0 && ` (${formatBytes(b.baseBytes)} + ${formatBytes(b.addonBytes)} ${m.hero.extra})`}
+            </span>
+          </div>
+          {(() => {
+            const trash = (vault.trash ?? []).reduce((n, f) => n + f.size, 0)
+            const ver = vault.files.reduce((n, f) => n + (f.versions ?? []).reduce((x, v) => x + (v.size ?? 0), 0), 0)
+            const files = Math.max(0, account.usedBytes - trash - ver)
+            const w = (x: number) => `${account.quotaBytes ? Math.min(100, (x / account.quotaBytes) * 100) : 0}%`
+            return (
+              <>
+                <div className="planbar">
+                  <b style={{ width: w(files), background: '#0b1220' }} />
+                  <b style={{ width: w(ver), background: '#5b6475' }} />
+                  <b style={{ width: w(trash), background: '#8a93a3' }} />
+                </div>
+                <div className="planlegend">
+                  <span>
+                    <i style={{ background: '#0b1220' }} />
+                    {m.hero.files} {formatBytes(files)}
+                  </span>
+                  <span>
+                    <i style={{ background: '#5b6475' }} />
+                    {m.hero.versions} {formatBytes(ver)}
+                  </span>
+                  <span>
+                    <i style={{ background: '#8a93a3' }} />
+                    {m.hero.trash} {formatBytes(trash)}
+                  </span>
+                </div>
+              </>
+            )
+          })()}
         </div>
-        <div className="planusage">
-          <div className="lbl">
-            <span>{m.usage}</span>
-            <span>
-              {formatBytes(account.usedBytes)} {m.of} {formatBytes(account.quotaBytes)}
-            </span>
-          </div>
-          <div className="quotabar">
-            <div className={pct >= 100 ? 'full' : ''} style={{ width: `${pct}%` }} />
-          </div>
-          <div className="lbl" style={{ marginTop: 8 }}>
-            <span>{m.monthlyTotal}</span>
-            <span>
-              <strong>{fmtMoney(b.monthlyTotal, b.currency)}</strong> <span className="dim">{m.monthlyTotalHint}</span>
-            </span>
+        <div className="card planhero-side">
+          <b>{m.monthlyTotal}</b>
+          <div className="planhero-total">{fmtMoney(b.monthlyTotal, b.currency)}</div>
+          <span className="dim">{m.monthlyTotalHint}</span>
+          <div className="planhero-rows">
+            <div>
+              <span className="dim">Pay-as-you-go</span>
+              <b>{b.payg.enabled ? fmt(m.hero.paygOn, { gb: b.payg.capGb }) : m.hero.paygOff}</b>
+            </div>
+            <div>
+              <span className="dim">{m.hero.addons}</span>
+              <b>{b.addons.length ? formatBytes(b.addonBytes) : '—'}</b>
+            </div>
           </div>
         </div>
       </div>

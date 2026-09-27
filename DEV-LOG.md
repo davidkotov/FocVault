@@ -41,6 +41,16 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Dashboard näher an den Mockups: Listen-Tabelle, Konto-Untermenü, Pakete-Übersicht
+
+**Meine Cloud**: Listenansicht als Tabelle mit Spaltenköpfen (Name, Grösse, Geändert, Sicherung), Badge
+„Filecoin ✓ · n Kopien“ bzw. „EU ✓“, Versions-Knopf neben dem Namen. **Konto & Sicherheit**: Untermenü links
+(Übersicht, Guthaben, Konto, Passphrase, Passkeys, Notfallzugang, Familie & Team) mit Scroll-Markierung.
+**Pakete & Speicher**: Kopf mit aktuellem Paket, Verbrauch aufgeteilt nach Dateien/Versionen/Papierkorb und
+Monatssumme mit Pay-as-you-go- und Zusatzspeicher-Status; ruhigere Paketkarten und Umschalter.
+
+**Tests:** Vitest 122/122, Playwright 14/14.
+
 ### Guthaben (Prepaid), neue Anmelde-/Sperr-/Lade-Ansichten (Migration v23)
 
 **Guthaben** unter Konto & Sicherheit: Aufladen per Karte (Stripe-Checkout, Einmalzahlung in Kontowährung,

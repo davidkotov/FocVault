@@ -1,4 +1,5 @@
 const de = {
+  accnav: { overview: 'Übersicht', credits: 'Guthaben', profile: 'Konto', passphrase: 'Passphrase', passkeys: 'Passkeys', emergency: 'Notfallzugang', team: 'Familie & Team' },
   credits: {
     title: 'Guthaben',
     sub: 'Prepaid · wird zuerst verrechnet',
@@ -104,6 +105,14 @@ const de = {
     noMatch: 'Keine Treffer.',
     share: 'Teilen',
     onFilecoin: 'Filecoin ✓',
+    copies: '{n} Kopien',
+    securing: 'Wird gesichert',
+    eu: 'EU ✓',
+    euTitle: 'Verschlüsselt gespeichert bei Fil One (EU). Die Filecoin-Sicherung folgt automatisch.',
+    colName: 'Name',
+    colSize: 'Grösse',
+    colDate: 'Geändert',
+    colBackup: 'Sicherung',
     onFilecoinTitle: 'Auf Filecoin gesichert: {copies} Kopien bei unabhängigen Anbietern, laufend per Proof of Data Possession geprüft.',
     download: 'Herunterladen',
     remove: 'Löschen',
@@ -343,6 +352,7 @@ const de = {
 }
 
 const en: typeof de = {
+  accnav: { overview: 'Overview', credits: 'Credit', profile: 'Account', passphrase: 'Passphrase', passkeys: 'Passkeys', emergency: 'Emergency access', team: 'Family & team' },
   credits: {
     title: 'Credit',
     sub: 'Prepaid · used first',
@@ -448,6 +458,14 @@ const en: typeof de = {
     noMatch: 'No results.',
     share: 'Share',
     onFilecoin: 'Filecoin ✓',
+    copies: '{n} copies',
+    securing: 'Securing',
+    eu: 'EU ✓',
+    euTitle: 'Stored encrypted with Fil One (EU). Filecoin backup follows automatically.',
+    colName: 'Name',
+    colSize: 'Size',
+    colDate: 'Modified',
+    colBackup: 'Backup',
     onFilecoinTitle: 'Secured on Filecoin: {copies} copies with independent providers, continuously checked with Proof of Data Possession.',
     download: 'Download',
     remove: 'Delete',
