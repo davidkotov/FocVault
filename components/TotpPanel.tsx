@@ -11,6 +11,8 @@ interface Props {
   entries: SecretEntry[]
   onSave: (s: SecretEntry) => void
   onDelete: (id: string) => void
+  readOnly?: boolean
+  heading?: string
 }
 
 interface LiveState {
@@ -25,7 +27,7 @@ interface FormState {
   otpauth: string
 }
 
-export default function TotpPanel({ entries, onSave, onDelete }: Props) {
+export default function TotpPanel({ entries, onSave, onDelete, readOnly = false, heading }: Props) {
   const { common: c, totp: m } = useMessages(secretsMessages)
   const [live, setLive] = useState<LiveState>({ codes: {}, remaining: {} })
   const [form, setForm] = useState<FormState | null>(null)
@@ -121,7 +123,7 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
   return (
     <div className="card">
       <h3>
-        {m.heading}
+        {heading ?? m.heading}
         <span>{fmt(m.subtitle, { n: entries.length })}</span>
       </h3>
 
@@ -143,7 +145,7 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
                     <div className={pct < 15 ? 'totpbar-fill warn' : 'totpbar-fill'} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
-                <div className="secactions">
+                {!readOnly && <div className="secactions">
                   <button className="iconbtn" title={c.edit} onClick={() => setForm({ id: s.id, title: s.title, secret: s.secretBase32 ?? '', otpauth: '' })}>
                     <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
                       <path d="M12 20h9" />
@@ -155,7 +157,7 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
                       <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                     </svg>
                   </button>
-                </div>
+                </div>}
               </div>
             )
           })}
@@ -214,9 +216,11 @@ export default function TotpPanel({ entries, onSave, onDelete }: Props) {
           </div>
         </form>
       ) : (
-        <div className="row" style={{ marginTop: 14 }}>
-          <button className="primary" onClick={startNew}>{m.addButton}</button>
-        </div>
+        !readOnly && (
+          <div className="row" style={{ marginTop: 14 }}>
+            <button className="primary" onClick={startNew}>{m.addButton}</button>
+          </div>
+        )
       )}
 
       {scanOpen && <QrScanModal onDetected={handleScanResult} onClose={() => setScanOpen(false)} />}

@@ -1,4 +1,4 @@
-import type { PresignedPiece } from '@/lib/api-types'
+import type { DownloadResult, PresignedPiece } from '@/lib/api-types'
 import {
   ACCOUNT_PIECE_SIZE,
   encryptedPieceStream,
@@ -185,8 +185,8 @@ export async function uploadFile(
 /** Große Dateien (Chrome/Edge) streamend auf die Platte, sonst im Speicher sammeln. */
 const STREAM_TO_DISK_FROM = 512 * 1024 * 1024
 
-export async function pieceSource(entry: VaultEntry, signal?: AbortSignal): Promise<PieceSource> {
-  const { pieces } = await api.download(entry.objectId!)
+export async function pieceSource(entry: VaultEntry, signal?: AbortSignal, fetchPieces?: () => Promise<DownloadResult>): Promise<PieceSource> {
+  const { pieces } = await (fetchPieces ? fetchPieces() : api.download(entry.objectId!))
   const byIndex = new Map(pieces.map(p => [p.index, p]))
   return {
     openStream: async ref => {
@@ -225,11 +225,11 @@ export async function decryptToBlob(
 export async function downloadFile(
   entry: VaultEntry,
   masterKey: CryptoKey,
-  opts: { signal?: AbortSignal; onProgress?: (p: TransferProgress) => void } = {}
+  opts: { signal?: AbortSignal; onProgress?: (p: TransferProgress) => void; fetchPieces?: () => Promise<DownloadResult> } = {}
 ): Promise<void> {
   if (!entry.objectId) throw new Error('Diese Datei liegt im Wallet-Speicher und ist im Konto-Modus nicht abrufbar.')
   const fileKey = await unwrapFileKey({ wrapped: entry.wrappedKey, iv: entry.wrapIv }, masterKey)
-  const source = await pieceSource(entry, opts.signal)
+  const source = await pieceSource(entry, opts.signal, opts.fetchPieces)
   let done = 0
   const report = (n: number) => {
     done += n

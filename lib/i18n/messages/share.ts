@@ -24,6 +24,9 @@ const de = {
     used: '{n} von {max} Downloads',
     usedUnlimited: '{n} Downloads',
     nFiles: '{n} Dateien',
+    noteLead: 'Erstelle einen Link für die Notiz „{name}“{att}. Der Inhalt bleibt verschlüsselt – der Schlüssel steckt nur im Link.',
+    withAttachments: ' samt {n} Anhang/Anhängen',
+    noteNoSize: 'Der Link enthält eine verschlüsselte Kopie der Notiz (Stand jetzt). Spätere Änderungen werden nicht übernommen.',
     noSize: 'Nicht mitgesendet: der Link enthält keine Kopie – wird die Datei gelöscht, ist der Link ungültig.'
   },
   page: {
@@ -36,6 +39,10 @@ const de = {
     wrongPassword: 'Falsches Passwort.',
     download: 'Herunterladen',
     downloadAll: 'Alle herunterladen',
+    noteTitle: 'Verschlüsselte Notiz',
+    noteLead: 'Jemand hat dir eine Notiz geschickt. Sie wird erst beim Öffnen entschlüsselt – das zählt als Abruf.',
+    showNote: 'Notiz anzeigen',
+    noteAttachments: 'Anhänge',
     filesCount: '{n} Dateien · {size}',
     downloading: 'Entschlüssele … {pct} %',
     done: 'Fertig – die Datei wurde gespeichert.',
@@ -76,6 +83,9 @@ const en: typeof de = {
     used: '{n} of {max} downloads',
     usedUnlimited: '{n} downloads',
     nFiles: '{n} files',
+    noteLead: 'Create a link for the note “{name}”{att}. The content stays encrypted – the key lives only in the link.',
+    withAttachments: ' with {n} attachment(s)',
+    noteNoSize: 'The link contains an encrypted copy of the note as of now. Later edits are not included.',
     noSize: 'No copy is made: if you delete the file, the link stops working.'
   },
   page: {
@@ -88,6 +98,10 @@ const en: typeof de = {
     wrongPassword: 'Wrong password.',
     download: 'Download',
     downloadAll: 'Download all',
+    noteTitle: 'Encrypted note',
+    noteLead: 'Someone sent you a note. It is only decrypted when you open it – this counts as one retrieval.',
+    showNote: 'Show note',
+    noteAttachments: 'Attachments',
     filesCount: '{n} files · {size}',
     downloading: 'Decrypting … {pct} %',
     done: 'Done – the file has been saved.',

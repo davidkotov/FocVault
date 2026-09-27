@@ -5,7 +5,7 @@ import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 import { formatBytes, type TierName } from '@/lib/vault'
 
-export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder' | 'storageApi'
+export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder' | 'storageApi' | 'sharedVaults' | 'emergency'
 
 interface Props {
   view: ViewId
@@ -25,6 +25,8 @@ interface Props {
   storageApiLabel?: string
   apiSection?: string
   apiLockTip?: string
+  /** Geteilte Tresore (Business) */
+  sharedVaultsLabel?: string
 }
 
 const ICONS: Record<ViewId, JSX.Element> = {
@@ -73,6 +75,13 @@ const ICONS: Record<ViewId, JSX.Element> = {
       <path d="M12 7v5l3.5 2" />
     </>
   ),
+  sharedVaults: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 9V7M12 17v-2M15 12h2M7 12h2" />
+    </>
+  ),
   storageApi: (
     <>
       <ellipse cx="12" cy="6" rx="8" ry="3" />
@@ -86,6 +95,12 @@ const ICONS: Record<ViewId, JSX.Element> = {
       <circle cx="15" cy="13" r="1.6" />
     </>
   ),
+  emergency: (
+    <>
+      <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+      <path d="M12 8v5M12 16h.01" />
+    </>
+  ),
   passkeys: (
     <>
       <circle cx="8" cy="15" r="4" />
@@ -95,7 +110,7 @@ const ICONS: Record<ViewId, JSX.Element> = {
 }
 
 /** Seitenleiste; auf dem Handy als ausklappbares Menü (Burger-Button in der Topbar-Zeile). */
-export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, storageApi = false, storageApiLabel = 'Speicher-API', apiSection = 'API-Module', apiLockTip = 'Upgrade nötig – ab Business Starter' }: Props) {
+export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, storageApi = false, storageApiLabel = 'Speicher-API', apiSection = 'API-Module', apiLockTip = 'Upgrade nötig – ab Business Starter', sharedVaultsLabel = 'Geteilte Tresore' }: Props) {
   const m = useMessages(appMessages).nav
   const [open, setOpen] = useState(false)
   const pct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0
@@ -147,6 +162,7 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
         <Item id="passwords" label={m.passwords} locked={!pro} />
         <Item id="notes" label={m.notes} locked={!pro} />
         <Item id="2fa" label={m.totp} locked={!pro} />
+        <Item id="sharedVaults" label={sharedVaultsLabel} locked={!storageApi} tip={apiLockTip} />
 
         <div className="navsection">{apiSection}</div>
         <Item id="storageApi" label={storageApiLabel} locked={!storageApi} tip={apiLockTip} />

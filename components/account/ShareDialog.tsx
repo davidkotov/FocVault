@@ -6,7 +6,7 @@ import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { useErrorText } from '@/features/i18n/errors'
 import { createShareLink } from '@/features/shares/share'
 import { shareMessages } from '@/lib/i18n/messages/share'
-import { formatBytes, type VaultEntry } from '@/lib/vault'
+import { formatBytes, type SecretEntry, type VaultEntry } from '@/lib/vault'
 
 const EXPIRY: Array<{ id: keyof typeof shareMessages.de.dialog.expiryOptions; hours: number | null }> = [
   { id: 'h1', hours: 1 },
@@ -26,17 +26,22 @@ const DOWNLOADS: Array<{ id: keyof typeof shareMessages.de.dialog.downloadOption
 export default function ShareDialog({
   entry,
   entries,
+  note,
   masterKey,
-  onClose
+  onClose,
+  onCreated
 }: {
+  /** Notiz teilen (Anhänge werden mitgesendet) */
+  note?: SecretEntry
+  onCreated?: (shareId: string) => void
   entry?: VaultEntry
   /** mehrere Dateien → ein gemeinsamer Link */
   entries?: VaultEntry[]
   masterKey: CryptoKey
   onClose: () => void
 }) {
-  const list = entries ?? (entry ? [entry] : [])
-  const single = list.length === 1 ? list[0] : null
+  const list = note ? (note.attachments ?? []) : (entries ?? (entry ? [entry] : []))
+  const single = !note && list.length === 1 ? list[0] : null
   const m = useMessages(shareMessages).dialog
   const { fmtDate } = useI18n()
   const errText = useErrorText()
@@ -72,8 +77,10 @@ export default function ShareDialog({
       const r = await createShareLink(list, masterKey, {
         expiresInHours: EXPIRY.find(e => e.id === expiry)!.hours,
         maxDownloads: DOWNLOADS.find(d => d.id === downloads)!.max,
-        password: password.trim() || undefined
+        password: password.trim() || undefined,
+        note: note ? { title: note.title, body: note.body, template: note.template, fields: note.fields, tags: note.tags } : undefined
       })
+      onCreated?.(r.id)
       setUrl(r.url)
       setCopied(false)
       await load()
@@ -93,10 +100,14 @@ export default function ShareDialog({
             {m.close}
           </button>
         </div>
-        <p className="lead">{fmt(m.lead, { name: single ? single.name : fmt(m.nFiles, { n: list.length }) })}</p>
-        <div className="hint" style={{ marginBottom: 12 }}>
+        {note ? (
+          <p className="lead">{fmt(m.noteLead, { name: note.title, att: list.length ? fmt(m.withAttachments, { n: list.length }) : '' })}</p>
+        ) : (
+          <p className="lead">{fmt(m.lead, { name: single ? single.name : fmt(m.nFiles, { n: list.length }) })}</p>
+        )}
+        {!note && <div className="hint" style={{ marginBottom: 12 }}>
           {single ? `${single.name} · ${formatBytes(single.size)}` : `${list.map(e => e.name).slice(0, 5).join(', ')}${list.length > 5 ? ' …' : ''} · ${formatBytes(list.reduce((n, e) => n + e.size, 0))}`}
-        </div>
+        </div>}
         {error && <div className="errorbox">{error}</div>}
 
         {url ? (
@@ -143,7 +154,7 @@ export default function ShareDialog({
           </>
         )}
         <p className="hint" style={{ marginTop: 10 }}>
-          {m.noSize}
+          {note ? m.noteNoSize : m.noSize}
         </p>
 
 {single && (

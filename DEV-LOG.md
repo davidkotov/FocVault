@@ -41,6 +41,69 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Passwort-Check
+
+Leiste über der Passwortliste: **schwach** (Entropie-Schätzung mit Abzügen für Wörterbuch-, Wiederholungs-,
+Folgen- und Jahreszahl-Muster), **mehrfach verwendet**, **in Datenlecks** (Knopf „Auf Datenlecks prüfen“).
+Leak-Abgleich per k-Anonymität: der Browser berechnet SHA-1, nur die ersten 5 Hex-Zeichen gehen an
+`/api/v1/pwned/:prefix`; der Server leitet an Have I Been Pwned weiter (mit Padding, 1 h Cache, Rate-Limit),
+HIBP sieht so weder Passwort noch Nutzer-IP. Chips filtern die Liste, Einträge bekommen Badges. Gilt auch
+in geteilten Tresoren.
+
+**Tests:** Vitest 114/114, Playwright 11/11 (neu `e2e/passwords.spec.ts` inkl. echtem Leak-Abgleich;
+`family.spec` unter Parallel-Last gelegentlich zu langsam, einzeln grün).
+
+### Notfallzugang / digitaler Nachlass (Migration v19)
+
+„Konto & Sicherheit → Notfallzugang“. Inhaber (Pro/Family/Business) lädt per Link eine Vertrauensperson ein
+(beliebiges Konto, auch Free) und wählt eine Wartezeit (sofort … 30 Tage). Nach dem Annehmen bestätigt der
+Inhaber mit seiner Passphrase: der Master-Key wird im Browser per ECDH-ES für den öffentlichen Schlüssel der
+Vertrauensperson verpackt (Kontext `emergency:<id>`), der Server speichert nur die Hülle. Die Vertrauensperson
+fordert Zugriff an; der Inhaber sieht einen Hinweis im Dashboard und kann ablehnen oder sofort freigeben.
+Erst nach Ablauf (oder Freigabe) liefert der Server die Hülle und erlaubt **nur lesend** Tresor-Index und
+Datei-Downloads des Inhabers (`/emergency/:id/vault`, `/emergency/:id/objects/:oid/download`). Neuer
+Schlüssel der Vertrauensperson → Hülle ungültig, Inhaber bestätigt neu. Entziehen jederzeit, auch
+Austreten durch die Vertrauensperson. Alles protokolliert (audit_events).
+
+**Tests:** Vitest 112/112 (neu `server/emergency`), Playwright 10/10 (neu `e2e/emergency.spec.ts`).
+
+### Geteilte Tresore mit Rechten (Business, Migration v18)
+
+Neues Modul „Geteilte Tresore“ (Seitenleiste → Weitere Module; ohne Business Schloss „ab Business Starter“).
+Ein Tresor enthält Passwörter, Notizen und 2FA für ausgewählte Teammitglieder. **Kryptografie:** eigener
+Tresor-Schlüssel (AES-256-GCM) je Generation, pro Mitglied per ECDH-ES verpackt (wie Teamordner, Kontext
+`vault:<id>`); Name und Einträge nur im verschlüsselten Index (eigene AAD). **Rollen:** Ansehen (lesen/kopieren),
+Bearbeiten (hinzufügen/ändern), Verwalten (Personen, Rechte, Löschen); serverseitig durchgesetzt, mind. ein
+Verwalter. **Entfernen:** Server liefert sofort nichts mehr; der Verwalter-Client legt automatisch eine neue
+Generation an und verschlüsselt neu, Schreiben mit altem Schlüssel wird abgelehnt. Wer das Team verlässt,
+verliert alle Tresore des Teams. **Protokoll** (Verwalter): erstellt, geändert, hinzugefügt/entfernt,
+Rechte geändert, Schlüssel erneuert – mit Personen. „Aus meinem Tresor übernehmen“ kopiert private Einträge.
+Passwörter/Notizen/2FA-Module haben dafür einen Nur-Lesen-Modus.
+
+**Tests:** Vitest 110/110 (neu `server/vaults`), Playwright 9/9 (neu `e2e/vaults.spec.ts`: zwei Konten im
+Business-Team, Ansehen → Bearbeiten → Entfernen, Protokoll).
+
+### Notizen v2: Formatierung, Vorlagen, Anhänge, Teilen per Secure Send
+
+**Notizen:** Formatierung (# Überschriften, Listen, anklickbare Checklisten `- [ ]`, **fett**, *kursiv*,
+`Code`, Links) über eine eigene sichere Darstellung (kein HTML), Werkzeugleiste im Editor. Anheften,
+Tags mit Filter-Chips, Volltextsuche (ohne geheime Felder). **Vorlagen:** Ausweis/Pass, Kreditkarte,
+Versicherung, WLAN, Softwarelizenz mit strukturierten Feldern; geheime Felder verdeckt (Anzeigen/Kopieren),
+Ablauf-Erinnerung ab 60 Tagen vorher (Badge + Hinweis oben). **Anhänge:** eigene verschlüsselte Objekte
+(zählen zum Speicher, erscheinen nicht in „Meine Cloud“), beim Löschen der Notiz mitgelöscht.
+**Teilen (Migration v17):** Notiz-Links ohne oder mit Anhängen; der Notizinhalt liegt verschlüsselt im
+`payload` des Links und wird **erst beim gezählten Abruf** ausgeliefert – ein Einmal-Link ist also wirklich
+nur einmal lesbar. `shares.object_id` darf leer sein und reißt Links beim Löschen einer Datei nicht mehr mit
+(ON DELETE SET NULL; Dateien stehen in `share_items`). Link-Übersicht zeigt „🗒 Titel“.
+
+### Wiederherstellen nur mit den 24 Wörtern (Migration v16)
+
+Aus den Wörtern wird per eigenem HKDF-Zweig eine Konto-Kennung abgeleitet; der Server speichert nur
+HMAC(Server-Secret, Kennung). Neue Konten erhalten sie bei der Registrierung, ältere beim nächsten
+erfolgreichen Wiederherstellen. `/wiederherstellen`: E-Mail nur noch optional.
+
+**Tests:** Vitest 107/107, Playwright 8/8 (neu: `e2e/notes.spec.ts`; account.spec stellt ohne E-Mail wieder her).
+
 ### Mehrfachauswahl, Drag & Drop, Secure Send für mehrere Dateien, Abschnitt „API-Module“
 
 **Meine Cloud:** Dateien markieren (Kästchen, „Alle auswählen“) → Leiste „n ausgewählt“ mit Teilen,

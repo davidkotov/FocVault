@@ -475,6 +475,79 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       -- Die Kennung ist von Recovery-Auth-Key und KEK unabhängig (eigener HKDF-Zweig).
       ALTER TABLE accounts ADD COLUMN recovery_lookup bytea UNIQUE;
     `
+  },
+  {
+    version: 17,
+    name: 'note_shares',
+    sql: `
+      -- Notizen per Secure Send: Inhalt verschlüsselt in payload (nur beim gezählten Abruf ausgeliefert),
+      -- Anhänge über share_items. Die Dateien selbst stehen in share_items; shares.object_id ist nur
+      -- noch die erste Datei (oder leer) und darf den Link beim Löschen nicht mitreißen.
+      ALTER TABLE shares ALTER COLUMN object_id DROP NOT NULL;
+      ALTER TABLE shares DROP CONSTRAINT shares_object_id_fkey;
+      ALTER TABLE shares ADD CONSTRAINT shares_object_id_fkey FOREIGN KEY (object_id) REFERENCES objects(id) ON DELETE SET NULL;
+      ALTER TABLE shares ADD COLUMN payload bytea;
+    `
+  },
+  {
+    version: 18,
+    name: 'shared_vaults',
+    sql: `
+      -- Geteilte Tresore (Business): Passwörter, Notizen und 2FA für ausgewählte Teammitglieder.
+      -- Der Server kennt nur IDs, Rollen, verpackte Schlüssel und einen verschlüsselten Index.
+      CREATE TABLE shared_vaults (
+        id uuid PRIMARY KEY,
+        team_owner uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        created_by uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        version bigint NOT NULL DEFAULT 1,
+        body bytea NOT NULL,
+        rotate_needed boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX shared_vaults_team ON shared_vaults (team_owner);
+      CREATE TABLE shared_vault_members (
+        vault_id uuid NOT NULL REFERENCES shared_vaults(id) ON DELETE CASCADE,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        role text NOT NULL CHECK (role IN ('view', 'edit', 'manage')),
+        added_by uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        added_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (vault_id, account_id)
+      );
+      CREATE INDEX shared_vault_members_account ON shared_vault_members (account_id);
+      CREATE TABLE shared_vault_keys (
+        vault_id uuid NOT NULL REFERENCES shared_vaults(id) ON DELETE CASCADE,
+        generation integer NOT NULL CHECK (generation >= 1),
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        wrapped jsonb NOT NULL,
+        PRIMARY KEY (vault_id, generation, account_id)
+      );
+      CREATE INDEX audit_events_vault ON audit_events ((meta->>'vaultId')) WHERE meta ? 'vaultId';
+    `
+  },
+  {
+    version: 19,
+    name: 'emergency_access',
+    sql: `
+      -- Notfallzugang: Vertrauensperson erhält nach Wartezeit Lesezugriff. Der Master-Key liegt nur
+      -- für deren öffentlichen Schlüssel verpackt vor (wrapped) und wird erst nach Ablauf ausgeliefert.
+      CREATE TABLE emergency_contacts (
+        id uuid PRIMARY KEY,
+        grantor uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        grantee uuid REFERENCES accounts(id) ON DELETE CASCADE,
+        invite_hash bytea UNIQUE,
+        invite_expires timestamptz,
+        wait_hours integer NOT NULL CHECK (wait_hours >= 0 AND wait_hours <= 2160),
+        status text NOT NULL CHECK (status IN ('invited', 'accepted', 'confirmed', 'requested')),
+        wrapped jsonb,
+        requested_at timestamptz,
+        approved_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX emergency_pair ON emergency_contacts (grantor, grantee) WHERE grantee IS NOT NULL;
+      CREATE INDEX emergency_grantee ON emergency_contacts (grantee);
+    `
   }
 ]
 
