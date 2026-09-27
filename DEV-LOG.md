@@ -41,6 +41,26 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Mehrfachauswahl, Drag & Drop, Secure Send für mehrere Dateien, Abschnitt „API-Module“
+
+**Meine Cloud:** Dateien markieren (Kästchen, „Alle auswählen“) → Leiste „n ausgewählt“ mit Teilen,
+In Familien-/Teamordner, Löschen, Auswahl aufheben. Dateien (einzeln oder die Auswahl) lassen sich per
+Drag & Drop auf **Secure Send**, **Familien-/Teamordner** und **Papierkorb** ziehen; die Ziele
+leuchten beim Ziehen auf. Löschen: Abo → Papierkorb, Free → Bestätigung, endgültig.
+**Verschieben in den gemeinsamen Ordner:** Datei-Schlüssel wird im Browser mit dem Ordner-Schlüssel neu
+verpackt, erst in den gemeinsamen Index, dann serverseitig freigegeben (`POST /objects/:id/space`),
+dann aus dem eigenen Tresor entfernt (Fehler → zurückgerollt). Die Familienordner-Logik liegt jetzt in
+`features/family/space-client.ts` (Hook und Verschieben nutzen dieselbe Instanz).
+**Secure Send mit mehreren Dateien (Migration v15, `share_items`):** ein Link, ein Download-Vorgang
+zählt einmal; Empfängerseite zeigt alle Dateien mit Einzel-Download und „Alle herunterladen“.
+Gelöschte Dateien fallen aus dem Link, die übrigen bleiben abrufbar. Alte Links (v3) funktionieren weiter.
+**Seitenleiste:** neuer Abschnitt „API-Module“ mit „Speicher-API“; ohne Business Schloss mit Hinweis
+„Upgrade nötig – ab Business Starter“, Klick führt zu den Business-Paketen.
+**Filecoin:** Netzwechsel Test → Mainnet sichert alles im neuen Netz neu.
+
+**Tests:** Vitest 103/103, Playwright 7/7 (neu: zwei Dateien markieren → ein Link → Empfänger lädt beide;
+Drag & Drop in den Papierkorb; Inhaber zieht Datei auf den Familienordner → Mitglied lädt sie herunter).
+
 ### Business in drei Stufen mit Nutzerplätzen, Schalter Privat/Business
 
 **Preisbuch (`business`):** Business Starter 49 CHF · 49 € · $55 (3 TB, 5 Nutzer), Business 129 CHF · 129 € ·

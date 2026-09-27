@@ -7,19 +7,22 @@ interface Props {
   title: string
   description: string
   onUpgrade: () => void
+  /** eigener Text/Button (z. B. Business statt Pro) */
+  body?: string
+  cta?: string
 }
 
-export default function UpgradeWall({ title, description, onUpgrade }: Props) {
+export default function UpgradeWall({ title, description, onUpgrade, body, cta }: Props) {
   const m = useMessages(appMessages).upgradeWall
   return (
     <div className="card upgradewall">
       <div className="upgradeicon">🔐</div>
       <h3>{title}</h3>
       <p className="dim">{description}</p>
-      <p className="dim">{m.body}</p>
+      <p className="dim">{body ?? m.body}</p>
       <div className="row" style={{ marginTop: 16, justifyContent: 'center' }}>
         <button className="primary" onClick={onUpgrade}>
-          {m.cta}
+          {cta ?? m.cta}
         </button>
       </div>
     </div>

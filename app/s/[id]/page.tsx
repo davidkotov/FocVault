@@ -7,7 +7,8 @@ import AuthShell, { Working } from '@/components/account/AuthShell'
 import { ApiClientError } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { useErrorText } from '@/features/i18n/errors'
-import { SharePasswordError, downloadShared, fragmentNeedsPassword, openShareLink, type OpenedShare } from '@/features/shares/share'
+import { SharePasswordError, downloadSharedFile, fragmentNeedsPassword, openShareLink, startSharedDownload, type OpenedShare, type SharedFile } from '@/features/shares/share'
+import type { PresignedPiece } from '@/lib/api-types'
 import { shareMessages } from '@/lib/i18n/messages/share'
 import { formatBytes } from '@/lib/vault'
 
@@ -24,6 +25,8 @@ export default function SharePage() {
   const [password, setPassword] = useState('')
   const [pwError, setPwError] = useState(false)
   const [pct, setPct] = useState(0)
+  const [pieces, setPieces] = useState<Map<string, PresignedPiece[]> | null>(null)
+  const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
   const open = useCallback(
@@ -55,13 +58,20 @@ export default function SharePage() {
     else void open()
   }, [open])
 
-  const download = async () => {
+  /** Ein Download-Vorgang (zählt einmal), danach einzelne oder alle Dateien entschlüsseln. */
+  const download = async (only?: SharedFile) => {
     if (!share) return
     setPhase('downloading')
     setPct(0)
     try {
-      await downloadShared(share, (done, total) => setPct(total ? Math.round((done / total) * 100) : 100))
-      setPhase('done')
+      const urls = pieces ?? (await startSharedDownload(share))
+      setPieces(urls)
+      const files = (only ? [only] : share.files).filter(f => urls.has(f.objectId))
+      for (const f of files) {
+        await downloadSharedFile(f, urls.get(f.objectId)!, (done, total) => setPct(total ? Math.round((done / total) * 100) : 100))
+        setDoneIds(d => new Set(d).add(f.objectId))
+      }
+      setPhase(only && files.length < share.files.length ? 'ready' : 'done')
     } catch (e) {
       if (e instanceof ApiClientError && e.code === 'GONE') return setPhase('gone')
       setError(errText(e))
@@ -95,21 +105,30 @@ export default function SharePage() {
 
       {share && (phase === 'ready' || phase === 'downloading' || phase === 'done') && (
         <>
-          <div className="sharefile">
-            <div className="sharefile-icon" aria-hidden="true">
-              📄
-            </div>
-            <div>
-              <strong className="sharefile-name">{share.name}</strong>
-              <div className="hint">
-                {formatBytes(share.size)} · {share.expiresAt ? fmt(m.expires, { date: fmtDate(share.expiresAt) }) : m.never}
-                {share.remaining !== null && ` · ${fmt(m.remaining, { n: share.remaining })}`}
+          {share.files.map(f => (
+            <div className="sharefile" key={f.objectId}>
+              <div className="sharefile-icon" aria-hidden="true">
+                {doneIds.has(f.objectId) ? '✅' : '📄'}
               </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong className="sharefile-name">{f.name}</strong>
+                <div className="hint">{formatBytes(f.size)}</div>
+              </div>
+              {share.files.length > 1 && (phase === 'ready' || phase === 'done') && (
+                <button className="small" onClick={() => void download(f)}>
+                  {m.download}
+                </button>
+              )}
             </div>
+          ))}
+          <div className="hint" style={{ marginBottom: 12 }}>
+            {share.files.length > 1 && `${fmt(m.filesCount, { n: share.files.length, size: formatBytes(share.files.reduce((n, f) => n + f.size, 0)) })} · `}
+            {share.expiresAt ? fmt(m.expires, { date: fmtDate(share.expiresAt) }) : m.never}
+            {share.remaining !== null && ` · ${fmt(m.remaining, { n: share.remaining })}`}
           </div>
           {phase === 'ready' && (
             <button className="primary full" onClick={() => void download()}>
-              {m.download}
+              {share.files.length > 1 ? m.downloadAll : m.download}
             </button>
           )}
           {phase === 'downloading' && <Working label={fmt(m.downloading, { pct })} />}

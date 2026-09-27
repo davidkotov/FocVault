@@ -54,4 +54,22 @@ describe('Secure Send (Konto-Modus)', () => {
     await expect(publicShare(deps, 'x'.repeat(22))).rejects.toMatchObject({ code: 'NOT_FOUND' })
     await expect(publicShare(deps, '../etc')).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
+
+  it('ein Link für mehrere Dateien: ein Download-Vorgang zählt einmal und liefert alle Dateien', async () => {
+    const deps = await testDeps()
+    const { session, objectId: a } = await storedFile(deps, 'multi@example.com')
+    const c = await createObject(deps, session, { fmt: 'frame2', pieces: [{ index: 0, cipherBytes: 50 }] })
+    await deps.storage.writeStream(objectPieceKey(session.accountId, c.objectId, 0), new Blob([new Uint8Array(50)]).stream(), 50)
+    await completeObject(deps, session, c.objectId)
+    const share = await createShare(deps, session, { objectIds: [a, c.objectId], meta, expiresInHours: 24, maxDownloads: 1 })
+    expect(share.objectIds).toEqual([a, c.objectId])
+    expect((await publicShare(deps, share.id)).objectIds).toEqual([a, c.objectId])
+    const dl = await startShareDownload(deps, share.id)
+    expect(dl.items.map(i => [i.objectId, i.pieces.length])).toEqual([[a, 1], [c.objectId, 1]])
+    await expect(startShareDownload(deps, share.id)).rejects.toMatchObject({ code: 'GONE' })
+    // eine Datei gelöscht → Link bleibt für die andere gültig
+    const s2 = await createShare(deps, session, { objectIds: [a, c.objectId], meta, expiresInHours: null, maxDownloads: null })
+    await deleteObject(deps, session, a)
+    expect((await startShareDownload(deps, s2.id)).items.map(i => i.objectId)).toEqual([c.objectId])
+  })
 })

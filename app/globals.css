@@ -2180,3 +2180,22 @@ a.linkbtn:hover { border-color: var(--accent-border); background: var(--accent-s
 .planbtn button { width: 100%; }
 .pricefrom { font-size: 15px; font-weight: 600; color: var(--text-dim); }
 .audienceswitch button.active:hover:not(:disabled) { background: #0f1420; color: #fff; }
+
+/* ---------- Auswahl & Drag & Drop ---------- */
+.filecard { position: relative; }
+.filecheck { position: absolute; top: 10px; left: 10px; z-index: 2; opacity: 0; transition: opacity 0.12s; }
+.filecheck input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+.filecard:hover .filecheck, .filecard.selected .filecheck, .filecheck:focus-within { opacity: 1; }
+.filegrid:has(.filecard.selected) .filecheck { opacity: 1; }
+.filecard.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.filecard[draggable='true'] { cursor: grab; }
+.selectall { font-size: 12.5px; color: var(--accent-dark); }
+.bulkbar { position: sticky; top: 8px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: #0f1420; color: #fff; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; box-shadow: 0 10px 30px rgba(15, 20, 32, 0.25); }
+.bulkbar button { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.2); color: #fff; display: inline-flex; align-items: center; gap: 6px; }
+.bulkbar button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.35); }
+.bulkbar button.danger { color: #ffb4b4; }
+.bulkbar .icon { stroke: currentColor; fill: none; stroke-width: 1.8; }
+.dragtip { margin: 0 0 10px; }
+body.fv-dragging .droptarget { border-style: dashed; border-color: var(--accent); }
+.droptarget[data-drop='over'] { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; transform: scale(1.04); }
+.droptarget { transition: transform 0.12s, background 0.12s; }

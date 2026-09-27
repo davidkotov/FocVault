@@ -42,8 +42,9 @@ export default function SendView({ files }: { files: VaultEntry[] }) {
         {shares?.map(s => (
           <div className="sharerow" key={s.id}>
             <span className={`badge${s.active ? ' ok' : ''}`}>{s.active ? m.active : m.inactive}</span>
-            <span className="sharename" title={nameOf(s.objectId)}>
+            <span className="sharename" title={s.objectIds.map(nameOf).join(', ')}>
               {nameOf(s.objectId)}
+              {s.objectIds.length > 1 && <span className="dim"> +{s.objectIds.length - 1}</span>}
             </span>
             <span className="hint">
               {s.expiresAt ? fmt(m.until, { date: fmtDate(s.expiresAt) }) : m.forever} ·{' '}

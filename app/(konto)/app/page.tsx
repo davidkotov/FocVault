@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Sidebar, { type ViewId } from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
-import FileList from '@/components/FileList'
+import FileList, { DRAG_MIME } from '@/components/FileList'
 import UpgradeWall from '@/components/UpgradeWall'
 import PasswordsPanel from '@/components/PasswordsPanel'
 import NotesPanel from '@/components/NotesPanel'
@@ -34,6 +34,8 @@ import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { useErrorText } from '@/features/i18n/errors'
 import { buildPassphraseChange, deriveFromPassphrase, unwrapMasterKeyRaw } from '@/features/keys/kdf'
 import { downloadFile } from '@/features/objects/transfer'
+import { useFamilySpace } from '@/features/family/useFamilySpace'
+import { unwrapFileKeyRaw, wrapFileKey } from '@/lib/crypto'
 import { appMessages } from '@/lib/i18n/messages/app'
 import { formatBytes, type FileVersion, type SecretEntry, type TierName, type TrashEntry, type VaultEntry } from '@/lib/vault'
 
@@ -217,7 +219,12 @@ export default function AppPage() {
   const [trashDays, setTrashDays] = useState(30)
   const [freeGb, setFreeGb] = useState(5)
   const [purgeAt, setPurgeAt] = useState<Record<string, string>>({})
-  const [sharing, setSharing] = useState<VaultEntry | null>(null)
+  const [sharing, setSharing] = useState<VaultEntry[] | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [dropOver, setDropOver] = useState<string | null>(null)
+  const [confirmBulk, setConfirmBulk] = useState<VaultEntry[] | null>(null)
+  const [planSegment, setPlanSegment] = useState<'private' | 'business' | undefined>(undefined)
+  const space = useFamilySpace(false)
   const [onFilecoin, setOnFilecoin] = useState<Record<string, { copies: number }>>({})
   useEffect(() => {
     if (status !== 'ready') return
@@ -485,6 +492,106 @@ export default function AppPage() {
     [mutate, errText, t]
   )
 
+  const groupPlan = account?.plan === 'family' || account?.plan === 'business'
+  const groupFolderName = account?.plan === 'business' ? t.team.folder : t.nav.familyFolder
+  const entriesOf = useCallback((ids: string[]) => vault.files.filter(f => ids.includes(f.id)), [vault.files])
+
+  /** Mehrere Dateien löschen: Abo → Papierkorb, Free → nach Bestätigung endgültig. */
+  const bulkDelete = useCallback(
+    async (ids: string[]) => {
+      const list = entriesOf(ids)
+      if (!list.length) return
+      if (!paidPlan) return setConfirmBulk(list)
+      setError(null)
+      const trashed: TrashEntry[] = []
+      for (const e of list) {
+        if (!e.objectId) continue
+        try {
+          await api.trashObject(e.objectId)
+          trashed.push({ ...e, trashedAt: Date.now() })
+        } catch (err) {
+          setError(errText(err))
+        }
+      }
+      const done = new Set(trashed.map(t => t.id))
+      mutate(c => ({ ...c, files: c.files.filter(f => !done.has(f.id)), trash: [...trashed, ...(c.trash ?? []).filter(f => !done.has(f.id))] }))
+      setSelected(new Set())
+      if (trashed.length === 1) setUndo(trashed[0])
+      else if (trashed.length) setNotice(fmt(t.bulk.trashed, { n: trashed.length }))
+    },
+    [entriesOf, paidPlan, mutate, errText, t]
+  )
+
+  /** In den Familien-/Teamordner verschieben: Datei-Schlüssel mit dem Ordner-Schlüssel neu verpacken. */
+  const bulkMoveToGroup = useCallback(
+    async (ids: string[]) => {
+      if (!masterKey || !account || !space.client) return
+      const list = entriesOf(ids).filter(e => e.objectId)
+      if (!list.length) return
+      setError(null)
+      try {
+        const c = space.client
+        if ((await c.load()) !== 'ready') throw new Error(t.bulk.spaceNotReady)
+        const key = c.currentKey()!
+        const gen = c.generation()
+        const moved: VaultEntry[] = []
+        for (const e of list) {
+          const raw = await unwrapFileKeyRaw({ wrapped: e.wrappedKey, iv: e.wrapIv }, masterKey)
+          try {
+            const w = await wrapFileKey(raw, key)
+            moved.push({ ...e, wrappedKey: w.wrapped, wrapIv: w.iv, spaceGen: gen, addedBy: account.label, versions: undefined, source: undefined })
+          } finally {
+            raw.fill(0)
+          }
+        }
+        // Zuerst in den gemeinsamen Index, dann serverseitig freigeben, dann aus dem eigenen Tresor
+        await c.update(files => [...moved, ...files.filter(f => !moved.some(m => m.id === f.id))])
+        const ok: VaultEntry[] = []
+        for (const m of moved) {
+          try {
+            await api.moveToSpace(m.objectId!)
+            ok.push(m)
+          } catch (err) {
+            setError(errText(err))
+          }
+        }
+        const failed = moved.filter(m => !ok.includes(m))
+        if (failed.length) await c.update(files => files.filter(f => !failed.some(x => x.id === f.id)))
+        const done = new Set(ok.map(m => m.id))
+        for (const e of list) if (done.has(e.id)) for (const v of e.versions ?? []) void api.deleteObject(v.objectId).catch(() => undefined)
+        mutate(cn => ({ ...cn, files: cn.files.filter(f => !done.has(f.id)) }))
+        setSelected(new Set())
+        if (ok.length) setNotice(fmt(t.bulk.moved, { n: ok.length, folder: groupFolderName }))
+      } catch (err) {
+        setError(errText(err))
+      }
+    },
+    [masterKey, account, space.client, entriesOf, mutate, errText, t, groupFolderName]
+  )
+
+  /** Ablageziele für gezogene Dateien (Buttons in der Kopfzeile). */
+  const dropProps = (target: string, action: (ids: string[]) => void) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes(DRAG_MIME)) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      if (dropOver !== target) setDropOver(target)
+    },
+    onDragLeave: () => setDropOver(d => (d === target ? null : d)),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault()
+      setDropOver(null)
+      document.body.classList.remove('fv-dragging')
+      try {
+        const ids = JSON.parse(e.dataTransfer.getData(DRAG_MIME)) as string[]
+        if (Array.isArray(ids) && ids.length) action(ids)
+      } catch {
+        /* fremde Daten ignorieren */
+      }
+    },
+    'data-drop': dropOver === target ? 'over' : undefined
+  })
+
   const emptyTrash = useCallback(async () => {
     for (const e of vault.trash ?? []) await deleteForever(e)
   }, [vault.trash, deleteForever])
@@ -529,7 +636,10 @@ export default function AppPage() {
     <div className="shell">
       <Sidebar
         view={view}
-        onNavigate={setView}
+        onNavigate={v => {
+          if (v === 'plans') setPlanSegment(undefined)
+          setView(v)
+        }}
         usedBytes={account.usedBytes}
         quotaBytes={account.quotaBytes}
         tierLabel={PLAN_LABEL[account.plan]}
@@ -538,6 +648,8 @@ export default function AppPage() {
         pro={isPro}
         storageApi={account.plan === 'business'}
         storageApiLabel={sApi.nav}
+        apiSection={sApi.section}
+        apiLockTip={sApi.lockTip}
       />
       <div className="main">
         <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
@@ -579,6 +691,31 @@ export default function AppPage() {
                   </button>
                 </div>
               )}
+              {selected.size > 0 ? (
+                <div className="bulkbar" role="toolbar" aria-label={fmt(t.bulk.selected, { n: selected.size })}>
+                  <strong>{fmt(t.bulk.selected, { n: selected.size })}</strong>
+                  <div className="row">
+                    <button className="small" onClick={() => setSharing(entriesOf([...selected]))}>
+                      <SendIcon /> {t.bulk.share}
+                    </button>
+                    {groupPlan && (
+                      <button className="small" onClick={() => void bulkMoveToGroup([...selected])}>
+                        <FamilyIcon /> {fmt(t.bulk.move, { folder: groupFolderName })}
+                      </button>
+                    )}
+                    <button className="small danger" onClick={() => void bulkDelete([...selected])}>
+                      <TrashIcon /> {t.bulk.trash}
+                    </button>
+                    <button className="small" onClick={() => setSelected(new Set())}>
+                      {t.bulk.clear}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                vault.files.length > 1 && (
+                  <p className="hint dragtip">{groupPlan ? fmt(t.bulk.dragTip, { folder: groupFolderName }) : t.bulk.dragTipNoFolder}</p>
+                )
+              )}
               <FileList
                 entries={vault.files}
                 busyId={busyId}
@@ -586,31 +723,40 @@ export default function AppPage() {
                 searchQuery={search}
                 onDownload={e => void onDownload(e)}
                 onDelete={id => void onDelete(id)}
-                onShare={e => setSharing(e)}
+                onShare={e => setSharing([e])}
+                selected={selected}
+                onToggleSelect={id => setSelected(s => {
+                  const n = new Set(s)
+                  if (n.has(id)) n.delete(id)
+                  else n.add(id)
+                  return n
+                })}
+                onSelectAll={ids => setSelected(s => (ids.every(id => s.has(id)) ? new Set() : new Set(ids)))}
+                dragIds={id => (selected.has(id) ? [...selected] : [id])}
                 onPreview={e => setPreviewId(e.id)}
                 onVersions={e => setVersionsId(e.id)}
                 onProof={e => setProofId(e.id)}
                 onFilecoin={onFilecoin}
                 headerAction={
                   <>
-                  <button className="small trashbtn" onClick={() => setView('send')}>
+                  <button className="small trashbtn droptarget" onClick={() => setView('send')} {...dropProps('send', ids => setSharing(entriesOf(ids)))}>
                     <SendIcon />
                     {t.nav.send}
                   </button>
                   {(account.plan === 'family' || account.plan === 'business') && (
-                    <button className="small trashbtn familybtn" onClick={() => setView('familyFolder')}>
+                    <button className="small trashbtn familybtn droptarget" onClick={() => setView('familyFolder')} {...dropProps('group', ids => void bulkMoveToGroup(ids))}>
                       <FamilyIcon />
                       {account.plan === 'business' ? t.team.folder : t.nav.familyFolder}
                     </button>
                   )}
                   {paidPlan || (vault.trash?.length ?? 0) > 0 ? (
-                    <button className="small trashbtn" onClick={() => setView('trash')}>
+                    <button className="small trashbtn droptarget" onClick={() => setView('trash')} {...dropProps('trash', ids => void bulkDelete(ids))}>
                       <TrashIcon />
                       {t.trash.button}
                       {(vault.trash?.length ?? 0) > 0 && <b className="trashcount">{vault.trash!.length}</b>}
                     </button>
                   ) : (
-                    <button className="small trashbtn locked" data-tip={t.trash.lockedTip} aria-label={`${t.trash.button} – ${t.trash.lockedTip}`} onClick={() => setView('plans')}>
+                    <button className="small trashbtn locked droptarget" data-tip={t.trash.lockedTip} aria-label={`${t.trash.button} – ${t.trash.lockedTip}`} onClick={() => setView('plans')} {...dropProps('trash', ids => void bulkDelete(ids))}>
                       <LockIcon />
                       {t.trash.button}
                     </button>
@@ -696,11 +842,41 @@ export default function AppPage() {
               }}
             />
           )}
-          {sharing && <ShareDialog entry={sharing} masterKey={masterKey} onClose={() => setSharing(null)} />}
+          {sharing && <ShareDialog entries={sharing} masterKey={masterKey} onClose={() => setSharing(null)} />}
+          {confirmBulk && (
+            <ConfirmDialog
+              title={fmt(t.bulk.confirmDelete, { n: confirmBulk.length })}
+              body={t.files.confirmDeleteBody}
+              confirmLabel={t.confirm.delete}
+              cancelLabel={t.confirm.cancel}
+              onCancel={() => setConfirmBulk(null)}
+              onConfirm={async () => {
+                const list = confirmBulk
+                setConfirmBulk(null)
+                for (const e of list) await deleteForever(e)
+                setSelected(new Set())
+                setNotice(fmt(t.bulk.deleted, { n: list.length }))
+              }}
+            />
+          )}
 
-          {view === 'plans' && <PlansView />}
+          {view === 'plans' && <PlansView key={planSegment ?? 'auto'} initialSegment={planSegment} />}
 
-          {view === 'storageApi' && account.plan === 'business' && <StorageApiView />}
+          {view === 'storageApi' &&
+            (account.plan === 'business' ? (
+              <StorageApiView />
+            ) : (
+              <UpgradeWall
+                title={sApi.title}
+                description={sApi.upgradeLead}
+                body={sApi.upgradeBody}
+                cta={sApi.upgradeCta}
+                onUpgrade={() => {
+                  setPlanSegment('business')
+                  setView('plans')
+                }}
+              />
+            ))}
 
           {view === 'familyFolder' && (account.plan === 'family' || account.plan === 'business') && (
             <>

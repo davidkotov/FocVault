@@ -23,7 +23,20 @@ const DOWNLOADS: Array<{ id: keyof typeof shareMessages.de.dialog.downloadOption
 ]
 
 /** Secure Send: Link mit Ablauf, Download-Limit (serverseitig) und optionalem Passwort. */
-export default function ShareDialog({ entry, masterKey, onClose }: { entry: VaultEntry; masterKey: CryptoKey; onClose: () => void }) {
+export default function ShareDialog({
+  entry,
+  entries,
+  masterKey,
+  onClose
+}: {
+  entry?: VaultEntry
+  /** mehrere Dateien → ein gemeinsamer Link */
+  entries?: VaultEntry[]
+  masterKey: CryptoKey
+  onClose: () => void
+}) {
+  const list = entries ?? (entry ? [entry] : [])
+  const single = list.length === 1 ? list[0] : null
   const m = useMessages(shareMessages).dialog
   const { fmtDate } = useI18n()
   const errText = useErrorText()
@@ -37,13 +50,13 @@ export default function ShareDialog({ entry, masterKey, onClose }: { entry: Vaul
   const [shares, setShares] = useState<ShareSummary[]>([])
 
   const load = useCallback(async () => {
-    if (!entry.objectId) return
+    if (!single?.objectId) return
     try {
-      setShares((await api.listShares(entry.objectId)).shares)
+      setShares((await api.listShares(single.objectId)).shares)
     } catch {
       /* Liste ist optional */
     }
-  }, [entry.objectId])
+  }, [single?.objectId])
 
   useEffect(() => {
     void load()
@@ -56,7 +69,7 @@ export default function ShareDialog({ entry, masterKey, onClose }: { entry: Vaul
     setBusy(true)
     setError(null)
     try {
-      const r = await createShareLink(entry, masterKey, {
+      const r = await createShareLink(list, masterKey, {
         expiresInHours: EXPIRY.find(e => e.id === expiry)!.hours,
         maxDownloads: DOWNLOADS.find(d => d.id === downloads)!.max,
         password: password.trim() || undefined
@@ -80,9 +93,9 @@ export default function ShareDialog({ entry, masterKey, onClose }: { entry: Vaul
             {m.close}
           </button>
         </div>
-        <p className="lead">{fmt(m.lead, { name: entry.name })}</p>
+        <p className="lead">{fmt(m.lead, { name: single ? single.name : fmt(m.nFiles, { n: list.length }) })}</p>
         <div className="hint" style={{ marginBottom: 12 }}>
-          {entry.name} · {formatBytes(entry.size)}
+          {single ? `${single.name} · ${formatBytes(single.size)}` : `${list.map(e => e.name).slice(0, 5).join(', ')}${list.length > 5 ? ' …' : ''} · ${formatBytes(list.reduce((n, e) => n + e.size, 0))}`}
         </div>
         {error && <div className="errorbox">{error}</div>}
 
@@ -133,6 +146,7 @@ export default function ShareDialog({ entry, masterKey, onClose }: { entry: Vaul
           {m.noSize}
         </p>
 
+{single && (
         <div className="sharelist">
           <div className="navsection" style={{ padding: '10px 0 6px' }}>
             {m.existing}
@@ -153,6 +167,7 @@ export default function ShareDialog({ entry, masterKey, onClose }: { entry: Vaul
             </div>
           ))}
         </div>
+        )}
       </div>
     </div>
   )

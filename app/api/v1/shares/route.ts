@@ -15,5 +15,5 @@ export const GET = route(async req => {
 export const POST = route(async req => {
   const d = await deps()
   const session = await requireSession(req, d.db)
-  return json(await createShare(d, session, await readJson(req, createShareSchema, 128 * 1024)), 201)
+  return json(await createShare(d, session, await readJson(req, createShareSchema, 3 * 1024 * 1024)), 201)
 })

@@ -1,5 +1,10 @@
 const de = {
   nav: 'Speicher-API',
+  section: 'API-Module',
+  lockTip: 'Upgrade nötig – ab Business Starter',
+  upgradeBody: 'Business Starter ab 49 CHF im Monat: 3 TB, 5 Nutzer, S3-Speicher-API und Teamordner.',
+  upgradeCta: 'Business-Pakete ansehen',
+  upgradeLead: 'S3-kompatibler Speicher für Server-, Datenbank- und NAS-Backups mit unlöschbaren Backups und Aufbewahrungsregeln. Enthalten ab Business Starter.',
   title: 'Speicher-API (S3)',
   lead: 'S3-kompatibler Speicher für Server-, Datenbank- und NAS-Backups. Deine Backup-Werkzeuge verschlüsseln selbst; wir speichern auf Filecoin und liefern laufend öffentlich prüfbare Speicherbeweise.',
   endpoint: 'Endpoint',
@@ -59,6 +64,11 @@ const de = {
 
 const en: typeof de = {
   nav: 'Storage API',
+  section: 'API modules',
+  lockTip: 'Upgrade required – from Business Starter',
+  upgradeBody: 'Business Starter from CHF 49 per month: 3 TB, 5 users, S3 storage API and team folder.',
+  upgradeCta: 'See Business plans',
+  upgradeLead: 'S3-compatible storage for server, database and NAS backups with immutable backups and retention rules. Included from Business Starter.',
   title: 'Storage API (S3)',
   lead: 'S3-compatible storage for server, database and NAS backups. Your backup tools encrypt on their own; we store on Filecoin and deliver continuous, publicly verifiable storage proofs.',
   endpoint: 'Endpoint',

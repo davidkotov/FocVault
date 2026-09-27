@@ -23,6 +23,7 @@ const de = {
     forever: 'unbegrenzt',
     used: '{n} von {max} Downloads',
     usedUnlimited: '{n} Downloads',
+    nFiles: '{n} Dateien',
     noSize: 'Nicht mitgesendet: der Link enthält keine Kopie – wird die Datei gelöscht, ist der Link ungültig.'
   },
   page: {
@@ -34,6 +35,8 @@ const de = {
     unlock: 'Öffnen',
     wrongPassword: 'Falsches Passwort.',
     download: 'Herunterladen',
+    downloadAll: 'Alle herunterladen',
+    filesCount: '{n} Dateien · {size}',
     downloading: 'Entschlüssele … {pct} %',
     done: 'Fertig – die Datei wurde gespeichert.',
     expires: 'Gültig bis {date}',
@@ -72,6 +75,7 @@ const en: typeof de = {
     forever: 'no limit',
     used: '{n} of {max} downloads',
     usedUnlimited: '{n} downloads',
+    nFiles: '{n} files',
     noSize: 'No copy is made: if you delete the file, the link stops working.'
   },
   page: {
@@ -83,6 +87,8 @@ const en: typeof de = {
     unlock: 'Open',
     wrongPassword: 'Wrong password.',
     download: 'Download',
+    downloadAll: 'Download all',
+    filesCount: '{n} files · {size}',
     downloading: 'Decrypting … {pct} %',
     done: 'Done – the file has been saved.',
     expires: 'Valid until {date}',

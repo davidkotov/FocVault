@@ -13,6 +13,12 @@ interface Props {
   onDownload: (entry: VaultEntry) => void
   onDelete: (id: string) => void
   onShare: (entry: VaultEntry) => void
+  /** Mehrfachauswahl (IDs) */
+  selected?: Set<string>
+  onToggleSelect?: (id: string) => void
+  onSelectAll?: (ids: string[]) => void
+  /** Drag & Drop: gezogene Dateien (bei Auswahl alle markierten) */
+  dragIds?: (id: string) => string[]
   /** Rechts in der Kopfzeile, z. B. der Papierkorb-Button */
   headerAction?: ReactNode
   /** Nachweis auf Filecoin anzeigen */
@@ -26,6 +32,9 @@ interface Props {
   /** Hinweis unter der Liste; Standard beschreibt den Wallet-Modus (Pieces bleiben on-chain). */
   deleteNote?: string
 }
+
+/** Datentyp für gezogene Dateien (IDs als JSON) */
+export const DRAG_MIME = 'application/x-focvault-files'
 
 function iconFor(folder: string): string {
   const f = FOLDERS.find(x => x.id === folder)
@@ -45,7 +54,7 @@ function tileColor(folder: string): string {
   }
 }
 
-export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote }: Props) {
+export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote, selected, onToggleSelect, onSelectAll, dragIds }: Props) {
   const [active, setActive] = useState<string>('all')
   const t = useMessages(appMessages)
   const { fmtDate } = useI18n()
@@ -63,6 +72,11 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
       <h3>
         {t.files.title}
         <div className="h3right">
+          {onSelectAll && filtered.length > 0 && (
+            <button type="button" className="linkish selectall" onClick={() => onSelectAll(filtered.map(e => e.id))}>
+              {t.bulk.selectAll}
+            </button>
+          )}
           <span>{fmt(t.files.count, { n: entries.length, size: formatBytes(entries.reduce((s, e) => s + e.size, 0)) })}</span>
           {headerAction}
         </div>
@@ -91,7 +105,25 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
       {filtered.length > 0 && (
         <div className="filegrid">
           {filtered.map(e => (
-            <div className="filecard" key={e.id}>
+            <div
+              className={`filecard ${selected?.has(e.id) ? 'selected' : ''}`}
+              key={e.id}
+              draggable={!!dragIds}
+              onDragStart={ev => {
+                if (!dragIds) return
+                const ids = dragIds(e.id)
+                ev.dataTransfer.setData(DRAG_MIME, JSON.stringify(ids))
+                ev.dataTransfer.setData('text/plain', ids.length > 1 ? fmt(t.bulk.selected, { n: ids.length }) : e.name)
+                ev.dataTransfer.effectAllowed = 'move'
+                document.body.classList.add('fv-dragging')
+              }}
+              onDragEnd={() => document.body.classList.remove('fv-dragging')}
+            >
+              {onToggleSelect && (
+                <label className="filecheck" title={t.bulk.select}>
+                  <input type="checkbox" checked={!!selected?.has(e.id)} onChange={() => onToggleSelect(e.id)} aria-label={`${t.bulk.select}: ${e.name}`} />
+                </label>
+              )}
               <button
                 type="button"
                 className="filetile"

@@ -358,3 +358,13 @@ export async function listVersions(deps: Deps, session: SessionInfo): Promise<Ar
   )
   return rows.map(r => ({ objectId: r.id, purgeAfter: new Date(r.purge_after).toISOString() }))
 }
+
+/** Eigene Datei in den Familien-/Teamordner verschieben (der Client hat den Datei-Schlüssel neu verpackt). */
+export async function moveToSpace(deps: Deps, session: SessionInfo, objectId: string): Promise<void> {
+  const obj = await loadOwned(deps, session, objectId)
+  if (obj.state !== 'stored') throw new ApiError('NOT_FOUND', 'Datei ist nicht (mehr) verfügbar.')
+  const owner = await spaceOwnerOf(deps.db, session.accountId)
+  if (!owner) throw new ApiError('PLAN_REQUIRED', 'Den gemeinsamen Ordner gibt es mit Family und Business.')
+  await deps.db.query('UPDATE objects SET space_owner = $2 WHERE id = $1 AND owner_account_id = $3', [objectId, owner, session.accountId])
+  await audit(deps.db, session.accountId, 'user', 'object.moved_to_space', { bytes: obj.cipher_bytes })
+}

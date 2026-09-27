@@ -217,13 +217,15 @@ export const api = {
   s3UpdateBucket: (name: string, input: { lock?: { mode: 'GOVERNANCE' | 'COMPLIANCE'; days: number } | null; retention?: RetentionRule | null }) =>
     call<{ ok: true }>('PATCH', `/s3/buckets/${encodeURIComponent(name)}`, input),
   filecoinStatus: () => call<FilecoinFileStatus>('GET', '/objects/filecoin'),
-  createShare: (input: { objectId: string; meta: string; expiresInHours: number | null; maxDownloads: number | null }) =>
+  createShare: (input: { objectId?: string; objectIds?: string[]; meta: string; expiresInHours: number | null; maxDownloads: number | null }) =>
     call<ShareSummary>('POST', '/shares', input),
   listShares: (objectId?: string) =>
     call<{ shares: ShareSummary[] }>('GET', `/shares${objectId ? `?objectId=${encodeURIComponent(objectId)}` : ''}`),
   revokeShare: (id: string) => call<{ ok: true }>('DELETE', `/shares/${encodeURIComponent(id)}`),
   publicShare: (id: string) => call<PublicShare>('GET', `/public/shares/${encodeURIComponent(id)}`),
-  shareDownload: (id: string) => call<DownloadResult>('POST', `/public/shares/${encodeURIComponent(id)}/download`),
+  shareDownload: (id: string) =>
+    call<DownloadResult & { items?: Array<{ objectId: string; pieces: PresignedPiece[] }> }>('POST', `/public/shares/${encodeURIComponent(id)}/download`),
+  moveToSpace: (id: string) => call<{ ok: true }>('POST', `/objects/${encodeURIComponent(id)}/space`),
 
   offer: () => call<PublicOffer>('GET', '/billing/offer'),
   buyAddon: (packId: string) => call<AccountView>('POST', '/billing/addons', { packId }),

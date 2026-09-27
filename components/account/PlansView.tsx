@@ -14,7 +14,7 @@ import { formatBytes } from '@/lib/vault'
 type PaidPlan = 'pro' | 'family'
 
 /** Pakete, Pay-as-you-go und Zusatzspeicher – verständlich erklärt, in der Kontowährung. */
-export default function PlansView() {
+export default function PlansView({ initialSegment }: { initialSegment?: 'private' | 'business' } = {}) {
   const { account, refreshAccount } = useAccount()
   const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber, fmtDate } = useI18n()
   const m = useMessages(billingMessages)
@@ -30,7 +30,7 @@ export default function PlansView() {
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmFree, setConfirmFree] = useState(false)
-  const [segment, setSegment] = useState<'private' | 'business'>(account?.plan === 'business' ? 'business' : 'private')
+  const [segment, setSegment] = useState<'private' | 'business'>(initialSegment ?? (account?.plan === 'business' ? 'business' : 'private'))
   // gewählte Zusatz-Nutzer je Stufe (im Elternteil, damit die Auswahl Re-Renders übersteht)
   const [seatChoice, setSeatChoice] = useState<Record<'starter' | 'business', number | undefined>>({ starter: undefined, business: undefined })
 

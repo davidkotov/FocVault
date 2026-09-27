@@ -54,7 +54,8 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   await g.getByRole('button', { name: 'Beitreten' }).click()
   await expect(g.getByText(`Willkommen in der Family von ${owner}!`)).toBeVisible()
   // Pro-Module frei (kein Schloss mehr)
-  await expect(g.locator('.navlock')).toHaveCount(0)
+  await expect(g.locator('.navitem.locked')).toHaveCount(1)
+  await expect(g.locator('.navitem.locked')).toContainText('Speicher-API') // nur das Business-Modul bleibt gesperrt
   await g.getByRole('button', { name: /Konto & Sicherheit/ }).click()
   await expect(g.getByText(`Du nutzt den Family-Speicher von ${owner}.`, { exact: false })).toBeVisible()
 
@@ -79,6 +80,21 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   await expect(card).toBeVisible()
   const [dl] = await Promise.all([g.waitForEvent('download'), card.locator('button[title="Herunterladen"]').click()])
   expect(Buffer.compare(await readFile(await dl.path()), shared)).toBe(0)
+
+  // Inhaber zieht eine private Datei aus „Meine Cloud“ auf den Familienordner → Kind sieht sie
+  await page.getByRole('button', { name: /Zurück zu Meine Cloud/ }).click()
+  await page.getByTestId('upload-input').setInputFiles({ name: 'Rezepte.txt', mimeType: 'text/plain', buffer: Buffer.from('Omas Rezepte') })
+  await expect(page.locator('.filecard', { hasText: 'Rezepte.txt' })).toBeVisible()
+  await page.locator('.filecard', { hasText: 'Rezepte.txt' }).dragTo(page.locator('.h3right .droptarget', { hasText: 'Familienordner' }))
+  await expect(page.getByText(/in Familienordner verschoben/)).toBeVisible()
+  await expect(page.locator('.filecard', { hasText: 'Rezepte.txt' })).toHaveCount(0)
+  await g.reload()
+  await unlockVault(g, PASS)
+  await g.getByRole('button', { name: 'Familienordner' }).click()
+  const moved = g.locator('.filecard', { hasText: 'Rezepte.txt' })
+  await expect(moved).toBeVisible()
+  const [dl2] = await Promise.all([g.waitForEvent('download'), moved.locator('button[title="Herunterladen"]').click()])
+  expect((await readFile(await dl2.path())).toString()).toBe('Omas Rezepte')
 
   // Einladungslink ist verbraucht
   const g2 = await guest.newPage()

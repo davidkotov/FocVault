@@ -20,9 +20,11 @@ interface Props {
   pro?: boolean
   /** Familienordner anzeigen (Family-Mitglieder und -Inhaber) */
   family?: boolean
-  /** Speicher-API (Business) */
+  /** Speicher-API: freigeschaltet (Business) – sonst Schloss */
   storageApi?: boolean
   storageApiLabel?: string
+  apiSection?: string
+  apiLockTip?: string
 }
 
 const ICONS: Record<ViewId, JSX.Element> = {
@@ -93,7 +95,7 @@ const ICONS: Record<ViewId, JSX.Element> = {
 }
 
 /** Seitenleiste; auf dem Handy als ausklappbares Menü (Burger-Button in der Topbar-Zeile). */
-export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, storageApi = false, storageApiLabel = 'Speicher-API' }: Props) {
+export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, storageApi = false, storageApiLabel = 'Speicher-API', apiSection = 'API-Module', apiLockTip = 'Upgrade nötig – ab Business Starter' }: Props) {
   const m = useMessages(appMessages).nav
   const [open, setOpen] = useState(false)
   const pct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0
@@ -101,21 +103,21 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
     onNavigate(v)
     setOpen(false)
   }
-  const Lock = () => (
-    <span className="navlock" data-tip={m.proOnly} aria-label={m.proOnly}>
+  const Lock = ({ tip = m.proOnly }: { tip?: string }) => (
+    <span className="navlock" data-tip={tip} aria-label={tip}>
       <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
         <rect x="5" y="11" width="14" height="9" rx="2" />
         <path d="M8 11V8a4 4 0 0 1 8 0v3" />
       </svg>
     </span>
   )
-  const Item = ({ id, label, locked }: { id: ViewId; label: string; locked?: boolean }) => (
+  const Item = ({ id, label, locked, tip }: { id: ViewId; label: string; locked?: boolean; tip?: string }) => (
     <button className={`navitem ${view === id ? 'active' : ''} ${locked ? 'locked' : ''}`} onClick={() => go(id)}>
       <svg className="icon" viewBox="0 0 24 24">
         {ICONS[id]}
       </svg>
       {label}
-      {locked && <Lock />}
+      {locked && <Lock tip={tip} />}
     </button>
   )
 
@@ -138,7 +140,6 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
 
       <nav className="navlist">
         <Item id="cloud" label={m.cloud} />
-        {storageApi && <Item id="storageApi" label={storageApiLabel} />}
         {showPlans && <Item id="plans" label={m.plans} />}
         <Item id="account" label={m.account} />
 
@@ -146,6 +147,9 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
         <Item id="passwords" label={m.passwords} locked={!pro} />
         <Item id="notes" label={m.notes} locked={!pro} />
         <Item id="2fa" label={m.totp} locked={!pro} />
+
+        <div className="navsection">{apiSection}</div>
+        <Item id="storageApi" label={storageApiLabel} locked={!storageApi} tip={apiLockTip} />
 
         <div className="spacer" />
 

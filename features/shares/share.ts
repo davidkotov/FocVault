@@ -1,6 +1,6 @@
 'use client'
 
-import { api } from '@/features/api/client'
+import { absoluteUrl, api } from '@/features/api/client'
 import {
   decodeShareFragment,
   decryptShareContainer,
@@ -18,15 +18,15 @@ import {
 } from '@/lib/crypto'
 import { decryptChunksTo, type PieceSource } from '@/lib/pieces'
 import type { ChunkMeta, VaultEntry } from '@/lib/vault'
+import type { PresignedPiece } from '@/lib/api-types'
 
 /**
- * Secure Send (Konto-Modus). Der Link verweist auf die gespeicherte, verschlüsselte Datei.
- * Der Server kennt nur die Link-ID und verschlüsselte Metadaten; Name, Typ und Datei-Schlüssel
- * stehen darin, verschlüsselt mit dem Link-Schlüssel – der steckt nur im URL-Fragment (#…),
- * das Browser nie an den Server senden. Optional zusätzlich mit Passwort geschützt.
+ * Secure Send (Konto-Modus). Der Link verweist auf gespeicherte, verschlüsselte Dateien – eine oder
+ * mehrere. Der Server kennt nur die Link-ID und verschlüsselte Metadaten; Namen, Typen und
+ * Datei-Schlüssel stehen darin, verschlüsselt mit dem Link-Schlüssel aus dem URL-Fragment (#…).
  */
-interface ShareMeta {
-  v: 3
+export interface SharedFile {
+  objectId: string
   name: string
   type: string
   size: number
@@ -35,21 +35,48 @@ interface ShareMeta {
   fileKey: string
 }
 
+interface ShareMetaV3 {
+  v: 3
+  name: string
+  type: string
+  size: number
+  pieceSize?: number
+  chunks: ChunkMeta[]
+  fileKey: string
+}
+interface ShareMetaV4 {
+  v: 4
+  files: SharedFile[]
+}
+
 export interface ShareLinkOptions {
   expiresInHours: number | null
   maxDownloads: number | null
   password?: string
 }
 
-export async function createShareLink(entry: VaultEntry, masterKey: CryptoKey, opts: ShareLinkOptions): Promise<{ url: string; id: string }> {
-  if (!entry.objectId) throw new Error('Diese Datei kann nicht geteilt werden.')
-  const raw = await unwrapFileKeyRaw({ wrapped: entry.wrappedKey, iv: entry.wrapIv }, masterKey)
+/** Link für eine oder mehrere Dateien. `keyFor` liefert den Schlüssel, mit dem der Datei-Schlüssel verpackt ist. */
+export async function createShareLink(
+  entries: VaultEntry | VaultEntry[],
+  keyFor: CryptoKey | ((e: VaultEntry) => CryptoKey),
+  opts: ShareLinkOptions
+): Promise<{ url: string; id: string }> {
+  const list = Array.isArray(entries) ? entries : [entries]
+  if (!list.length || list.some(e => !e.objectId)) throw new Error('Diese Datei kann nicht geteilt werden.')
   const linkKey = randomLinkKey()
+  const raws: Bytes[] = []
   try {
-    const meta: ShareMeta = { v: 3, name: entry.name, type: entry.type, size: entry.size, pieceSize: entry.pieceSize, chunks: entry.chunks, fileKey: toB64(raw) }
+    const files: SharedFile[] = []
+    for (const e of list) {
+      const k = typeof keyFor === 'function' ? keyFor(e) : keyFor
+      const raw = await unwrapFileKeyRaw({ wrapped: e.wrappedKey, iv: e.wrapIv }, k)
+      raws.push(raw)
+      files.push({ objectId: e.objectId!, name: e.name, type: e.type, size: e.size, pieceSize: e.pieceSize, chunks: e.chunks, fileKey: toB64(raw) })
+    }
+    const meta: ShareMetaV4 = { v: 4, files }
     const container = await encryptShareContainer(JSON.stringify(meta), linkKey)
     const share = await api.createShare({
-      objectId: entry.objectId,
+      objectIds: files.map(f => f.objectId),
       meta: toB64(container),
       expiresInHours: opts.expiresInHours,
       maxDownloads: opts.maxDownloads
@@ -64,7 +91,7 @@ export async function createShareLink(entry: VaultEntry, masterKey: CryptoKey, o
     }
     return { id: share.id, url: `${window.location.origin}/s/${share.id}#${fragment}` }
   } finally {
-    raw.fill(0)
+    raws.forEach(r => r.fill(0))
     linkKey.fill(0)
   }
 }
@@ -81,13 +108,9 @@ export class SharePasswordError extends Error {}
 
 export interface OpenedShare {
   id: string
-  name: string
-  type: string
-  size: number
+  files: SharedFile[]
   expiresAt: string | null
   remaining: number | null
-  meta: ShareMeta
-  objectId: string
 }
 
 export async function openShareLink(id: string, fragment: string, password?: string): Promise<OpenedShare> {
@@ -104,21 +127,34 @@ export async function openShareLink(id: string, fragment: string, password?: str
     linkKey = frag.linkKey
   }
   const pub = await api.publicShare(id)
-  const meta = JSON.parse(await decryptShareContainer(fromB64(pub.meta), linkKey)) as ShareMeta
-  if (meta.v !== 3) throw new Error('Unbekanntes Link-Format')
-  return { id, name: meta.name, type: meta.type, size: meta.size, expiresAt: pub.expiresAt, remaining: pub.remaining, meta, objectId: pub.objectId }
+  const meta = JSON.parse(await decryptShareContainer(fromB64(pub.meta), linkKey)) as ShareMetaV3 | ShareMetaV4
+  const files: SharedFile[] =
+    meta.v === 4
+      ? meta.files
+      : meta.v === 3
+        ? [{ objectId: pub.objectId, name: meta.name, type: meta.type, size: meta.size, pieceSize: meta.pieceSize, chunks: meta.chunks, fileKey: meta.fileKey }]
+        : (() => {
+            throw new Error('Unbekanntes Link-Format')
+          })()
+  return { id, files, expiresAt: pub.expiresAt, remaining: pub.remaining }
 }
 
-export async function downloadShared(share: OpenedShare, onProgress?: (done: number, total: number) => void): Promise<void> {
-  const fileKey = await importFileKey(fromB64(share.meta.fileKey))
-  const { pieces } = await api.shareDownload(share.id)
+/** Download-Vorgang starten (zählt einmal) → Abruf-URLs je Datei. */
+export async function startSharedDownload(share: OpenedShare): Promise<Map<string, PresignedPiece[]>> {
+  const r = await api.shareDownload(share.id)
+  const items = r.items ?? [{ objectId: share.files[0].objectId, pieces: r.pieces }]
+  return new Map(items.map(i => [i.objectId, i.pieces]))
+}
+
+export async function downloadSharedFile(file: SharedFile, pieces: PresignedPiece[], onProgress?: (done: number, total: number) => void): Promise<void> {
+  const fileKey = await importFileKey(fromB64(file.fileKey))
   const byIndex = new Map(pieces.map(p => [p.index, p]))
   const source: PieceSource = {
     openStream: async ref => {
       const index = Number(ref.split('/').pop())
       const piece = byIndex.get(index)
       if (!piece) throw new Error(`Teil ${index + 1} fehlt.`)
-      const res = await fetch(piece.url, { headers: piece.headers })
+      const res = await fetch(absoluteUrl(piece.url), { headers: piece.headers })
       if (!res.ok || !res.body) throw new Error(`Download fehlgeschlagen (HTTP ${res.status}).`)
       return res.body
     },
@@ -128,15 +164,15 @@ export async function downloadShared(share: OpenedShare, onProgress?: (done: num
   }
   const parts: BlobPart[] = []
   let done = 0
-  await decryptChunksTo({ ...share.meta, objectId: share.objectId }, fileKey, source, plain => {
+  await decryptChunksTo({ ...file }, fileKey, source, plain => {
     parts.push(plain)
     done += plain.byteLength
-    onProgress?.(done, share.size)
+    onProgress?.(done, file.size)
   })
-  const url = URL.createObjectURL(new Blob(parts, { type: share.type || 'application/octet-stream' }))
+  const url = URL.createObjectURL(new Blob(parts, { type: file.type || 'application/octet-stream' }))
   const a = document.createElement('a')
   a.href = url
-  a.download = share.name
+  a.download = file.name
   document.body.appendChild(a)
   a.click()
   a.remove()

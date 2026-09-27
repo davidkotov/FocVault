@@ -96,6 +96,23 @@ const de = {
     decline: 'Nicht jetzt',
     left: 'Du hast die Familie verlassen.'
   },
+  bulk: {
+    select: 'Auswählen',
+    selectAll: 'Alle auswählen',
+    selected: '{n} ausgewählt',
+    share: 'Teilen',
+    move: 'In {folder}',
+    trash: 'Löschen',
+    clear: 'Auswahl aufheben',
+    dragTip: 'Tipp: Dateien auf Secure Send, {folder} oder den Papierkorb ziehen – auch mehrere auf einmal.',
+    dragTipNoFolder: 'Tipp: Dateien auf Secure Send oder den Papierkorb ziehen – auch mehrere auf einmal.',
+    drop: 'Hier ablegen',
+    moved: '{n} Datei(en) in {folder} verschoben.',
+    trashed: '{n} Datei(en) im Papierkorb.',
+    deleted: '{n} Datei(en) gelöscht.',
+    confirmDelete: '{n} Dateien endgültig löschen?',
+    spaceNotReady: 'Der gemeinsame Ordner ist noch nicht bereit – bitte einmal öffnen und kurz warten.'
+  },
   team: {
     title: 'Team',
     ownerLead: '{seats} Plätze in deinem Business-Abo. Jede Person hat ein eigenes Konto, eine eigene Passphrase und einen eigenen Tresor; gemeinsame Dateien liegen im Teamordner.',
@@ -346,6 +363,23 @@ const en: typeof de = {
     joined: 'Welcome to the Family of {owner}!',
     decline: 'Not now',
     left: 'You left the family.'
+  },
+  bulk: {
+    select: 'Select',
+    selectAll: 'Select all',
+    selected: '{n} selected',
+    share: 'Share',
+    move: 'To {folder}',
+    trash: 'Delete',
+    clear: 'Clear selection',
+    dragTip: 'Tip: drag files onto Secure Send, {folder} or the trash – several at once, too.',
+    dragTipNoFolder: 'Tip: drag files onto Secure Send or the trash – several at once, too.',
+    drop: 'Drop here',
+    moved: '{n} file(s) moved to {folder}.',
+    trashed: '{n} file(s) moved to the trash.',
+    deleted: '{n} file(s) deleted.',
+    confirmDelete: 'Permanently delete {n} files?',
+    spaceNotReady: 'The shared folder is not ready yet – please open it once and wait a moment.'
   },
   team: {
     title: 'Team',

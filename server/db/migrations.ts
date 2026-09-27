@@ -452,6 +452,20 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       -- Enterprise: individuelle Quota (vom Admin gesetzt)
       ALTER TABLE accounts ADD COLUMN custom_quota_gb integer CHECK (custom_quota_gb IS NULL OR custom_quota_gb > 0);
     `
+  },
+  {
+    version: 15,
+    name: 'multi_file_shares',
+    sql: `
+      -- Secure Send mit mehreren Dateien: ein Link, mehrere Objekte (Reihenfolge = position).
+      CREATE TABLE share_items (
+        share_id text NOT NULL REFERENCES shares(id) ON DELETE CASCADE,
+        position integer NOT NULL CHECK (position >= 0),
+        object_id uuid NOT NULL REFERENCES objects(id) ON DELETE CASCADE,
+        PRIMARY KEY (share_id, position)
+      );
+      INSERT INTO share_items (share_id, position, object_id) SELECT id, 0, object_id FROM shares;
+    `
   }
 ]
 
