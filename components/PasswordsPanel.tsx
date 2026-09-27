@@ -332,7 +332,8 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
 
       {entries.length === 0 && !form && <p className="dim pwempty card">{m.empty}</p>}
 
-      <div className="pwlayout" hidden={entries.length === 0 && !form}>
+      <div className={`pwlayout${folders.length ? '' : ' nofolders'}`} hidden={entries.length === 0 && !form}>
+        {folders.length > 0 && (
         <nav className="pwfolders card" aria-label={m.folders}>
           <button className={`pwnav${folderFilter === 'all' ? ' active' : ''}`} onClick={() => setFolderFilter('all')}>
             <span>{m.allLabel}</span>
@@ -346,6 +347,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
             </button>
           ))}
         </nav>
+        )}
 
         <div className="seclist card">
           <div className="seclist-filter">

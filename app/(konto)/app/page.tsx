@@ -1124,7 +1124,12 @@ export default function AppPage() {
                 <p className="dim">{ta.adminsOnly}</p>
               </div>
             ) : (
-              <TeamAdminView />
+              <TeamAdminView
+                onInvite={() => {
+                  setView('account')
+                  setTimeout(() => document.getElementById('acc-team')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200)
+                }}
+              />
             ))}
           {view === 'sharedVaults' &&
             (account.plan === 'business' ? (

@@ -12,11 +12,14 @@ import { toCsv, downloadText } from '@/lib/csv'
 import type { TeamPolicy } from '@/lib/api-types'
 import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
 import ReadOnlyVaultView from './ReadOnlyVaultView'
+import { createPortal } from 'react-dom'
+import { Icon } from '@/components/site/Icons'
+import { formatBytes } from '@/lib/vault'
 
 type Tab = 'members' | 'policies' | 'audit' | 'recovery' | 'sso'
 
 /** Business-Admin-Konsole: Mitglieder & Rollen, Richtlinien, Protokoll & PDF-Bericht, Notfallzugriff, SSO. */
-export default function TeamAdminView() {
+export default function TeamAdminView({ onInvite }: { onInvite?: () => void } = {}) {
   const m = useMessages(teamAdminMessages)
   const { fmtDate, locale } = useI18n()
   const fmtDT = useCallback((d: string) => new Date(d).toLocaleString(locale === 'en' ? 'en-GB' : 'de-CH', { dateStyle: 'short', timeStyle: 'short' }), [locale])
@@ -33,6 +36,9 @@ export default function TeamAdminView() {
   const [req, setReq] = useState({ target: '', reason: '' })
   const [opened, setOpened] = useState<{ id: string; name: string } | null>(null)
   const [sso, setSso] = useState<SsoConfigView | null>(null)
+  const [recent, setRecent] = useState<TeamAuditEvent[] | null>(null)
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => setSlot(document.getElementById('pageactions-slot')), [])
   const [ssoForm, setSsoForm] = useState({ issuer: '', clientId: '', clientSecret: '', domains: '', enforce: false, autoJoin: true })
 
   const keypair = useCallback(async () => {
@@ -50,6 +56,7 @@ export default function TeamAdminView() {
       }
       setView(v)
       setPolicy(p => p ?? v.policy)
+      if (v.role !== 'member') api.teamAudit({ from: new Date(Date.now() - 30 * 86_400_000).toISOString(), limit: 4 }).then(r => setRecent(r.events)).catch(() => setRecent([]))
     } catch (e) {
       setError(errText(e))
     }
@@ -162,41 +169,62 @@ export default function TeamAdminView() {
     <>
     <div className="kpis">
       <div className="kpi">
-        <div className="k">{m.kpi.people}</div>
+        <div className="k"><Icon name="users" size={14} /> {m.kpi.people}</div>
         <div className="v">{view.members.length}</div>
         <div className="s">{m.roles[view.role]}</div>
       </div>
       <div className="kpi">
-        <div className="k">{m.kpi.compliant}</div>
+        <div className="k"><Icon name="shield" size={14} /> {m.kpi.compliant}</div>
         <div className="v">
           {compliant} / {view.members.length}
         </div>
         <div className="s">{compliant === view.members.length ? m.ok : `${view.members.length - compliant} ${m.kpi.open}`}</div>
       </div>
       <div className="kpi">
-        <div className="k">{m.kpi.recovery}</div>
+        <div className="k"><Icon name="lifebuoy" size={14} /> {m.kpi.recovery}</div>
         <div className="v">{view.recovery ? `${view.members.filter(x => x.escrowed).length} / ${view.members.length}` : '–'}</div>
         <div className="s">{pending ? `${pending} ${m.kpi.pending}` : view.recovery ? m.kpi.escrowed : m.kpi.noKey}</div>
       </div>
       <div className="kpi">
-        <div className="k">{m.kpi.policies}</div>
-        <div className="v">{[view.policy.passkeyRequired, view.policy.recoveryRequired, !view.policy.allowShareLinks || !!view.policy.maxShareDays].filter(Boolean).length + 2}</div>
-        <div className="s">{m.kpi.policiesSub}</div>
+        <div className="k"><Icon name="database" size={14} /> {m.kpi.storage}</div>
+        <div className="v">
+          {formatBytes(account.usedBytes)} / {formatBytes(account.quotaBytes)}
+        </div>
+        <div className="planbar" style={{ marginTop: 10 }}>
+          <b style={{ width: `${account.quotaBytes ? Math.min(100, (account.usedBytes / account.quotaBytes) * 100) : 0}%`, background: '#0b1220' }} />
+        </div>
       </div>
     </div>
+    {slot &&
+      createPortal(
+        <>
+          {view.role !== 'member' && (
+            <button className="small" disabled={busy} onClick={() => void exportPdf()}>
+              <Icon name="file" size={14} /> {m.headPdf}
+            </button>
+          )}
+          {onInvite && view.role === 'owner' && (
+            <button className="primary small" onClick={onInvite}>
+              {m.headInvite}
+            </button>
+          )}
+        </>,
+        slot
+      )}
+    <div className="admingrid">
     <div className="card teamadmin">
-      <h3>
-        {m.title} <span>{m.roles[view.role]}</span>
-      </h3>
+      <div className="teamadmin-head">
+        <div className="tabs pilltabs" role="tablist">
+          {tabs.map(t => (
+            <button key={t} role="tab" aria-selected={tab === t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
+              {m.tabs[t]}
+            </button>
+          ))}
+        </div>
+        <span className="dim">{view.role === 'owner' ? m.ownerHint : m.roles[view.role]}</span>
+      </div>
       {error && <div className="errorbox">{error}</div>}
       {notice && <div className="notice">{notice}</div>}
-      <div className="tabs" role="tablist">
-        {tabs.map(t => (
-          <button key={t} role="tab" aria-selected={tab === t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {m.tabs[t]}
-          </button>
-        ))}
-      </div>
 
       {tab === 'members' && (
         <>
@@ -545,6 +573,51 @@ export default function TeamAdminView() {
           )}
         </>
       )}
+    </div>
+    {view.role !== 'member' && (
+      <aside className="adminside">
+        <div className="card plansection">
+          <div className="plansection-head">
+            <h3>{m.tabs.policies}</h3>
+            <button className="linkish" onClick={() => setTab('policies')}>
+              {m.edit}
+            </button>
+          </div>
+          {(
+            [
+              ['passkey', m.p.passkeyRequired, view.policy.passkeyRequired ? <span className="strongbadge">{m.side.on}</span> : <span className="dim">{m.side.off}</span>],
+              ['key', m.side.minChars, <b key="c">{fmt(m.chars, { n: view.policy.minPassphraseChars })}</b>],
+              ['lock', m.side.autoLock, <b key="a">{fmt(m.side.minutes, { n: view.policy.autoLockMinutes })}</b>],
+              ['send', m.side.links, <b key="l">{!view.policy.allowShareLinks ? m.side.off : view.policy.maxShareDays ? fmt(m.side.maxDays, { n: view.policy.maxShareDays }) : m.side.free}</b>],
+              ['lifebuoy', m.side.recovery, view.policy.recoveryRequired ? <span className="strongbadge">{m.side.required}</span> : <span className="dim">{m.side.off}</span>]
+            ] as const
+          ).map(([i, l, v]) => (
+            <div className="adminrow" key={l}>
+              <Icon name={i} size={15} />
+              <span>{l}</span>
+              {v}
+            </div>
+          ))}
+        </div>
+        <div className="card plansection">
+          <div className="plansection-head">
+            <h3>{m.side.recent}</h3>
+            <button className="linkish" onClick={() => setTab('audit')}>
+              {m.side.all}
+            </button>
+          </div>
+          {(recent ?? []).map((e, i) => (
+            <div className="adminevent" key={i}>
+              <b>{label(e.kind)}</b>
+              <span className="dim">
+                {[e.actor, detail(e), fmtDT(e.at)].filter(Boolean).join(' · ')}
+              </span>
+            </div>
+          ))}
+          {recent && recent.length === 0 && <p className="dim" style={{ padding: '12px 18px', margin: 0 }}>{m.side.none}</p>}
+        </div>
+      </aside>
+    )}
     </div>
     </>
   )

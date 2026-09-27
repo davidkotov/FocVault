@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import NotesPanel from '@/components/NotesPanel'
 import PasswordsPanel from '@/components/PasswordsPanel'
@@ -48,6 +49,15 @@ export default function SharedVaultsView() {
   const [addRole, setAddRole] = useState<VaultRole>('view')
   const [copyId, setCopyId] = useState('')
   const [audit, setAudit] = useState<VaultAuditEvent[] | null>(null)
+  const autoOpened = useRef(false)
+  const createRef = useRef<HTMLInputElement>(null)
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => setSlot(document.getElementById('pageactions-slot')), [])
+  useEffect(() => {
+    if (!loaded || autoOpened.current || openId || !vaults.length) return
+    autoOpened.current = true
+    if (typeof window !== 'undefined' && window.innerWidth >= 1000) setOpenId(vaults[0].id)
+  }, [loaded, vaults, openId])
 
   const sync = useCallback(() => setVaults([...c.vaults]), [c])
   const run = useCallback(
@@ -159,6 +169,13 @@ export default function SharedVaultsView() {
 
   return (
     <div className="vaultsplit">
+      {slot &&
+        createPortal(
+          <button className="primary small" onClick={() => createRef.current?.focus()}>
+            + {m.newVault}
+          </button>,
+          slot
+        )}
       <aside className="vaultside">
         {vaults.map(v => (
           <button key={v.id} type="button" className={`vaultrow${v.id === current.id ? ' on' : ''}`} onClick={() => (setOpenId(v.id), setTab('passwords'), setAudit(null))}>
@@ -175,6 +192,27 @@ export default function SharedVaultsView() {
             <span className={`badge role-${v.role}`}>{m.roles[v.role]}</span>
           </button>
         ))}
+        <div className="card vaultnew">
+          <form
+            className="vaultcreate"
+            onSubmit={e => {
+              e.preventDefault()
+              const n = name.trim()
+              if (!n) return
+              void run(async () => {
+                const id = await c.create(n)
+                setName('')
+                setOpenId(id)
+                setTab('passwords')
+              })
+            }}
+          >
+            <input ref={createRef} value={name} onChange={e => setName(e.target.value)} placeholder={m.newPlaceholder} aria-label={m.newName} maxLength={80} />
+            <button className="primary" type="submit" disabled={busy || !name.trim()}>
+              {busy ? m.creating : m.create}
+            </button>
+          </form>
+        </div>
       </aside>
       <div className="vaultmaincol">
       <div className="card">

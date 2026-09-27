@@ -41,6 +41,17 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Business-Seiten 1:1 nach Mockups: Speicher-API, Admin-Konsole, Geteilte Tresore
+
+**Speicher-API**: Abschnittskopf mit „+ Bucket“ und „Zugangsschlüssel erstellen“, Endpoint-Karte mit
+Schnellstart-Reitern (restic, pgBackRest, WAL-G, rclone, Proxmox/Veeam/Synology) im dunklen Codeblock,
+Nutzung pro Bucket, Buckets und Schlüssel als Tabellen (Schutz, Filecoin-Anteil, zuletzt genutzt), Bucket-
+Einstellungen unter der Tabelle. **Admin-Konsole**: „Compliance-Bericht (PDF)“ und „Person einladen“ im
+Seitenkopf, KPIs mit Icons und Teamspeicher, Reiter als Pillen, rechts Richtlinien-Übersicht und letzte
+Ereignisse. **Geteilte Tresore**: erster Tresor öffnet sich direkt (Split-Ansicht), „Neuer Tresor“ im Kopf,
+Anlegen in der Seitenleiste; Passwörter im Tresor ohne leere Ordnerspalte.
+
+
 ### Dashboard 1:1 nach Mockups: Kopfzeile, Suche, Pakete, Passwörter, Notizen, 2FA, Konto
 
 **Kopfzeile**: nur Suche, „Tresor entsperrt“, Sperren und Avatar; Avatar-Menü mit Konto, Pakete, Admin,
