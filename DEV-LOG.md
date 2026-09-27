@@ -41,6 +41,18 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Passwort-Check
+
+Leiste über der Passwortliste: **schwach** (Entropie-Schätzung mit Abzügen für Wörterbuch-, Wiederholungs-,
+Folgen- und Jahreszahl-Muster), **mehrfach verwendet**, **in Datenlecks** (Knopf „Auf Datenlecks prüfen“).
+Leak-Abgleich per k-Anonymität: der Browser berechnet SHA-1, nur die ersten 5 Hex-Zeichen gehen an
+`/api/v1/pwned/:prefix`; der Server leitet an Have I Been Pwned weiter (mit Padding, 1 h Cache, Rate-Limit),
+HIBP sieht so weder Passwort noch Nutzer-IP. Chips filtern die Liste, Einträge bekommen Badges. Gilt auch
+in geteilten Tresoren.
+
+**Tests:** Vitest 114/114, Playwright 11/11 (neu `e2e/passwords.spec.ts` inkl. echtem Leak-Abgleich;
+`family.spec` unter Parallel-Last gelegentlich zu langsam, einzeln grün).
+
 ### Notfallzugang / digitaler Nachlass (Migration v19)
 
 „Konto & Sicherheit → Notfallzugang“. Inhaber (Pro/Family/Business) lädt per Link eine Vertrauensperson ein

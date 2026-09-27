@@ -2283,3 +2283,13 @@ input.mono { font-family: var(--mono); }
 .emconfirm input { max-width: 260px; }
 .eminvite { margin-top: 10px; gap: 8px; align-items: center; }
 .eminvite select { width: auto; }
+
+/* ---------- Passwort-Check ---------- */
+.healthbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; margin: 10px 0; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--card-soft); font-size: 13px; }
+.healthbar .chip.ok { color: var(--green); }
+.healthbar .chip.warn { color: #9a5b00; }
+.healthbar .chip.bad { color: var(--red); }
+.healthbar .errortext { color: var(--red); font-size: 12.5px; }
+.pwbadge { display: inline-block; margin-left: 8px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 999px; vertical-align: 1px; }
+.pwbadge.warn { background: #fff4e0; color: #9a5b00; }
+.pwbadge.bad { background: var(--red-soft); color: var(--red); }

@@ -147,6 +147,7 @@ export const api = {
   emergencyVault: (id: string) => call<{ grantorId: string; body: string | null }>('GET', `/emergency/${encodeURIComponent(id)}/vault`),
   emergencyDownload: (id: string, objectId: string) =>
     call<DownloadResult>('GET', `/emergency/${encodeURIComponent(id)}/objects/${encodeURIComponent(objectId)}/download`),
+  pwnedRange: (prefix: string) => send(`/pwned/${prefix}`, { method: 'GET' }).then(r => r.text()),
   vaults: () => call<VaultsOverview>('GET', '/vaults'),
   createVault: (input: { id: string; wrapped: unknown; body: string }) => call<{ ok: true }>('POST', '/vaults', input),
   deleteVault: (id: string) => call<{ ok: true }>('DELETE', `/vaults/${encodeURIComponent(id)}`),

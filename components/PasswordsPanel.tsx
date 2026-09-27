@@ -5,6 +5,9 @@ import type { SecretEntry } from '@/lib/vault'
 import { parseCsv, toCsv, downloadText } from '@/lib/csv'
 import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { secretsMessages } from '@/lib/i18n/messages/secrets'
+import { reusedPasswords, strength } from '@/lib/password-health'
+import { checkBreaches } from '@/features/passwords/breach'
+import { useErrorText } from '@/features/i18n/errors'
 
 interface Props {
   entries: SecretEntry[]
@@ -77,14 +80,38 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
     return [...set].sort((a, b) => a.localeCompare(b, 'de'))
   }, [entries])
 
+  const h = useMessages(secretsMessages).health
+  const errText = useErrorText()
+  const [healthFilter, setHealthFilter] = useState<'weak' | 'reused' | 'leaked' | null>(null)
+  const [breaches, setBreaches] = useState<Map<string, number> | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [checkError, setCheckError] = useState<string | null>(null)
+  const weak = useMemo(() => new Set(entries.filter(e => e.password && strength(e.password) <= 1).map(e => e.id)), [entries])
+  const reused = useMemo(() => reusedPasswords(entries), [entries])
+  const leaked = useMemo(() => new Set([...(breaches ?? new Map<string, number>())].filter(([, n]) => n > 0).map(([id]) => id)), [breaches])
+  const runBreachCheck = async () => {
+    setChecking(true)
+    setCheckError(null)
+    try {
+      setBreaches(await checkBreaches(entries))
+    } catch (e) {
+      setCheckError(errText(e))
+    } finally {
+      setChecking(false)
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return entries.filter(e => {
+      if (healthFilter === 'weak' && !weak.has(e.id)) return false
+      if (healthFilter === 'reused' && !reused.has(e.id)) return false
+      if (healthFilter === 'leaked' && !leaked.has(e.id)) return false
       if (folderFilter !== 'all' && (e.folder ?? '') !== folderFilter) return false
       if (!q) return true
       return [e.title, e.username, e.url, e.folder].filter(Boolean).some(v => (v as string).toLowerCase().includes(q))
     })
-  }, [entries, search, folderFilter])
+  }, [entries, search, folderFilter, healthFilter, weak, reused, leaked])
 
   const countFor = (folder: string) => entries.filter(e => (e.folder ?? '') === folder).length
 
@@ -210,6 +237,29 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
         </div>
       )}
 
+      {entries.some(e => e.password) && (
+        <div className="healthbar" aria-label={h.title}>
+          <strong>{h.title}</strong>
+          <button type="button" className={`chip${healthFilter === 'weak' ? ' active' : ''}${weak.size ? ' warn' : ' ok'}`} onClick={() => setHealthFilter(f => (f === 'weak' ? null : 'weak'))}>
+            {fmt(h.weak, { n: weak.size })}
+          </button>
+          <button type="button" className={`chip${healthFilter === 'reused' ? ' active' : ''}${reused.size ? ' warn' : ' ok'}`} onClick={() => setHealthFilter(f => (f === 'reused' ? null : 'reused'))}>
+            {fmt(h.reused, { n: reused.size })}
+          </button>
+          {breaches ? (
+            <button type="button" className={`chip${healthFilter === 'leaked' ? ' active' : ''}${leaked.size ? ' bad' : ' ok'}`} onClick={() => setHealthFilter(f => (f === 'leaked' ? null : 'leaked'))}>
+              {fmt(h.leaked, { n: leaked.size })}
+            </button>
+          ) : (
+            <button type="button" className="small" disabled={checking} onClick={() => void runBreachCheck()} title={h.checkHint}>
+              {checking ? h.checking : h.check}
+            </button>
+          )}
+          <span className="hint">{breaches ? h.anonymousDone : h.checkHint}</span>
+          {checkError && <span className="errortext">{checkError}</span>}
+        </div>
+      )}
+
       {folders.length > 0 && (
         <div className="chipsrow">
           <button
@@ -231,7 +281,12 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
           {filtered.map(s => (
             <div className="secrow" key={s.id}>
               <div className="secmain">
-                <div className="sectitle">{s.title}</div>
+                <div className="sectitle">
+                  {s.title}
+                  {leaked.has(s.id) && <span className="pwbadge bad" title={fmt(h.leakedTip, { n: (breaches?.get(s.id) ?? 0).toLocaleString() })}>{h.badgeLeaked}</span>}
+                  {weak.has(s.id) && <span className="pwbadge warn">{h.badgeWeak}</span>}
+                  {reused.has(s.id) && <span className="pwbadge warn" title={fmt(h.reusedTip, { n: reused.get(s.id)! })}>{h.badgeReused}</span>}
+                </div>
                 <div className="secmeta">
                   {[s.username, s.url, s.folder].filter(Boolean).join(' · ') || m.noExtra}
                 </div>

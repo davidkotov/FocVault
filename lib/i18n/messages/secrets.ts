@@ -9,6 +9,21 @@ const de = {
     generate: 'Generieren',
     close: 'Schließen'
   },
+  health: {
+    title: 'Passwort-Check',
+    weak: '{n} schwach',
+    reused: '{n} mehrfach verwendet',
+    leaked: '{n} in Datenlecks',
+    check: 'Auf Datenlecks prüfen',
+    checking: 'Prüfe …',
+    checkHint: 'Anonym: nur die ersten 5 Zeichen eines Hashes verlassen dein Gerät – das Passwort nie.',
+    anonymousDone: 'Geprüft mit Have I Been Pwned (k-Anonymität).',
+    badgeWeak: 'schwach',
+    badgeReused: 'mehrfach',
+    badgeLeaked: 'geleakt',
+    leakedTip: 'Dieses Passwort taucht {n}-mal in bekannten Datenlecks auf – bitte ändern.',
+    reusedTip: 'Gleiches Passwort in {n} Einträgen'
+  },
   passwords: {
     heading: 'Passwörter',
     subtitle: '{n} Einträge · AES-256 verschlüsselt im Vault',
@@ -151,6 +166,21 @@ const en: typeof de = {
     copy: 'Copy',
     generate: 'Generate',
     close: 'Close'
+  },
+  health: {
+    title: 'Password check',
+    weak: '{n} weak',
+    reused: '{n} reused',
+    leaked: '{n} in data breaches',
+    check: 'Check for data breaches',
+    checking: 'Checking …',
+    checkHint: 'Anonymous: only the first 5 characters of a hash leave your device – never the password.',
+    anonymousDone: 'Checked with Have I Been Pwned (k-anonymity).',
+    badgeWeak: 'weak',
+    badgeReused: 'reused',
+    badgeLeaked: 'breached',
+    leakedTip: 'This password appears {n} times in known data breaches – please change it.',
+    reusedTip: 'Same password in {n} items'
   },
   passwords: {
     heading: 'Passwords',
