@@ -19,7 +19,7 @@ import {
 } from '@/features/keys/kdf'
 import { authMessages } from '@/lib/i18n/messages/auth'
 
-/** Angemeldet (z. B. per Reown) → nur Kit + neue Passphrase; sonst E-Mail + Kit. */
+/** Standard: nur die 24 Wörter (Konto wird über die abgeleitete Kennung gefunden); E-Mail optional für ältere Konten. */
 export default function RecoverPage() {
   const router = useRouter()
   const { path } = useI18n()
@@ -29,6 +29,7 @@ export default function RecoverPage() {
   const { status, account, enter } = useAccount()
   const signedIn = (status === 'locked' || status === 'ready') && !!account
   const [email, setEmail] = useState('')
+  const [withEmail, setWithEmail] = useState(false)
   const [words, setWords] = useState('')
   const [pass, setPass] = useState('')
   const [pass2, setPass2] = useState('')
@@ -37,14 +38,20 @@ export default function RecoverPage() {
 
   const count = normalizeRecoveryWords(words).split(' ').filter(Boolean).length
   const wordsOk = count === 24 && isValidRecoveryWords(words)
-  const ready = (signedIn || !!email) && wordsOk && passphraseReady(pass, pass2)
+  const ready = (signedIn || !withEmail || !!email.trim()) && wordsOk && passphraseReady(pass, pass2)
 
   const submit = async () => {
     setBusy(true)
     setError(null)
     try {
       const rec = await deriveFromRecovery(words)
-      const view = signedIn ? await api.recoveryWithSession(rec.authKey) : await api.recovery(email.trim().toLowerCase(), rec.authKey)
+      const view = signedIn
+        ? await api.recoveryWithSession(rec.authKey, rec.lookup)
+        : await api.recovery({
+            email: withEmail && email.trim() ? email.trim().toLowerCase() : undefined,
+            recoveryLookup: rec.lookup,
+            recoveryAuthKey: rec.authKey
+          })
       const env = view.envelopes.find(e => e.kekType === 'recovery')
       if (!env) throw new Error('recovery envelope missing')
       const raw = await unwrapMasterKeyRaw(env, rec.kek)
@@ -81,15 +88,9 @@ export default function RecoverPage() {
         <p className="lead">
           {signedIn ? `${fmt(m.signedIn, { name: account.label })} ` : ''}
           {m.lead}
-          {!signedIn && ` ${m.socialHint}`}
+
         </p>
         {error && <div className="errorbox">{error}</div>}
-        {!signedIn && (
-          <div className="field">
-            <label htmlFor="email">{a.email}</label>
-            <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-        )}
         <div className="field">
           <label htmlFor="words">{m.words}</label>
           <textarea
@@ -107,6 +108,23 @@ export default function RecoverPage() {
             {wordsOk ? m.valid : `${fmt(m.count, { n: count })}${count === 24 ? m.checksum : ''}`}
           </span>
         </div>
+        {!signedIn &&
+          (withEmail ? (
+            <div className="field">
+              <label htmlFor="email">
+                {a.email} <span className="dim">({m.optional})</span>
+              </label>
+              <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
+              <span className="hint">{m.emailHint}</span>
+            </div>
+          ) : (
+            <p className="hint" style={{ marginTop: -4 }}>
+              {m.noEmailNeeded}{' '}
+              <button type="button" className="linkish" onClick={() => setWithEmail(true)}>
+                {m.addEmail}
+              </button>
+            </p>
+          ))}
         <PassphraseFields value={pass} confirm={pass2} onChange={setPass} onConfirmChange={setPass2} label={m.newPass} />
         {busy ? (
           <Working label={m.working} />

@@ -101,8 +101,8 @@ export const api = {
   prelogin: (email: string) => call<{ kdf: KdfParams }>('POST', '/auth/prelogin', { email }),
   register: (input: RegisterInput) => call<AccountView>('POST', '/auth/register', input),
   login: (email: string, authKey: string) => call<AccountView>('POST', '/auth/login', { email, authKey }),
-  recovery: (email: string, recoveryAuthKey: string) =>
-    call<AccountView>('POST', '/auth/recovery', { email, recoveryAuthKey }),
+  recovery: (input: { email?: string; recoveryLookup?: string; recoveryAuthKey: string }) =>
+    call<AccountView>('POST', '/auth/recovery', input),
   logout: () => call<{ ok: true }>('POST', '/auth/logout'),
 
   walletNonce: () => call<{ nonce: string }>('POST', '/auth/wallet/nonce'),
@@ -113,8 +113,8 @@ export const api = {
     >('POST', '/auth/wallet/verify', { message, signature }),
   walletRegister: (input: Omit<RegisterInput, 'email'> & { registrationToken: string; label?: string }) =>
     call<AccountView>('POST', '/auth/wallet/register', input),
-  recoveryWithSession: (recoveryAuthKey: string) =>
-    call<AccountView>('POST', '/account/recovery', { recoveryAuthKey }),
+  recoveryWithSession: (recoveryAuthKey: string, recoveryLookup?: string) =>
+    call<AccountView>('POST', '/account/recovery', { recoveryAuthKey, recoveryLookup }),
 
   async account(): Promise<AccountView | null> {
     const res = await send('/account?optional=1', { method: 'GET' })

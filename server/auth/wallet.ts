@@ -10,7 +10,7 @@ import { ApiError } from '../shared/errors'
 import { b64uDecode, hmacSha256, safeEqual } from '../shared/bytes'
 import { serverSecret } from '../shared/env'
 import { uuidv7 } from '../shared/ids'
-import { accountView, type AuthResult, type RequestMeta } from '../accounts/service'
+import { accountView, recoveryLookupHash, storeRecoveryLookup, type AuthResult, type RequestMeta } from '../accounts/service'
 import type { recoverySessionSchema, walletLoginSchema, walletRegisterSchema } from '../accounts/schemas'
 import { hashSecret, verifySecret, type SecretHashParams } from './passwords'
 import { ipLimit, rateLimit } from './ratelimit'
@@ -141,7 +141,11 @@ export async function registerWithWallet(
   try {
     await deps.db.tx(async tx => {
       if ((await tx.query('SELECT 1 FROM auth_wallets WHERE address = $1', [address])).length) throw taken
-      await tx.query('INSERT INTO accounts (id, email, label) VALUES ($1, NULL, $2)', [accountId, input.label ?? null])
+      await tx.query('INSERT INTO accounts (id, email, label, recovery_lookup) VALUES ($1, NULL, $2, $3)', [
+        accountId,
+        input.label ?? null,
+        input.recoveryLookup ? recoveryLookupHash(input.recoveryLookup) : null
+      ])
       for (const [kind, h] of [
         ['passphrase', pass],
         ['recovery', rec]
@@ -198,6 +202,7 @@ export async function recoveryWithSession(
     throw new ApiError('INVALID_CREDENTIALS', 'Das Recovery-Kit passt nicht zu diesem Konto.')
   }
   await deps.db.query('UPDATE sessions SET strong_auth_at = now() WHERE id = $1', [session.sessionId])
+  await storeRecoveryLookup(deps.db, session.accountId, input.recoveryLookup)
   await audit(deps.db, session.accountId, 'user', 'auth.recovery_login', { via: 'session' })
   return accountView(deps, session.accountId, ['recovery'])
 }

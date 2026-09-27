@@ -466,6 +466,15 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       );
       INSERT INTO share_items (share_id, position, object_id) SELECT id, 0, object_id FROM shares;
     `
+  },
+  {
+    version: 16,
+    name: 'recovery_lookup',
+    sql: `
+      -- Wiederherstellen nur mit den 24 Wörtern: HMAC(Server-Secret, aus den Wörtern abgeleitete Kennung).
+      -- Die Kennung ist von Recovery-Auth-Key und KEK unabhängig (eigener HKDF-Zweig).
+      ALTER TABLE accounts ADD COLUMN recovery_lookup bytea UNIQUE;
+    `
   }
 ]
 

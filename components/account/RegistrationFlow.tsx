@@ -92,6 +92,7 @@ export default function RegistrationFlow({ mode, onStepChange }: { mode: Registr
               label: mode.label,
               authKey: input.authKey,
               recoveryAuthKey: input.recoveryAuthKey,
+              recoveryLookup: input.recoveryLookup,
               kdf: input.kdf,
               envelopes: input.envelopes
             })

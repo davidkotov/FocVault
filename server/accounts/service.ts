@@ -30,6 +30,24 @@ export interface AuthResult {
 
 const AUTH_WINDOW_MS = 15 * 60_000
 
+/**
+ * Server-seitige Form der Recovery-Kennung: HMAC mit dem Server-Secret. Ein Datenbank-Leak allein
+ * erlaubt so keinen Abgleich, und die Kennung selbst verrät nichts über die Wörter.
+ */
+export function recoveryLookupHash(lookupB64u: string): Buffer {
+  return hmacSha256(serverSecret(), `recovery-lookup\n${lookupB64u}`)
+}
+
+/** Kennung beim Konto hinterlegen (nachträglich für ältere Konten); Kollisionen werden ignoriert. */
+export async function storeRecoveryLookup(db: Deps['db'], accountId: string, lookupB64u: string | undefined): Promise<void> {
+  if (!lookupB64u) return
+  try {
+    await db.query('UPDATE accounts SET recovery_lookup = $2 WHERE id = $1 AND recovery_lookup IS NULL', [accountId, recoveryLookupHash(lookupB64u)])
+  } catch (e) {
+    if (!isUniqueViolation(e)) throw e
+  }
+}
+
 /** Standard-Kosten der Client-KDF – auch für Pseudo-Antworten (nicht unterscheidbar). */
 export const DEFAULT_KDF_COST = { m: 65_536, t: 3, p: 1 } as const
 
@@ -63,7 +81,11 @@ export async function register(
     await deps.db.tx(async tx => {
       const existing = await tx.query('SELECT 1 FROM accounts WHERE email = $1', [input.email])
       if (existing.length) throw new ApiError('EMAIL_TAKEN', 'Für diese E-Mail gibt es bereits ein Konto.')
-      await tx.query('INSERT INTO accounts (id, email) VALUES ($1, $2)', [accountId, input.email])
+      await tx.query('INSERT INTO accounts (id, email, recovery_lookup) VALUES ($1, $2, $3)', [
+        accountId,
+        input.email,
+        input.recoveryLookup ? recoveryLookupHash(input.recoveryLookup) : null
+      ])
       for (const [kind, h] of [
         ['passphrase', pass],
         ['recovery', rec]
@@ -99,16 +121,21 @@ export async function register(
 
 async function verifyAuth(
   deps: Deps,
-  email: string,
+  email: string | { lookup: string },
   kind: 'passphrase' | 'recovery',
   secretB64: string,
   meta: RequestMeta
 ): Promise<string> {
-  rateLimit(`auth:${kind}:email:${email}`, 10, AUTH_WINDOW_MS)
+  const byLookup = typeof email !== 'string'
+  rateLimit(byLookup ? `auth:recovery:lookup:${email.lookup}` : `auth:${kind}:email:${email}`, 10, AUTH_WINDOW_MS)
   rateLimit(`auth:ip:${meta.ip}`, ipLimit(60), AUTH_WINDOW_MS)
   const invalid = new ApiError(
     'INVALID_CREDENTIALS',
-    kind === 'passphrase' ? 'E-Mail oder Passphrase ist falsch.' : 'E-Mail oder Recovery-Kit ist falsch.'
+    kind === 'passphrase'
+      ? 'E-Mail oder Passphrase ist falsch.'
+      : byLookup
+        ? 'Zu diesen 24 Wörtern wurde kein Konto gefunden. Ältere Konten: bitte E-Mail angeben oder zuerst mit Google, Apple bzw. Wallet anmelden.'
+        : 'E-Mail oder Recovery-Kit ist falsch.'
   )
   const rows = await deps.db.query<{
     id: string
@@ -119,8 +146,8 @@ async function verifyAuth(
   }>(
     `SELECT a.id, a.status, s.hash, s.salt, s.params
        FROM accounts a JOIN auth_secrets s ON s.account_id = a.id AND s.kind = $2
-      WHERE a.email = $1`,
-    [email, kind]
+      WHERE ${byLookup ? 'a.recovery_lookup' : 'a.email'} = $1`,
+    [byLookup ? recoveryLookupHash(email.lookup) : email, kind]
   )
   const row = rows[0]
   if (!row) {
@@ -151,9 +178,10 @@ export async function recoveryLogin(
   input: z.output<typeof recoverySchema>,
   meta: RequestMeta
 ): Promise<AuthResult> {
-  const accountId = await verifyAuth(deps, input.email, 'recovery', input.recoveryAuthKey, meta)
+  const accountId = await verifyAuth(deps, input.email ?? { lookup: input.recoveryLookup! }, 'recovery', input.recoveryAuthKey, meta)
+  await storeRecoveryLookup(deps.db, accountId, input.recoveryLookup)
   const session = await createSession(deps.db, accountId, meta.userAgent)
-  await audit(deps.db, accountId, 'user', 'auth.recovery_login')
+  await audit(deps.db, accountId, 'user', 'auth.recovery_login', { via: input.email ? 'email' : 'words' })
   return { view: await accountView(deps, accountId, ['recovery']), ...session }
 }
 

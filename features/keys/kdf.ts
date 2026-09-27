@@ -33,6 +33,8 @@ export interface DerivedKeys {
   kek: CryptoKey
   /** base64url, 32 Byte – geht an den Server */
   authKey: string
+  /** nur Recovery: Konto-Kennung (eigener HKDF-Zweig), damit der Server das Konto ohne E-Mail findet */
+  lookup?: string
 }
 
 export function newKdfParams(cost: { m: number; t: number; p: number } = DEFAULT_KDF_COST): KdfParams {
@@ -52,7 +54,11 @@ async function split(ikm: Bytes, kind: KekType): Promise<DerivedKeys> {
   const auth = new Uint8Array(
     await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: te.encode(`focvault/auth/${kind}/v1`) }, base, 256)
   )
-  return { kek, authKey: toB64Url(auth as Bytes) }
+  const lookup =
+    kind === 'recovery'
+      ? toB64Url(new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: te.encode('focvault/lookup/recovery/v1') }, base, 256)) as Bytes)
+      : undefined
+  return { kek, authKey: toB64Url(auth as Bytes), lookup }
 }
 
 export async function deriveFromPassphrase(passphrase: string, kdf: KdfParams): Promise<DerivedKeys> {
@@ -156,7 +162,7 @@ export async function buildRegistration(
   try {
     const envelopes = [await wrapMasterKey(mkRaw, pass.kek, 'passphrase'), await wrapMasterKey(mkRaw, rec.kek, 'recovery')]
     return {
-      input: { email, authKey: pass.authKey, recoveryAuthKey: rec.authKey, kdf, envelopes },
+      input: { email, authKey: pass.authKey, recoveryAuthKey: rec.authKey, recoveryLookup: rec.lookup, kdf, envelopes },
       masterKey: await importMasterKey(mkRaw)
     }
   } finally {

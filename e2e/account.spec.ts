@@ -123,7 +123,7 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   // 6) Passphrase „vergessen": Recovery mit 24 Wörtern, neue Passphrase
   await page.getByRole('button', { name: 'Abmelden' }).click()
   await page.goto('/wiederherstellen')
-  await page.getByLabel('E-Mail').fill(email)
+  // keine E-Mail: das Konto wird über die aus den 24 Wörtern abgeleitete Kennung gefunden
   await page.getByLabel('Recovery-Kit (24 Wörter)').fill(words.join(' '))
   await expect(page.getByText('✓ Recovery-Kit gültig')).toBeVisible()
   await page.getByLabel('Neue Passphrase', { exact: true }).fill(NEW_PASS)

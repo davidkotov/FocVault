@@ -63,6 +63,26 @@ describe('Konten', () => {
     ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' })
   })
 
+  it('Recovery nur mit den 24 Wörtern: Konto über die Kennung; ältere Konten bekommen sie beim Wiederherstellen', async () => {
+    const deps = await testDeps()
+    const lookup = b64(32)
+    const input = registerSchema.parse({ ...registerInput('lookup@example.com'), recoveryLookup: lookup })
+    await register(deps, input, META)
+    const r = await recoveryLogin(deps, { recoveryLookup: lookup, recoveryAuthKey: input.recoveryAuthKey }, META)
+    expect(r.view.email).toBe('lookup@example.com')
+    await expect(recoveryLogin(deps, { recoveryLookup: lookup, recoveryAuthKey: input.authKey }, META)).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' })
+    await expect(recoveryLogin(deps, { recoveryLookup: b64(32), recoveryAuthKey: input.recoveryAuthKey }, META)).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' })
+    // älteres Konto ohne Kennung: erst per E-Mail, danach auch ohne
+    const { input: old } = await newAccount(deps, 'alt@example.com')
+    const oldLookup = b64(32)
+    await expect(recoveryLogin(deps, { recoveryLookup: oldLookup, recoveryAuthKey: old.recoveryAuthKey }, META)).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' })
+    await recoveryLogin(deps, { email: old.email, recoveryLookup: oldLookup, recoveryAuthKey: old.recoveryAuthKey }, META)
+    expect((await recoveryLogin(deps, { recoveryLookup: oldLookup, recoveryAuthKey: old.recoveryAuthKey }, META)).view.email).toBe('alt@example.com')
+    // der Server speichert nur den HMAC, nicht die Kennung
+    const rows = await deps.db.query<{ recovery_lookup: Uint8Array }>('SELECT recovery_lookup FROM accounts WHERE email = $1', ['alt@example.com'])
+    expect(Buffer.from(rows[0].recovery_lookup).toString('base64url')).not.toBe(oldLookup)
+  })
+
   it('Passphrase-Wechsel: nur mit frischer Anmeldung, meldet andere Geräte ab', async () => {
     const deps = await testDeps()
     const { input, result, session } = await newAccount(deps, 'fritz@example.com')

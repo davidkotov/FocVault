@@ -110,6 +110,7 @@ export interface RegisterInput {
   email: string
   authKey: string
   recoveryAuthKey: string
+  recoveryLookup?: string
   kdf: KdfParams
   envelopes: KeyEnvelope[]
 }

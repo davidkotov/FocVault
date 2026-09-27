@@ -30,6 +30,7 @@ export const registerSchema = z
     email: emailSchema,
     authKey: b64u(32),
     recoveryAuthKey: b64u(32),
+    recoveryLookup: b64u(32).optional(),
     kdf: kdfSchema,
     envelopes: z.array(envelopeSchema).length(2)
   })
@@ -40,7 +41,10 @@ export const registerSchema = z
 
 export const preloginSchema = z.object({ email: emailSchema })
 export const loginSchema = z.object({ email: emailSchema, authKey: b64u(32) })
-export const recoverySchema = z.object({ email: emailSchema, recoveryAuthKey: b64u(32) })
+/** Wiederherstellen: E-Mail (ältere Konten) oder nur die aus den 24 Wörtern abgeleitete Kennung. */
+export const recoverySchema = z
+  .object({ email: emailSchema.optional(), recoveryLookup: b64u(32).optional(), recoveryAuthKey: b64u(32) })
+  .refine(v => !!v.email || !!v.recoveryLookup, { message: 'E-Mail oder Recovery-Kennung erforderlich' })
 
 export const passphraseSchema = z.object({
   authKey: b64u(32),
@@ -59,6 +63,7 @@ export const walletRegisterSchema = z
     label: z.string().trim().max(120).optional(),
     authKey: b64u(32),
     recoveryAuthKey: b64u(32),
+    recoveryLookup: b64u(32).optional(),
     kdf: kdfSchema,
     envelopes: z.array(envelopeSchema).length(2)
   })
@@ -67,6 +72,6 @@ export const walletRegisterSchema = z
     path: ['envelopes']
   })
 
-export const recoverySessionSchema = z.object({ recoveryAuthKey: b64u(32) })
+export const recoverySessionSchema = z.object({ recoveryAuthKey: b64u(32), recoveryLookup: b64u(32).optional() })
 
 export const planSchema = z.object({ plan: z.enum(['free', 'pro', 'family', 'business']) })
