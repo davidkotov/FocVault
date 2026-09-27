@@ -13,7 +13,7 @@ import { uuidv7 } from '../shared/ids'
 import { accountView, type AuthResult, type RequestMeta } from '../accounts/service'
 import type { recoverySessionSchema, walletLoginSchema, walletRegisterSchema } from '../accounts/schemas'
 import { hashSecret, verifySecret, type SecretHashParams } from './passwords'
-import { rateLimit } from './ratelimit'
+import { ipLimit, rateLimit } from './ratelimit'
 import { createSession, type SessionInfo } from './sessions'
 
 export const ALLOWED_CHAIN_IDS: number[] = [filecoinCalibration.id, filecoin.id]
@@ -77,7 +77,7 @@ export async function walletLogin(
   origins: string[],
   meta: RequestMeta
 ): Promise<WalletLoginResult> {
-  rateLimit(`wallet:ip:${meta.ip}`, 30, 15 * 60_000)
+  rateLimit(`wallet:ip:${meta.ip}`, ipLimit(30), 15 * 60_000)
   let parsed: ReturnType<typeof parseSiweMessage>
   try {
     parsed = parseSiweMessage(input.message)
@@ -130,7 +130,7 @@ export async function registerWithWallet(
   input: z.output<typeof walletRegisterSchema>,
   meta: RequestMeta
 ): Promise<AuthResult> {
-  rateLimit(`register:ip:${meta.ip}`, 20, 60 * 60_000)
+  rateLimit(`register:ip:${meta.ip}`, ipLimit(20), 60 * 60_000)
   const address = verifyRegistrationToken(input.registrationToken)
   const accountId = uuidv7()
   const [pass, rec] = await Promise.all([

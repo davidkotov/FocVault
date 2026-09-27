@@ -24,6 +24,14 @@ export function rateLimit(key: string, limit: number, windowMs: number): void {
   }
 }
 
+/**
+ * Limits pro IP: in Production streng; lokal/Tests großzügig, weil alle Anfragen von derselben
+ * Adresse kommen (E2E-Tests, Skripte). Limits pro E-Mail/Konto gelten überall gleich.
+ */
+export function ipLimit(production: number): number {
+  return process.env.NODE_ENV === 'production' ? production : production * 50
+}
+
 export function resetRateLimits(): void {
   buckets.clear()
 }

@@ -9,7 +9,7 @@ import { b64uDecode, b64uEncode, hmacSha256 } from '../shared/bytes'
 import { isAdminIdentity, serverSecret } from '../shared/env'
 import { uuidv7 } from '../shared/ids'
 import { burnVerification, hashSecret, verifySecret, type SecretHashParams } from '../auth/passwords'
-import { rateLimit } from '../auth/ratelimit'
+import { ipLimit, rateLimit } from '../auth/ratelimit'
 import { createSession, revokeOtherSessions, type SessionInfo } from '../auth/sessions'
 import { requireStrongAuth } from '../auth/guard'
 import { usedBytes } from './plans'
@@ -53,7 +53,7 @@ export async function register(
   input: z.output<typeof registerSchema>,
   meta: RequestMeta
 ): Promise<AuthResult> {
-  rateLimit(`register:ip:${meta.ip}`, 20, 60 * 60_000)
+  rateLimit(`register:ip:${meta.ip}`, ipLimit(20), 60 * 60_000)
   const accountId = uuidv7()
   const [pass, rec] = await Promise.all([
     hashSecret(b64uDecode(input.authKey)),
@@ -105,7 +105,7 @@ async function verifyAuth(
   meta: RequestMeta
 ): Promise<string> {
   rateLimit(`auth:${kind}:email:${email}`, 10, AUTH_WINDOW_MS)
-  rateLimit(`auth:ip:${meta.ip}`, 60, AUTH_WINDOW_MS)
+  rateLimit(`auth:ip:${meta.ip}`, ipLimit(60), AUTH_WINDOW_MS)
   const invalid = new ApiError(
     'INVALID_CREDENTIALS',
     kind === 'passphrase' ? 'E-Mail oder Passphrase ist falsch.' : 'E-Mail oder Recovery-Kit ist falsch.'
