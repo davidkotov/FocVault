@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { unlockVault } from './helpers'
 
 const PASS = 'Korrekt Pferd Batterie Heftklammer'
 
@@ -18,7 +19,7 @@ async function register(page: Page, email: string) {
     await page.getByLabel(label, { exact: true }).fill(words[n - 1])
   }
   await page.getByRole('button', { name: 'Konto erstellen' }).click()
-  await expect(page).toHaveURL(/\/app/)
+  await expect(page).toHaveURL(/\/app/, { timeout: 60_000 })
 }
 
 test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async ({ page }) => {
@@ -35,8 +36,8 @@ test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async 
   await register(page, email)
 
   // Free: Schloss, Upgrade-Hinweis
-  await page.getByRole('button', { name: /Passkeys/ }).click()
-  await expect(page.getByRole('heading', { name: 'Passkeys' }).first()).toBeVisible()
+  await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await expect(page.locator('.lockedcard')).toContainText('Passkeys')
   await expect(page.getByRole('button', { name: '+ Passkey hinzufügen' })).toHaveCount(0)
 
   // Pro schalten (lokal über den Admin)
@@ -47,14 +48,13 @@ test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async 
   await expect(page.locator('tr', { hasText: email })).toContainText('monatlich')
 
   await page.goto('/app')
-  await page.getByLabel('Passphrase').fill(PASS)
-  await page.getByRole('button', { name: 'Entsperren' }).click()
-  await page.getByRole('button', { name: /Passkeys/ }).click()
+  await unlockVault(page, PASS)
+  await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
   await page.getByRole('button', { name: '+ Passkey hinzufügen' }).click()
   await page.getByLabel('Zur Bestätigung deine Passphrase').fill(PASS)
   await page.getByRole('button', { name: 'Einrichten' }).click()
   await expect(page.getByText(/Passkey eingerichtet/)).toBeVisible()
-  await expect(page.locator('.trashrow')).toHaveCount(1)
+  await expect(page.locator('.trashrow', { hasText: '🔑' })).toHaveCount(1)
 
   // Sperren → mit Passkey entsperren (ohne Passphrase)
   await page.getByRole('button', { name: 'Sperren' }).click()

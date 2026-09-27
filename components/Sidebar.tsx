@@ -129,8 +129,6 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
 
       <nav className="navlist">
         <Item id="cloud" label={m.cloud} />
-        <Item id="send" label={m.send} />
-        {family && <Item id="familyFolder" label={m.familyFolder} />}
         {showPlans && <Item id="plans" label={m.plans} />}
         <Item id="account" label={m.account} />
 
@@ -138,7 +136,6 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
         <Item id="passwords" label={m.passwords} locked={!pro} />
         <Item id="notes" label={m.notes} locked={!pro} />
         <Item id="2fa" label={m.totp} locked={!pro} />
-        <Item id="passkeys" label={m.passkeys} locked={!pro} />
 
         <div className="spacer" />
 

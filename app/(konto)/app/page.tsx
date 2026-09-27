@@ -532,7 +532,6 @@ export default function AppPage() {
         tier={tier}
         showPlans
         pro={isPro}
-        family={account.plan === 'family'}
       />
       <div className="main">
         <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
@@ -587,7 +586,18 @@ export default function AppPage() {
                 onProof={e => setProofId(e.id)}
                 onFilecoin={onFilecoin}
                 headerAction={
-                  paidPlan || (vault.trash?.length ?? 0) > 0 ? (
+                  <>
+                  <button className="small trashbtn" onClick={() => setView('send')}>
+                    <SendIcon />
+                    {t.nav.send}
+                  </button>
+                  {account.plan === 'family' && (
+                    <button className="small trashbtn familybtn" onClick={() => setView('familyFolder')}>
+                      <FamilyIcon />
+                      {t.nav.familyFolder}
+                    </button>
+                  )}
+                  {paidPlan || (vault.trash?.length ?? 0) > 0 ? (
                     <button className="small trashbtn" onClick={() => setView('trash')}>
                       <TrashIcon />
                       {t.trash.button}
@@ -598,7 +608,8 @@ export default function AppPage() {
                       <LockIcon />
                       {t.trash.button}
                     </button>
-                  )
+                  )}
+                  </>
                 }
                 deleteNote={fmt(paidPlan ? t.files.deleteNote : t.files.deleteNoteFree, { days: trashDays })}
               />
@@ -643,7 +654,14 @@ export default function AppPage() {
               const entry = vault.files.find(f => f.id === proofId)
               return entry ? <ProofDialog entry={entry} onClose={() => setProofId(null)} /> : null
             })()}
-          {view === 'send' && <SendView files={vault.files} />}
+          {view === 'send' && (
+            <>
+              <button className="small backbtn" onClick={() => setView('cloud')}>
+                ← {t.trash.back}
+              </button>
+              <SendView files={vault.files} />
+            </>
+          )}
           {view === 'trash' && (
             <TrashView
               entries={vault.trash ?? []}
@@ -676,14 +694,14 @@ export default function AppPage() {
 
           {view === 'plans' && <PlansView />}
 
-          {view === 'familyFolder' && account.plan === 'family' && <FamilyFolderView freeBytes={freeBytes} />}
-
-          {view === 'passkeys' &&
-            (isPro ? (
-              <PasskeysPanel />
-            ) : (
-              <UpgradeWall title={t.nav.passkeys} description={t.passkeys.lead} onUpgrade={() => setView('plans')} />
-            ))}
+          {view === 'familyFolder' && account.plan === 'family' && (
+            <>
+              <button className="small backbtn" onClick={() => setView('cloud')}>
+                ← {t.trash.back}
+              </button>
+              <FamilyFolderView freeBytes={freeBytes} />
+            </>
+          )}
 
           {(view === 'passwords' || view === 'notes' || view === '2fa') &&
             (!isPro ? (
@@ -796,6 +814,23 @@ export default function AppPage() {
                 </div>
               </div>
               <ChangePassphraseCard />
+              {isPro ? (
+                <PasskeysPanel />
+              ) : (
+                <div className="card lockedcard">
+                  <h3>
+                    {t.passkeys.title}
+                    <span className="navlock" data-tip={t.nav.proOnly} aria-label={t.nav.proOnly}>
+                      <LockIcon />
+                    </span>
+                  </h3>
+                  <p className="dim">{t.passkeys.lead}</p>
+                  <button className="small trashbtn locked" data-tip={t.nav.proOnly} onClick={() => setView('plans')}>
+                    <LockIcon />
+                    {t.passkeys.add}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -818,6 +853,27 @@ function LockIcon() {
     <svg className="icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="5" y="11" width="14" height="9" rx="2" />
       <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  )
+}
+
+function FamilyIcon() {
+  return (
+    <svg className="icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <circle cx="10" cy="13" r="1.6" />
+      <circle cx="15" cy="13" r="1.6" />
+    </svg>
+  )
+}
+
+function SendIcon() {
+  return (
+    <svg className="icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.6 10.6l6.8-3.2M8.6 13.4l6.8 3.2" />
     </svg>
   )
 }

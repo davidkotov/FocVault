@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
+import { unlockVault } from './helpers'
 
 const PASS = 'Korrekt Pferd Batterie Heftklammer'
 const NEW_PASS = 'Ganz neue lange Passphrase 2026'
@@ -50,7 +51,8 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
     await page.getByLabel(label, { exact: true }).fill(words[n - 1])
   }
   await page.getByRole('button', { name: 'Konto erstellen' }).click()
-  await expect(page).toHaveURL(/\/app$/)
+  // Argon2id + erster Seitenaufbau im Dev-Server können dauern
+  await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 })
   await expect(page.getByText('Dateien speichern')).toBeVisible()
 
   // 2) Upload (im Browser verschlüsselt, frame2)
@@ -106,8 +108,7 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await page.getByLabel('Passphrase').fill('falsche passphrase 123')
   await page.getByRole('button', { name: 'Entsperren' }).click()
   await expect(page.getByText('Die Passphrase ist falsch.')).toBeVisible()
-  await page.getByLabel('Passphrase').fill(PASS)
-  await page.getByRole('button', { name: 'Entsperren' }).click()
+  await unlockVault(page, PASS)
   await expectFileListed(page, fileName)
 
   // 5) Abmelden → neu anmelden (wie ein zweites Gerät)
@@ -158,8 +159,7 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await planSelect.selectOption('pro')
   await expect(page.locator('tr', { hasText: email })).toContainText('monatlich')
   await page.goto('/app')
-  await page.getByLabel('Passphrase').fill(NEW_PASS)
-  await page.getByRole('button', { name: 'Entsperren' }).click()
+  await unlockVault(page, NEW_PASS)
   await expectFileListed(page, fileName)
   const fileCard = () => page.locator('.filecard').filter({ hasText: fileName })
   await fileCard().locator('button[title="Löschen"]').click()

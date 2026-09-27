@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
+import { unlockVault } from './helpers'
 
 const PASS = 'Korrekt Pferd Batterie Heftklammer'
 
@@ -20,7 +21,7 @@ async function register(page: Page, email: string) {
     await page.getByLabel(label, { exact: true }).fill(words[n - 1])
   }
   await page.getByRole('button', { name: 'Konto erstellen' }).click()
-  await expect(page).toHaveURL(/\/app/)
+  await expect(page).toHaveURL(/\/app/, { timeout: 60_000 })
 }
 
 test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und tritt bei', async ({ page, browser }) => {
@@ -39,8 +40,7 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   await expect(page.locator('tr', { hasText: owner })).toContainText('monatlich')
 
   await page.goto('/app?view=account')
-  await page.getByLabel('Passphrase').fill(PASS)
-  await page.getByRole('button', { name: 'Entsperren' }).click()
+  await unlockVault(page, PASS)
   await page.getByRole('button', { name: /Person einladen/ }).click()
   const link = await page.locator('.sharelink input').inputValue()
   expect(link).toMatch(/\/app\?join=[A-Za-z0-9_-]{32}$/)
@@ -59,14 +59,15 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   await expect(g.getByText(`Du nutzt den Family-Speicher von ${owner}.`, { exact: false })).toBeVisible()
 
   // Familienordner: Kind öffnet zuerst (veröffentlicht seinen Schlüssel, wartet auf Zugriff)
+  await g.getByRole('button', { name: 'Meine Cloud', exact: true }).click()
   await g.getByRole('button', { name: 'Familienordner' }).click()
   await expect(g.getByText(/Dein Zugang wird eingerichtet/)).toBeVisible()
 
   // Inhaber öffnet → legt den Ordner-Schlüssel an (auch für das Kind) und lädt eine Datei hoch
   const shared = randomBytes(150_000)
   await page.reload()
-  await page.getByLabel('Passphrase').fill(PASS)
-  await page.getByRole('button', { name: 'Entsperren' }).click()
+  await unlockVault(page, PASS)
+  await page.getByRole('button', { name: 'Meine Cloud', exact: true }).click()
   await page.getByRole('button', { name: 'Familienordner' }).click()
   await expect(page.getByText('2 von 2 Mitgliedern haben Zugriff')).toBeVisible()
   await page.getByTestId('upload-input').setInputFiles({ name: 'Ferienplan.bin', mimeType: 'application/octet-stream', buffer: shared })
@@ -82,19 +83,13 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   // Einladungslink ist verbraucht
   const g2 = await guest.newPage()
   await g2.goto(link)
-  // Eingabe erst nach der Hydrierung zuverlässig (sonst setzt React das Feld zurück)
-  await expect(async () => {
-    await g2.getByLabel('Passphrase').fill(PASS)
-    await expect(g2.getByRole('button', { name: 'Entsperren' })).toBeEnabled({ timeout: 1000 })
-  }).toPass({ timeout: 30_000 })
-  await g2.getByRole('button', { name: 'Entsperren' }).click()
+  await unlockVault(g2, PASS)
   await expect(g2.getByText(/abgelaufen/)).toBeVisible()
   await guest.close()
 
   // Inhaber sieht das Mitglied und kann es entfernen
   await page.reload()
-  await page.getByLabel('Passphrase').fill(PASS)
-  await page.getByRole('button', { name: 'Entsperren' }).click()
+  await unlockVault(page, PASS)
   await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
   const row = page.locator('.trashrow', { hasText: kid })
   await row.getByRole('button', { name: 'Entfernen' }).click()
