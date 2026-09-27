@@ -1,81 +1,147 @@
 /**
- * Preisbuch und Wirtschaftlichkeit (reine Funktionen – Client und Server).
- * Einheiten: 1 GB = 10^9 Byte, 1 TB = 10^12 Byte (wie Fil One und die Konkurrenz abrechnen).
+ * Preisbuch v2 und Wirtschaftlichkeit (reine Funktionen – Client und Server).
+ * - Preise je Währung (CHF, EUR, USD) als feste Preispunkte, nicht umgerechnet
+ * - Monats- und Jahresabos (Jahr = 2 Monate geschenkt)
+ * - Pay-as-you-go nach durchschnittlich belegtem Speicher über der Free-Quota
+ * Einheiten: 1 GB = 10^9 Byte, 1 TB = 10^12 Byte (wie Fil One und die Konkurrenz).
+ * Interne Auswertung in CHF (Kurse im Preisbuch).
  */
 
 export const GB = 1e9
 export const TB = 1e12
 
+export type Currency = 'CHF' | 'EUR' | 'USD'
+export type Interval = 'month' | 'year'
+export const CURRENCIES: Currency[] = ['CHF', 'EUR', 'USD']
+export type Money = Record<Currency, number>
+
 export interface PlanPrice {
   label: string
   quotaGb: number
-  chfPerMonth: number
+  monthly: Money
+  yearly: Money
 }
 
 export interface AddonPack {
   id: string
   gb: number
-  chfPerMonth: number
+  monthly: Money
+  yearly: Money
 }
 
 export interface PricingConfig {
+  v: 2
   /** Fil One Listenpreis: $4.99 / TB / Monat auf den Tagesdurchschnitt */
   filOneUsdPerTbMonth: number
-  /** Fil One Monatsminimum */
   filOneMinUsd: number
-  /** Umrechnung USD → CHF (quartalsweise pflegen) */
-  usdToChf: number
-  /** Stripe: Prozent + Fixbetrag pro Rechnung */
+  /** Kurse für die interne Auswertung in CHF */
+  fx: { usdToChf: number; eurToChf: number }
+  /** Stripe: Prozent + Fixbetrag (CHF) pro Rechnung */
   stripePercent: number
   stripeFixedChf: number
   free: { quotaGb: number }
-  payg: { chfPerGbMonth: number; minInvoiceChf: number; defaultCapGb: number; maxCapGb: number }
+  payg: { perGbMonth: Money; minInvoice: Money; defaultCapGb: number; maxCapGb: number }
   plans: { pro: PlanPrice; family: PlanPrice & { seats: number } }
   addons: AddonPack[]
-  freeTier: {
-    /** Budgetgrenze für den geschenkten Free-Speicher pro Monat */
-    monthlyBudgetChf: number
-    /** Inaktive Free-Konten: Warnung / Löschung nach so vielen Tagen ohne Login */
-    inactiveWarnDays: number
-    inactiveDeleteDays: number
-  }
+  freeTier: { monthlyBudgetChf: number; inactiveWarnDays: number; inactiveDeleteDays: number }
 }
 
 export const DEFAULT_PRICING: PricingConfig = {
+  v: 2,
   filOneUsdPerTbMonth: 4.99,
   filOneMinUsd: 4.99,
-  usdToChf: 0.85,
+  fx: { usdToChf: 0.85, eurToChf: 0.94 },
   stripePercent: 2.9,
   stripeFixedChf: 0.3,
   free: { quotaGb: 5 },
-  payg: { chfPerGbMonth: 0.02, minInvoiceChf: 2, defaultCapGb: 100, maxCapGb: 1000 },
+  payg: {
+    perGbMonth: { CHF: 0.03, EUR: 0.03, USD: 0.035 },
+    minInvoice: { CHF: 2, EUR: 2, USD: 2.5 },
+    defaultCapGb: 100,
+    maxCapGb: 1000
+  },
   plans: {
-    pro: { label: 'Pro', quotaGb: 1000, chfPerMonth: 13.9 },
-    family: { label: 'Family', quotaGb: 2000, chfPerMonth: 19.9, seats: 6 }
+    pro: {
+      label: 'Pro',
+      quotaGb: 1000,
+      monthly: { CHF: 13.9, EUR: 13.9, USD: 14.9 },
+      yearly: { CHF: 139, EUR: 139, USD: 149 }
+    },
+    family: {
+      label: 'Family',
+      quotaGb: 2000,
+      seats: 6,
+      monthly: { CHF: 19.9, EUR: 19.9, USD: 21.9 },
+      yearly: { CHF: 199, EUR: 199, USD: 219 }
+    }
   },
   addons: [
-    { id: 'plus-200', gb: 200, chfPerMonth: 2.9 },
-    { id: 'plus-500', gb: 500, chfPerMonth: 5.9 },
-    { id: 'plus-1000', gb: 1000, chfPerMonth: 9.9 },
-    { id: 'plus-2000', gb: 2000, chfPerMonth: 17.9 }
+    { id: 'plus-200', gb: 200, monthly: { CHF: 2.9, EUR: 2.9, USD: 2.99 }, yearly: { CHF: 29, EUR: 29, USD: 29.9 } },
+    { id: 'plus-500', gb: 500, monthly: { CHF: 5.9, EUR: 5.9, USD: 6.49 }, yearly: { CHF: 59, EUR: 59, USD: 64.9 } },
+    { id: 'plus-1000', gb: 1000, monthly: { CHF: 9.9, EUR: 9.9, USD: 10.9 }, yearly: { CHF: 99, EUR: 99, USD: 109 } },
+    { id: 'plus-2000', gb: 2000, monthly: { CHF: 17.9, EUR: 17.9, USD: 19.9 }, yearly: { CHF: 179, EUR: 179, USD: 199 } }
   ],
   freeTier: { monthlyBudgetChf: 1000, inactiveWarnDays: 365, inactiveDeleteDays: 540 }
 }
 
+export function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+export function toChf(p: PricingConfig, amount: number, currency: Currency): number {
+  return currency === 'CHF' ? amount : currency === 'EUR' ? amount * p.fx.eurToChf : amount * p.fx.usdToChf
+}
+
+/** Preis pro Abrechnungsintervall. */
+export function priceOf(item: { monthly: Money; yearly: Money }, interval: Interval, currency: Currency): number {
+  return (interval === 'year' ? item.yearly : item.monthly)[currency]
+}
+
+/** Auf einen Monat umgelegter Preis (Jahrespreis / 12). */
+export function monthlyEquivalent(item: { monthly: Money; yearly: Money }, interval: Interval, currency: Currency): number {
+  return interval === 'year' ? item.yearly[currency] / 12 : item.monthly[currency]
+}
+
+/** Ersparnis des Jahresabos gegenüber 12 Monatszahlungen in Prozent. */
+export function yearlySavingsPct(item: { monthly: Money; yearly: Money }, currency: Currency): number {
+  const twelve = item.monthly[currency] * 12
+  return twelve > 0 ? Math.round((1 - item.yearly[currency] / twelve) * 100) : 0
+}
+
 /** Kosten pro gespeichertem GB und Monat in CHF (ohne Fil-One-Minimum). */
 export function costChfPerGb(p: PricingConfig): number {
-  return (p.filOneUsdPerTbMonth / 1000) * p.usdToChf
+  return (p.filOneUsdPerTbMonth / 1000) * p.fx.usdToChf
 }
 
 export function stripeFee(p: PricingConfig, amountChf: number): number {
   return amountChf > 0 ? (amountChf * p.stripePercent) / 100 + p.stripeFixedChf : 0
 }
 
-/** Pay-as-you-go-Rechnung eines Free-Kontos: nur der Teil über der Free-Quota, ab Mindestbetrag. */
-export function paygInvoiceChf(p: PricingConfig, storedBytes: number): number {
+export interface PaygEstimate {
+  /** GB über der Free-Quota (Durchschnitt des Monats) */
+  billableGb: number
+  /** Betrag vor Mindestbetrag */
+  amount: number
+  /** wird diesen Monat verrechnet (sonst in den nächsten Monat übertragen) */
+  charged: boolean
+  /** ab dieser Zusatzmenge wäre Pro (Monatsabo) günstiger */
+  proBreakEvenGb: number
+}
+
+/**
+ * Pay-as-you-go: nur der Teil über der Free-Quota, nach durchschnittlich belegtem Speicher.
+ * Beträge unter dem Mindestbetrag verfallen nicht – sie werden in den Folgemonat übertragen.
+ */
+export function paygEstimate(p: PricingConfig, storedBytes: number, currency: Currency): PaygEstimate {
   const billableGb = Math.max(0, storedBytes - p.free.quotaGb * GB) / GB
-  const amount = billableGb * p.payg.chfPerGbMonth
-  return amount >= p.payg.minInvoiceChf ? round2(amount) : 0
+  const perGb = p.payg.perGbMonth[currency]
+  const amount = round2(billableGb * perGb)
+  return {
+    billableGb,
+    amount,
+    charged: amount >= p.payg.minInvoice[currency],
+    proBreakEvenGb: perGb > 0 ? Math.ceil(p.plans.pro.monthly[currency] / perGb) : 0
+  }
 }
 
 export interface UsageInput {
@@ -83,9 +149,12 @@ export interface UsageInput {
   pro: { accounts: number; storedBytes: number }
   family: { accounts: number; storedBytes: number }
   business: { accounts: number; storedBytes: number }
-  addons: { active: number; chfPerMonth: number }
-  /** Summe der PAYG-Rechnungen (bereits mit Mindestbetrag gerechnet) und Anzahl Rechnungen */
-  payg: { invoices: number; chfPerMonth: number; billableBytes: number }
+  /** Umsatz pro Monat in CHF (Jahresabos auf den Monat umgelegt) */
+  revenue: { proChf: number; familyChf: number; addonsChf: number; paygChf: number }
+  /** Rechnungen pro Monat (Jahresabos zählen 1/12) – Basis der Stripe-Fixgebühr */
+  invoicesPerMonth: number
+  addonsActive: number
+  paygBillableBytes: number
 }
 
 export interface Economics {
@@ -101,50 +170,47 @@ export interface Economics {
     worstCaseChf: number
     budgetChf: number
     budgetUsedPct: number
-    /** so viele Pro-Kunden finanzieren den heutigen Free-Speicher */
     proCustomersToCover: number
   }
-  perPlan: Array<{ plan: 'free' | 'pro' | 'family' | 'business'; accounts: number; storedBytes: number; costChf: number; revenueChf: number; avgUtilPct: number }>
-}
-
-export function round2(n: number): number {
-  return Math.round(n * 100) / 100
+  perPlan: Array<{
+    plan: 'free' | 'pro' | 'family' | 'business'
+    accounts: number
+    storedBytes: number
+    costChf: number
+    revenueChf: number
+    avgUtilPct: number
+  }>
 }
 
 export function computeEconomics(p: PricingConfig, u: UsageInput): Economics {
   const perGb = costChfPerGb(p)
   const storedBytes = u.free.storedBytes + u.pro.storedBytes + u.family.storedBytes + u.business.storedBytes
   const storageUsd = Math.max(p.filOneMinUsd, (storedBytes / TB) * p.filOneUsdPerTbMonth)
-  const storageChf = storageUsd * p.usdToChf
-
-  const proChf = u.pro.accounts * p.plans.pro.chfPerMonth
-  const familyChf = u.family.accounts * p.plans.family.chfPerMonth
-  const revenueTotal = proChf + familyChf + u.addons.chfPerMonth + u.payg.chfPerMonth
-  const invoices = u.pro.accounts + u.family.accounts + u.payg.invoices
-  const stripeChf = invoices > 0 ? (revenueTotal * p.stripePercent) / 100 + invoices * p.stripeFixedChf : 0
+  const storageChf = storageUsd * p.fx.usdToChf
+  const r = u.revenue
+  const revenueTotal = r.proChf + r.familyChf + r.addonsChf + r.paygChf
+  const stripeChf = revenueTotal > 0 ? (revenueTotal * p.stripePercent) / 100 + u.invoicesPerMonth * p.stripeFixedChf : 0
   const totalCost = storageChf + stripeChf
   const gross = revenueTotal - totalCost
 
   // Geschenkt ist nur der Speicher innerhalb der Free-Quota – der PAYG-Anteil wird bezahlt.
-  const subsidy = (Math.max(0, u.free.storedBytes - u.payg.billableBytes) / GB) * perGb
+  const subsidy = (Math.max(0, u.free.storedBytes - u.paygBillableBytes) / GB) * perGb
   const worstCase = u.free.accounts * p.free.quotaGb * perGb
-  const proMargin =
-    p.plans.pro.chfPerMonth -
-    stripeFee(p, p.plans.pro.chfPerMonth) -
-    (u.pro.accounts > 0 ? (u.pro.storedBytes / u.pro.accounts / GB) * perGb : p.plans.pro.quotaGb * 0.3 * perGb)
+  const proPrice = p.plans.pro.monthly.CHF
+  const proAvgGb = u.pro.accounts > 0 ? u.pro.storedBytes / u.pro.accounts / GB : p.plans.pro.quotaGb * 0.3
+  const proMargin = proPrice - stripeFee(p, proPrice) - proAvgGb * perGb
 
   const quotaGbOf = { free: p.free.quotaGb, pro: p.plans.pro.quotaGb, family: p.plans.family.quotaGb, business: 0 }
+  const revenueOf = { free: r.paygChf, pro: r.proChf, family: r.familyChf, business: 0 }
   const perPlan = (['free', 'pro', 'family', 'business'] as const).map(plan => {
     const row = u[plan]
-    const revenueChf =
-      plan === 'pro' ? proChf : plan === 'family' ? familyChf : plan === 'free' ? u.payg.chfPerMonth : 0
     const quota = quotaGbOf[plan] * GB * row.accounts
     return {
       plan,
       accounts: row.accounts,
       storedBytes: row.storedBytes,
       costChf: round2((row.storedBytes / GB) * perGb),
-      revenueChf: round2(revenueChf),
+      revenueChf: round2(revenueOf[plan]),
       avgUtilPct: quota > 0 ? round2((row.storedBytes / quota) * 100) : 0
     }
   })
@@ -153,10 +219,10 @@ export function computeEconomics(p: PricingConfig, u: UsageInput): Economics {
     storedBytes,
     cost: { storageUsd: round2(storageUsd), storageChf: round2(storageChf), stripeChf: round2(stripeChf), totalChf: round2(totalCost) },
     revenue: {
-      proChf: round2(proChf),
-      familyChf: round2(familyChf),
-      addonsChf: round2(u.addons.chfPerMonth),
-      paygChf: round2(u.payg.chfPerMonth),
+      proChf: round2(r.proChf),
+      familyChf: round2(r.familyChf),
+      addonsChf: round2(r.addonsChf),
+      paygChf: round2(r.paygChf),
       totalChf: round2(revenueTotal)
     },
     grossProfitChf: round2(gross),
@@ -176,19 +242,19 @@ export function computeEconomics(p: PricingConfig, u: UsageInput): Economics {
 
 export interface ScenarioInput {
   users: number
-  /** Anteil zahlender Kunden in % (Branche: 2–4 %) */
   paidPct: number
-  /** davon Family in % */
   familyPct: number
-  /** Auslastung der Quota in % */
+  /** Anteil der Abos im Jahresmodell */
+  yearlyPct: number
+  /** Währungsmix der zahlenden Kunden in % (Summe 100) */
+  chfPct: number
+  eurPct: number
+  usdPct: number
   freeUtilPct: number
   paidUtilPct: number
-  /** Anteil Abos mit Zusatzspeicher in %, Ø-Paketpreis */
   addonAttachPct: number
-  addonAvgChf: number
-  addonUtilPct: number
   addonAvgGb: number
-  /** Free-Nutzer mit Pay-as-you-go in %, Ø zusätzliche GB */
+  addonUtilPct: number
   paygPct: number
   paygAvgGb: number
 }
@@ -197,17 +263,20 @@ export const DEFAULT_SCENARIO: ScenarioInput = {
   users: 100_000,
   paidPct: 3,
   familyPct: 25,
+  yearlyPct: 40,
+  chfPct: 35,
+  eurPct: 50,
+  usdPct: 15,
   freeUtilPct: 30,
   paidUtilPct: 30,
   addonAttachPct: 10,
-  addonAvgChf: 5.9,
-  addonUtilPct: 40,
   addonAvgGb: 500,
+  addonUtilPct: 40,
   paygPct: 1,
   paygAvgGb: 150
 }
 
-/** Hochrechnung für ein Szenario – gleiche Rechnung wie die Ist-Auswertung. */
+/** Hochrechnung – gleiche Rechnung wie die Ist-Auswertung. */
 export function scenario(p: PricingConfig, s: ScenarioInput): Economics {
   const paid = Math.round((s.users * s.paidPct) / 100)
   const family = Math.round((paid * s.familyPct) / 100)
@@ -215,7 +284,25 @@ export function scenario(p: PricingConfig, s: ScenarioInput): Economics {
   const free = s.users - paid
   const payg = Math.round((free * s.paygPct) / 100)
   const addons = Math.round((paid * s.addonAttachPct) / 100)
-  const paygInvoice = paygInvoiceChf(p, (p.free.quotaGb + s.paygAvgGb) * GB)
+  const mixTotal = s.chfPct + s.eurPct + s.usdPct || 1
+  const mix: Record<Currency, number> = { CHF: s.chfPct / mixTotal, EUR: s.eurPct / mixTotal, USD: s.usdPct / mixTotal }
+  const yearly = s.yearlyPct / 100
+
+  /** Ø Monatsumsatz in CHF für ein Produkt über Währungs- und Intervallmix. */
+  const avgChf = (item: { monthly: Money; yearly: Money }) =>
+    CURRENCIES.reduce(
+      (sum, c) =>
+        sum + mix[c] * toChf(p, (1 - yearly) * monthlyEquivalent(item, 'month', c) + yearly * monthlyEquivalent(item, 'year', c), c),
+      0
+    )
+  const pack = p.addons.reduce((best, a) => (Math.abs(a.gb - s.addonAvgGb) < Math.abs(best.gb - s.addonAvgGb) ? a : best), p.addons[0])
+  const paygChfPerAccount = CURRENCIES.reduce((sum, c) => {
+    const est = paygEstimate(p, (p.free.quotaGb + s.paygAvgGb) * GB, c)
+    return sum + mix[c] * toChf(p, est.amount, c)
+  }, 0)
+  const addonBytes = (accounts: number) =>
+    paid > 0 && pack ? addons * (accounts / paid) * pack.gb * GB * (s.addonUtilPct / 100) : 0
+
   return computeEconomics(p, {
     free: {
       accounts: free,
@@ -224,16 +311,30 @@ export function scenario(p: PricingConfig, s: ScenarioInput): Economics {
     pro: { accounts: pro, storedBytes: pro * p.plans.pro.quotaGb * GB * (s.paidUtilPct / 100) + addonBytes(pro) },
     family: { accounts: family, storedBytes: family * p.plans.family.quotaGb * GB * (s.paidUtilPct / 100) + addonBytes(family) },
     business: { accounts: 0, storedBytes: 0 },
-    addons: { active: addons, chfPerMonth: addons * s.addonAvgChf },
-    payg: { invoices: paygInvoice > 0 ? payg : 0, chfPerMonth: payg * paygInvoice, billableBytes: payg * s.paygAvgGb * GB }
+    revenue: {
+      proChf: pro * avgChf(p.plans.pro),
+      familyChf: family * avgChf(p.plans.family),
+      addonsChf: pack ? addons * avgChf(pack) : 0,
+      paygChf: payg * paygChfPerAccount
+    },
+    invoicesPerMonth: paid * (1 - yearly) + (paid * yearly) / 12 + payg,
+    addonsActive: addons,
+    paygBillableBytes: payg * s.paygAvgGb * GB
   })
-
-  function addonBytes(accounts: number): number {
-    return paid > 0 ? (addons * (accounts / paid)) * s.addonAvgGb * GB * (s.addonUtilPct / 100) : 0
-  }
 }
 
-/** Beträge CHF im Schweizer Format, z. B. „1'234.50 CHF". */
+const SYMBOL: Record<Currency, string> = { CHF: 'CHF', EUR: '€', USD: '$' }
+
+/** Betrag formatiert: „13.90 CHF", „13,90 €", „$14.90". */
+export function money(amount: number, currency: Currency, locale: 'de' | 'en' = 'de', digits = 2): string {
+  const loc = locale === 'en' ? 'en-US' : currency === 'EUR' ? 'de-DE' : 'de-CH'
+  const n = amount.toLocaleString(loc, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  if (currency === 'USD') return `$${n}`
+  if (currency === 'EUR') return locale === 'en' ? `€${n}` : `${n} €`
+  return `${n} ${SYMBOL.CHF}`
+}
+
+/** Interne CHF-Beträge (Admin). */
 export function chf(n: number, digits = 2): string {
-  return `${n.toLocaleString('de-CH', { minimumFractionDigits: digits, maximumFractionDigits: digits })} CHF`
+  return money(n, 'CHF', 'de', digits)
 }

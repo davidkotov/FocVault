@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { appMessages } from '@/lib/i18n/messages/app'
 import { FOLDERS, formatBytes, type VaultEntry } from '@/lib/vault'
 
 interface Props {
@@ -35,6 +37,8 @@ function tileColor(folder: string): string {
 
 export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, deleteNote }: Props) {
   const [active, setActive] = useState<string>('all')
+  const t = useMessages(appMessages)
+  const { fmtDate } = useI18n()
 
   const bySearch = searchQuery
     ? entries.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -47,10 +51,8 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
   return (
     <div className="card">
       <h3>
-        Meine Dateien
-        <span>
-          {entries.length} Dateien · {formatBytes(entries.reduce((s, e) => s + e.size, 0))}
-        </span>
+        {t.files.title}
+        <span>{fmt(t.files.count, { n: entries.length, size: formatBytes(entries.reduce((s, e) => s + e.size, 0)) })}</span>
       </h3>
 
       {entries.length > 0 && (
@@ -60,7 +62,7 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
             if (f.id !== 'all' && n === 0) return null
             return (
               <button key={f.id} className={active === f.id ? 'chip active' : 'chip'} onClick={() => setActive(f.id)}>
-                {f.icon} {f.label} {n > 0 ? `(${n})` : ''}
+                {f.icon} {t.folders[f.id]} {n > 0 ? `(${n})` : ''}
               </button>
             )
           })}
@@ -68,13 +70,10 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
       )}
 
       {entries.length === 0 && (
-        <p className="dim">
-          Noch keine Dateien in deiner Cloud. Oben hochladen – Dateien landen automatisch im
-          passenden Ordner.
-        </p>
+        <p className="dim">{t.files.empty}</p>
       )}
 
-      {entries.length > 0 && filtered.length === 0 && <p className="dim">Keine Treffer.</p>}
+      {entries.length > 0 && filtered.length === 0 && <p className="dim">{t.files.noMatch}</p>}
 
       {filtered.length > 0 && (
         <div className="filegrid">
@@ -87,12 +86,13 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                 {e.name}
               </div>
               <div className="filemeta">
-                {formatBytes(e.size)} · {new Date(e.storedAt).toLocaleDateString('de-DE')}
+                {formatBytes(e.size)} · {fmtDate(e.storedAt)}
               </div>
               <div className="fileactions">
                 <button
                   className="iconbtn"
-                  title="Teilen"
+                  title={t.files.share}
+                  aria-label={t.files.share}
                   disabled={!canDecrypt || busyId === e.id}
                   onClick={() => onShare(e)}
                 >
@@ -105,7 +105,8 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                 </button>
                 <button
                   className="iconbtn"
-                  title="Herunterladen"
+                  title={t.files.download}
+                  aria-label={t.files.download}
                   disabled={!canDecrypt || busyId === e.id}
                   onClick={() => onDownload(e)}
                 >
@@ -116,7 +117,8 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                 </button>
                 <button
                   className="iconbtn danger"
-                  title="Entfernen"
+                  title={t.files.remove}
+                  aria-label={t.files.remove}
                   disabled={busyId === e.id}
                   onClick={() => onDelete(e.id)}
                 >

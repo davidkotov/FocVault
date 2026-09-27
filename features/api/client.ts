@@ -1,5 +1,7 @@
 import type {
   AccountView,
+  BillingCurrency,
+  BillingInterval,
   AdminStats,
   CreateObjectInput,
   CreateObjectResult,
@@ -113,14 +115,17 @@ export const api = {
   adminStats: () => call<AdminStats>('GET', '/admin/stats'),
   adminSetPlan: (id: string, plan: Plan) =>
     call<{ ok: true }>('PATCH', `/admin/accounts/${encodeURIComponent(id)}`, { plan }),
-  adminUpdateAccount: (id: string, input: { plan?: Plan; paygEnabled?: boolean; paygCapGb?: number; status?: string }) =>
+  adminUpdateAccount: (
+    id: string,
+    input: { plan?: Plan; interval?: BillingInterval; currency?: BillingCurrency; paygEnabled?: boolean; paygCapGb?: number; status?: string }
+  ) =>
     call<{ ok: true }>('PATCH', `/admin/accounts/${encodeURIComponent(id)}`, input),
   adminAccounts: (q: string, offset: number) =>
     call<{ total: number; rows: AdminAccountListRow[] }>(
       'GET',
       `/admin/accounts?q=${encodeURIComponent(q)}&offset=${offset}`
     ),
-  adminGrantAddon: (id: string, input: { gb: number; chfPerMonth: number; note?: string }) =>
+  adminGrantAddon: (id: string, input: { gb: number; price: number; note?: string }) =>
     call<{ ok: true }>('POST', `/admin/accounts/${encodeURIComponent(id)}/addons`, input),
   adminRevokeAddon: (addonId: string) => call<{ ok: true }>('DELETE', `/admin/addons/${encodeURIComponent(addonId)}`),
   adminEconomics: () => call<EconomicsReport>('GET', '/admin/economics'),
@@ -133,7 +138,10 @@ export const api = {
   offer: () => call<PublicOffer>('GET', '/billing/offer'),
   buyAddon: (packId: string) => call<AccountView>('POST', '/billing/addons', { packId }),
   cancelAddon: (id: string) => call<AccountView>('DELETE', `/billing/addons/${encodeURIComponent(id)}`),
-  setPayg: (enabled: boolean, capGb?: number) => call<AccountView>('PUT', '/billing/payg', { enabled, capGb })
+  setPayg: (enabled: boolean, capGb?: number) => call<AccountView>('PUT', '/billing/payg', { enabled, capGb }),
+  changePlan: (plan: 'free' | 'pro' | 'family', interval: BillingInterval, currency: BillingCurrency) =>
+    call<AccountView>('PUT', '/billing/plan', { plan, interval, currency }),
+  setCurrency: (currency: BillingCurrency) => call<AccountView>('PUT', '/billing/currency', { currency })
 }
 
 export interface AdminAccountListRow {
@@ -141,10 +149,12 @@ export interface AdminAccountListRow {
   display: string
   plan: Plan
   status: string
+  currency: BillingCurrency
+  interval: BillingInterval
   storedBytes: number
   quotaGb: number
   addonsGb: number
-  addonsChf: number
+  addonsMonthly: number
   paygEnabled: boolean
   paygCapGb: number | null
   lastLoginAt: string | null
@@ -156,6 +166,7 @@ export interface EconomicsReport {
   economics: Economics
   history: Array<{ day: string; storedBytes: number; accounts: number }>
   inactiveFree: { warn: number; delete: number }
+  mix: Array<{ plan: Plan; currency: BillingCurrency; interval: BillingInterval; accounts: number }>
 }
 
 export interface TreasuryStatus {
@@ -169,8 +180,8 @@ export interface TreasuryStatus {
 }
 
 export interface PublicOffer {
-  free: { quotaGb: number }
-  payg: { chfPerGbMonth: number; minInvoiceChf: number; defaultCapGb: number; maxCapGb: number }
+  free: PricingConfig['free']
+  payg: PricingConfig['payg']
   plans: PricingConfig['plans']
   addons: PricingConfig['addons']
   purchasesEnabled: boolean

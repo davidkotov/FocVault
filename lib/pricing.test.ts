@@ -1,64 +1,85 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_PRICING as P, DEFAULT_SCENARIO, GB, TB, computeEconomics, costChfPerGb, paygInvoiceChf, scenario } from './pricing'
+import {
+  DEFAULT_PRICING as P,
+  DEFAULT_SCENARIO,
+  GB,
+  TB,
+  computeEconomics,
+  costChfPerGb,
+  money,
+  monthlyEquivalent,
+  paygEstimate,
+  scenario,
+  toChf,
+  yearlySavingsPct
+} from './pricing'
 
 const empty = { accounts: 0, storedBytes: 0 }
+const noRevenue = { proChf: 0, familyChf: 0, addonsChf: 0, paygChf: 0 }
 
-describe('Preisbuch & Wirtschaftlichkeit', () => {
-  it('Kosten pro GB = Fil-One-Preis × Kurs', () => {
-    expect(costChfPerGb(P)).toBeCloseTo((4.99 / 1000) * 0.85, 10)
+describe('Preisbuch v2: Währungen, Jahresabos, Pay-as-you-go', () => {
+  it('Jahresabo = 2 Monate geschenkt (≈ 17 %) in allen Währungen', () => {
+    for (const c of ['CHF', 'EUR', 'USD'] as const) {
+      expect(yearlySavingsPct(P.plans.pro, c)).toBeGreaterThanOrEqual(16)
+      expect(yearlySavingsPct(P.plans.family, c)).toBeGreaterThanOrEqual(16)
+      for (const a of P.addons) expect(yearlySavingsPct(a, c)).toBeGreaterThanOrEqual(15)
+    }
+    expect(monthlyEquivalent(P.plans.pro, 'year', 'CHF')).toBeCloseTo(139 / 12, 5)
   })
 
-  it('Pay-as-you-go: nur über der Free-Quota, erst ab Mindestbetrag', () => {
-    expect(paygInvoiceChf(P, 5 * GB)).toBe(0)
-    expect(paygInvoiceChf(P, 50 * GB)).toBe(0) // 45 GB × 0.02 = 0.90 < 2 CHF
-    expect(paygInvoiceChf(P, 105 * GB)).toBe(2) // 100 GB × 0.02
-    expect(paygInvoiceChf(P, 205 * GB)).toBe(4)
+  it('Pay-as-you-go: nur über der Free-Quota; unter dem Mindestbetrag wird übertragen', () => {
+    expect(paygEstimate(P, 5 * GB, 'CHF')).toMatchObject({ billableGb: 0, amount: 0, charged: false })
+    expect(paygEstimate(P, 45 * GB, 'CHF')).toMatchObject({ billableGb: 40, amount: 1.2, charged: false })
+    expect(paygEstimate(P, 105 * GB, 'CHF')).toMatchObject({ amount: 3, charged: true })
+    expect(paygEstimate(P, 105 * GB, 'USD').amount).toBe(3.5)
+    // ab ~464 GB extra wäre Pro günstiger
+    expect(paygEstimate(P, 0, 'CHF').proBreakEvenGb).toBe(Math.ceil(13.9 / 0.03))
   })
 
-  it('Fil-One-Minimum greift bei wenig Daten', () => {
-    const e = computeEconomics(P, {
+  it('PAYG-Marge ≥ 80 %', () => {
+    const cost = costChfPerGb(P)
+    for (const c of ['CHF', 'EUR', 'USD'] as const) {
+      const price = toChf(P, P.payg.perGbMonth[c], c)
+      expect(1 - cost / price).toBeGreaterThan(0.8)
+    }
+  })
+
+  it('Fil-One-Minimum und volle Auslastung', () => {
+    const tiny = computeEconomics(P, {
       free: { accounts: 1, storedBytes: 1 * GB },
       pro: empty,
       family: empty,
       business: empty,
-      addons: { active: 0, chfPerMonth: 0 },
-      payg: { invoices: 0, chfPerMonth: 0, billableBytes: 0 }
+      revenue: noRevenue,
+      invoicesPerMonth: 0,
+      addonsActive: 0,
+      paygBillableBytes: 0
     })
-    expect(e.cost.storageUsd).toBe(4.99)
-  })
-
-  it('Pro bleibt selbst bei voller Auslastung profitabel', () => {
-    const e = computeEconomics(P, {
+    expect(tiny.cost.storageUsd).toBe(4.99)
+    const full = computeEconomics(P, {
       free: empty,
       pro: { accounts: 1000, storedBytes: 1000 * TB },
       family: empty,
       business: empty,
-      addons: { active: 0, chfPerMonth: 0 },
-      payg: { invoices: 0, chfPerMonth: 0, billableBytes: 0 }
+      revenue: { ...noRevenue, proChf: 13_900 },
+      invoicesPerMonth: 1000,
+      addonsActive: 0,
+      paygBillableBytes: 0
     })
-    expect(e.revenue.totalChf).toBe(13_900)
-    expect(e.grossMarginPct).toBeGreaterThan(55)
+    expect(full.grossMarginPct).toBeGreaterThan(55)
   })
 
-  it('Free-Subvention, Worst Case und benötigte Pro-Kunden', () => {
-    const e = computeEconomics(P, {
-      free: { accounts: 100_000, storedBytes: 100_000 * 1.5 * GB },
-      pro: empty,
-      family: empty,
-      business: empty,
-      addons: { active: 0, chfPerMonth: 0 },
-      payg: { invoices: 0, chfPerMonth: 0, billableBytes: 0 }
-    })
-    expect(e.freeTier.subsidyChf).toBeCloseTo(150_000 * costChfPerGb(P), 1)
-    expect(e.freeTier.worstCaseChf).toBeCloseTo(500_000 * costChfPerGb(P), 1)
-    expect(e.freeTier.proCustomersToCover).toBeGreaterThan(0)
-    expect(e.freeTier.proCustomersToCover).toBeLessThan(200)
-  })
-
-  it('Standard-Szenario 100 000 Nutzer ist deutlich profitabel', () => {
+  it('Standard-Szenario 100 000 Nutzer (Jahres- und Währungsmix) ist deutlich profitabel', () => {
     const e = scenario(P, DEFAULT_SCENARIO)
     expect(e.perPlan.find(r => r.plan === 'free')!.accounts).toBe(97_000)
-    expect(e.revenue.totalChf).toBeGreaterThan(40_000)
-    expect(e.grossMarginPct).toBeGreaterThan(70)
+    expect(e.revenue.totalChf).toBeGreaterThan(35_000)
+    expect(e.grossMarginPct).toBeGreaterThan(75)
+  })
+
+  it('Formatierung je Währung und Sprache', () => {
+    expect(money(13.9, 'CHF', 'de')).toBe('13.90 CHF')
+    expect(money(13.9, 'EUR', 'de')).toBe('13,90 €')
+    expect(money(14.9, 'USD', 'en')).toBe('$14.90')
+    expect(money(13.9, 'EUR', 'en')).toBe('€13.90')
   })
 })

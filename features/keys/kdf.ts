@@ -15,6 +15,17 @@ import { fromB64Url, toB64Url, type Bytes } from '@/lib/crypto'
 
 const te = new TextEncoder()
 
+/** Fehler mit maschinenlesbarem Code – die UI übersetzt ihn (commonMessages.errors). */
+export class KeyError extends Error {
+  constructor(
+    readonly code: 'WRONG_PASSPHRASE' | 'WRONG_RECOVERY' | 'INVALID_RECOVERY',
+    message: string
+  ) {
+    super(message)
+    this.name = 'KeyError'
+  }
+}
+
 export const DEFAULT_KDF_COST = { m: 65_536, t: 3, p: 1 } as const
 export const MIN_PASSPHRASE_LENGTH = 12
 
@@ -80,7 +91,7 @@ export function isValidRecoveryWords(input: string | string[]): boolean {
 export async function deriveFromRecovery(input: string | string[]): Promise<DerivedKeys> {
   const phrase = normalizeRecoveryWords(input)
   if (!validateMnemonic(phrase, wordlist)) {
-    throw new Error('Recovery-Kit ungültig – bitte prüfe Schreibweise und Reihenfolge der 24 Wörter.')
+    throw new KeyError('INVALID_RECOVERY', 'Recovery-Kit ungültig – bitte prüfe Schreibweise und Reihenfolge der 24 Wörter.')
   }
   const entropy = new Uint8Array(mnemonicToEntropy(phrase, wordlist)) as Bytes
   try {
@@ -110,7 +121,9 @@ export async function unwrapMasterKeyRaw(env: KeyEnvelope, kek: CryptoKey): Prom
       )
     ) as Bytes
   } catch {
-    throw new Error(env.kekType === 'passphrase' ? 'Die Passphrase ist falsch.' : 'Das Recovery-Kit passt nicht zu diesem Konto.')
+    throw env.kekType === 'passphrase'
+      ? new KeyError('WRONG_PASSPHRASE', 'Die Passphrase ist falsch.')
+      : new KeyError('WRONG_RECOVERY', 'Das Recovery-Kit passt nicht zu diesem Konto.')
   }
 }
 

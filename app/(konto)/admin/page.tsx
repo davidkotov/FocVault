@@ -10,6 +10,7 @@ import PricingPanel from '@/components/admin/PricingPanel'
 import TreasuryPanel from '@/components/admin/TreasuryPanel'
 import AccountsPanel from '@/components/admin/AccountsPanel'
 import { useAccount } from '@/features/account/AccountProvider'
+import { useI18n } from '@/features/i18n/I18nProvider'
 import { api, errorMessage, type EconomicsReport } from '@/features/api/client'
 import type { AdminStats } from '@/lib/api-types'
 import { chf } from '@/lib/pricing'
@@ -51,6 +52,7 @@ const EVENT_LABEL: Record<string, string> = {
 export default function AdminPage() {
   const router = useRouter()
   const { status, account } = useAccount()
+  const { path } = useI18n()
   const [tab, setTab] = useState<Tab>('overview')
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [report, setReport] = useState<EconomicsReport | null>(null)
@@ -68,9 +70,9 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => {
-    if (status === 'signedOut') router.replace('/anmelden')
+    if (status === 'signedOut') router.replace(path('/anmelden'))
     if (status === 'locked' || status === 'ready') void load()
-  }, [status, router, load])
+  }, [status, router, load, path])
 
   if (status === 'loading' || status === 'signedOut') {
     return (
@@ -84,7 +86,7 @@ export default function AdminPage() {
       <AuthShell>
         <h2>Kein Zugriff</h2>
         <p className="lead">Dieses Konto ist nicht als Admin eingetragen (ADMIN_EMAILS / ADMIN_ADDRESSES).</p>
-        <Link href="/app">Zurück zur App</Link>
+        <Link href={path('/app')}>Zurück zur App</Link>
       </AuthShell>
     )
   }
@@ -109,7 +111,7 @@ export default function AdminPage() {
             <button className="small" onClick={() => void load()}>
               Aktualisieren
             </button>
-            <Link href="/app">
+            <Link href={path('/app')}>
               <button className="small">Zur App</button>
             </Link>
           </div>

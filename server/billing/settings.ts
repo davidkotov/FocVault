@@ -2,27 +2,36 @@ import { z } from 'zod'
 import { DEFAULT_PRICING, type PricingConfig } from '../../lib/pricing'
 import type { Db } from '../db'
 
-const money = z.number().min(0).max(100_000)
+const amount = z.number().min(0).max(100_000)
 const gb = z.number().int().min(1).max(1_000_000)
+const moneySchema = z.object({ CHF: amount, EUR: amount, USD: amount })
+const priced = { monthly: moneySchema, yearly: moneySchema }
 
 export const pricingSchema = z.object({
-  filOneUsdPerTbMonth: money,
-  filOneMinUsd: money,
-  usdToChf: z.number().min(0.1).max(5),
+  v: z.literal(2),
+  filOneUsdPerTbMonth: amount,
+  filOneMinUsd: amount,
+  fx: z.object({ usdToChf: z.number().min(0.1).max(5), eurToChf: z.number().min(0.1).max(5) }),
   stripePercent: z.number().min(0).max(20),
-  stripeFixedChf: money,
+  stripeFixedChf: amount,
   free: z.object({ quotaGb: gb }),
-  payg: z.object({ chfPerGbMonth: z.number().min(0).max(10), minInvoiceChf: money, defaultCapGb: gb, maxCapGb: gb }),
+  payg: z.object({
+    perGbMonth: z.object({ CHF: z.number().min(0).max(10), EUR: z.number().min(0).max(10), USD: z.number().min(0).max(10) }),
+    minInvoice: moneySchema,
+    defaultCapGb: gb,
+    maxCapGb: gb
+  }),
   plans: z.object({
-    pro: z.object({ label: z.string().min(1).max(40), quotaGb: gb, chfPerMonth: money }),
-    family: z.object({ label: z.string().min(1).max(40), quotaGb: gb, chfPerMonth: money, seats: z.number().int().min(1).max(50) })
+    pro: z.object({ label: z.string().min(1).max(40), quotaGb: gb, ...priced }),
+    family: z.object({ label: z.string().min(1).max(40), quotaGb: gb, seats: z.number().int().min(1).max(50), ...priced })
   }),
   addons: z
-    .array(z.object({ id: z.string().regex(/^[a-z0-9-]{1,40}$/), gb, chfPerMonth: money }))
+    .array(z.object({ id: z.string().regex(/^[a-z0-9-]{1,40}$/), gb, ...priced }))
+    .min(1)
     .max(12)
     .refine(list => new Set(list.map(a => a.id)).size === list.length, { message: 'Paket-IDs müssen eindeutig sein' }),
   freeTier: z.object({
-    monthlyBudgetChf: money,
+    monthlyBudgetChf: amount,
     inactiveWarnDays: z.number().int().min(30).max(3650),
     inactiveDeleteDays: z.number().int().min(60).max(3650)
   })
@@ -58,20 +67,8 @@ async function write(db: Db, key: string, value: unknown, by: string | null): Pr
 /** Gespeichertes Preisbuch, fehlende Felder mit Standardwerten ergänzt. */
 export async function getPricing(db: Db): Promise<PricingConfig> {
   const stored = await read<Partial<PricingConfig>>(db, 'pricing')
-  if (!stored) return DEFAULT_PRICING
-  const merged = {
-    ...DEFAULT_PRICING,
-    ...stored,
-    free: { ...DEFAULT_PRICING.free, ...stored.free },
-    payg: { ...DEFAULT_PRICING.payg, ...stored.payg },
-    plans: {
-      pro: { ...DEFAULT_PRICING.plans.pro, ...stored.plans?.pro },
-      family: { ...DEFAULT_PRICING.plans.family, ...stored.plans?.family }
-    },
-    freeTier: { ...DEFAULT_PRICING.freeTier, ...stored.freeTier },
-    addons: stored.addons ?? DEFAULT_PRICING.addons
-  }
-  const parsed = pricingSchema.safeParse(merged)
+  if (!stored || stored.v !== 2) return DEFAULT_PRICING
+  const parsed = pricingSchema.safeParse(stored)
   return parsed.success ? parsed.data : DEFAULT_PRICING
 }
 

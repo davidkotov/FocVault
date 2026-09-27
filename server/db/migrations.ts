@@ -175,6 +175,23 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
         PRIMARY KEY (day, plan)
       );
     `
+  },
+  {
+    version: 4,
+    name: 'multi_currency_yearly',
+    sql: `
+      -- Währung und Abrechnungsintervall pro Konto (Abo, Zusatzspeicher, PAYG folgen dem Konto).
+      ALTER TABLE accounts ADD COLUMN currency text NOT NULL DEFAULT 'CHF' CHECK (currency IN ('CHF', 'EUR', 'USD'));
+      ALTER TABLE accounts ADD COLUMN billing_interval text NOT NULL DEFAULT 'month' CHECK (billing_interval IN ('month', 'year'));
+
+      -- Zusatzspeicher: Preis gilt pro Intervall in der Kontowährung.
+      ALTER TABLE account_addons RENAME COLUMN chf_per_month TO price;
+      ALTER TABLE account_addons ADD COLUMN currency text NOT NULL DEFAULT 'CHF' CHECK (currency IN ('CHF', 'EUR', 'USD'));
+      ALTER TABLE account_addons ADD COLUMN billing_interval text NOT NULL DEFAULT 'month' CHECK (billing_interval IN ('month', 'year'));
+
+      -- Preisbuch v1 (nur CHF) ist mit v2 nicht kompatibel → Standardwerte v2 greifen.
+      DELETE FROM settings WHERE key = 'pricing';
+    `
   }
 ]
 

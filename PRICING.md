@@ -4,14 +4,24 @@
 > wie Admin → Wirtschaftlichkeit / Szenario-Rechner). Preise der Konkurrenz: offizielle
 > Preisseiten bzw. aktuelle Übersichten, Monatsabo, ohne Aktionen.
 
-## 1. Unsere Pakete
+## 1. Unsere Pakete (Preisbuch v2: Monat/Jahr, CHF/EUR/USD)
 
-| Paket | Speicher | Preis | Zusatzspeicher |
+Feste Preispunkte je Währung (nicht umgerechnet). Jahresabo = 2 Monate geschenkt (−17 %).
+
+| Paket | Speicher | Monatlich CHF · EUR · USD | Jährlich CHF · EUR · USD |
 |---|---|---|---|
-| Free | 5 GB | 0 CHF | Pay-as-you-go: 2 Rp / GB / Monat, ab 2 CHF Rechnungsbetrag, eigene Obergrenze |
-| Pro | 1 TB | 13.90 CHF / Monat | +200 GB 2.90 · +500 GB 5.90 · +1 TB 9.90 · +2 TB 17.90 CHF / Monat |
-| Family | 2 TB geteilt, bis 6 Personen | 19.90 CHF / Monat | wie Pro |
-| Business | individuell | individuell | – |
+| Free | 5 GB | 0 | 0 |
+| Pro | 1 TB | 13.90 · 13.90 € · $14.90 | 139 · 139 € · $149 |
+| Family | 2 TB, bis 6 Personen | 19.90 · 19.90 € · $21.90 | 199 · 199 € · $219 |
+| +200 GB | Zusatz | 2.90 · 2.90 € · $2.99 | 29 · 29 € · $29.90 |
+| +500 GB | Zusatz | 5.90 · 5.90 € · $6.49 | 59 · 59 € · $64.90 |
+| +1 TB | Zusatz | 9.90 · 9.90 € · $10.90 | 99 · 99 € · $109 |
+| +2 TB | Zusatz | 17.90 · 17.90 € · $19.90 | 179 · 179 € · $199 |
+
+**Pay-as-you-go (Free):** 3 Rp / 3 ct / 3.5 ¢ pro GB und Monat über den 5 GB – abgerechnet nach dem
+durchschnittlich belegten Speicher des Monats (wie Fil One uns abrechnet), Mindestrechnung 2 CHF/2 €/$2.50.
+Kleinere Beträge werden in den Folgemonat übertragen (verfallen nicht). Eigene Obergrenze (Standard 100 GB).
+Marge ≈ 86 % (30 CHF/TB bei 4.24 CHF Kosten). Ab ~464 GB extra ist Pro günstiger – das zeigt die App an.
 
 Alle Werte sind im Admin unter **Preisbuch** änderbar und wirken sofort (Quota, Auswertung).
 Einheiten dezimal (1 TB = 1000 GB), wie Fil One, Dropbox und MEGA.
@@ -59,7 +69,7 @@ Dropbox/Tresorit/Proton), z. B. Pro 139 CHF/Jahr, Family 199 CHF/Jahr.
 | +500 GB | 5.90 | 0.64 + 0.47 | 4.79 CHF · 81 % | 2.12 + 0.47 | 3.31 CHF · 56 % |
 | +1 TB | 9.90 | 1.27 + 0.59 | 8.04 CHF · 81 % | 4.24 + 0.59 | 5.07 CHF · 51 % |
 | +2 TB | 17.90 | 2.54 + 0.82 | 14.54 CHF · 81 % | 8.48 + 0.82 | 8.60 CHF · 48 % |
-| PAYG | 20 CHF / TB | 4.24 CHF / TB | 4.7-facher Aufschlag – macht Pro attraktiv | | |
+| PAYG | 30 CHF / TB | 4.24 CHF / TB | 7-facher Aufschlag, 86 % Marge – macht Pro attraktiv | | |
 
 **Jedes Produkt bleibt auch bei voll ausgereizter Quota profitabel.** Zusatzspeicher wird auf der
 gemeinsamen Monatsrechnung abgerechnet – die Stripe-Fixgebühr fällt dann nur einmal an (die Tabelle

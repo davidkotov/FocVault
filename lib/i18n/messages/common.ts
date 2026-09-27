@@ -1,0 +1,69 @@
+const de = {
+  language: 'Sprache',
+  loading: 'Lade …',
+  close: 'Schließen',
+  cancel: 'Abbrechen',
+  back: 'Zurück',
+  next: 'Weiter',
+  save: 'Speichern',
+  errors: {
+    NETWORK: 'Keine Verbindung zum Server.',
+    UNAUTHENTICATED: 'Bitte melde dich an.',
+    REAUTH_REQUIRED: 'Bitte melde dich für diese Aktion erneut an.',
+    FORBIDDEN: 'Keine Berechtigung.',
+    NOT_FOUND: 'Nicht gefunden.',
+    VERSION_CONFLICT: 'Der Tresor wurde auf einem anderen Gerät geändert – bitte erneut versuchen.',
+    EMAIL_TAKEN: 'Für diese E-Mail gibt es bereits ein Konto.',
+    ALREADY_REGISTERED: 'Für diese Anmeldung gibt es bereits ein Konto – bitte anmelden.',
+    INVALID_CREDENTIALS: 'Anmeldedaten sind falsch.',
+    QUOTA_EXCEEDED: 'Nicht genug Speicher: {free} frei, {needed} benötigt.',
+    PLAN_REQUIRED: 'Dafür brauchst du ein passendes Paket.',
+    RATE_LIMITED: 'Zu viele Versuche. Bitte später erneut.',
+    PAYLOAD_TOO_LARGE: 'Die Daten sind zu groß.',
+    UPLOAD_SIZE_MISMATCH: 'Upload unvollständig – bitte erneut versuchen.',
+    STORAGE_UNAVAILABLE: 'Speicher gerade nicht erreichbar – bitte gleich nochmal.',
+    BAD_REQUEST: 'Ungültige Anfrage.',
+    INTERNAL: 'Etwas ist schiefgelaufen. Bitte erneut versuchen.',
+    ABORTED: 'Abgebrochen.',
+    WRONG_PASSPHRASE: 'Die Passphrase ist falsch.',
+    WRONG_RECOVERY: 'Das Recovery-Kit passt nicht zu diesem Konto.',
+    INVALID_RECOVERY: 'Recovery-Kit ungültig – bitte prüfe Schreibweise und Reihenfolge der 24 Wörter.',
+    GENERIC: 'Etwas ist schiefgelaufen.'
+  }
+}
+
+const en: typeof de = {
+  language: 'Language',
+  loading: 'Loading …',
+  close: 'Close',
+  cancel: 'Cancel',
+  back: 'Back',
+  next: 'Next',
+  save: 'Save',
+  errors: {
+    NETWORK: 'No connection to the server.',
+    UNAUTHENTICATED: 'Please sign in.',
+    REAUTH_REQUIRED: 'Please sign in again for this action.',
+    FORBIDDEN: 'Not allowed.',
+    NOT_FOUND: 'Not found.',
+    VERSION_CONFLICT: 'Your vault changed on another device – please try again.',
+    EMAIL_TAKEN: 'An account with this email already exists.',
+    ALREADY_REGISTERED: 'An account already exists for this login – please sign in.',
+    INVALID_CREDENTIALS: 'Sign-in details are incorrect.',
+    QUOTA_EXCEEDED: 'Not enough space: {free} free, {needed} needed.',
+    PLAN_REQUIRED: 'This requires a suitable plan.',
+    RATE_LIMITED: 'Too many attempts. Please try again later.',
+    PAYLOAD_TOO_LARGE: 'The data is too large.',
+    UPLOAD_SIZE_MISMATCH: 'Upload incomplete – please try again.',
+    STORAGE_UNAVAILABLE: 'Storage is temporarily unavailable – please try again shortly.',
+    BAD_REQUEST: 'Invalid request.',
+    INTERNAL: 'Something went wrong. Please try again.',
+    ABORTED: 'Cancelled.',
+    WRONG_PASSPHRASE: 'The passphrase is incorrect.',
+    WRONG_RECOVERY: 'This recovery kit does not belong to this account.',
+    INVALID_RECOVERY: 'Invalid recovery kit – please check the spelling and order of the 24 words.',
+    GENERIC: 'Something went wrong.'
+  }
+}
+
+export const commonMessages = { de, en }

@@ -13,6 +13,8 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:3000',
     acceptDownloads: true,
+    // Deutsch als Standard; der i18n-Test setzt Englisch explizit.
+    locale: 'de-CH',
     trace: 'retain-on-failure'
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

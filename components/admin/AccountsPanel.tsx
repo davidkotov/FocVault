@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, errorMessage, type AdminAccountListRow } from '@/features/api/client'
 import type { Plan } from '@/lib/api-types'
-import { chf, type PricingConfig } from '@/lib/pricing'
+import { money, type PricingConfig } from '@/lib/pricing'
 import { formatBytes } from '@/lib/vault'
 
 const PLANS: Plan[] = ['free', 'pro', 'family', 'business']
@@ -90,6 +90,11 @@ export default function AccountsPanel({ pricing, onChanged }: { pricing: Pricing
                         </option>
                       ))}
                     </select>
+                    {r.plan !== 'free' && (
+                      <span className="dim" style={{ marginLeft: 6, fontSize: 12 }}>
+                        {r.interval === 'year' ? 'jährlich' : 'monatlich'} · {r.currency}
+                      </span>
+                    )}
                   </td>
                   <td>
                     {formatBytes(r.storedBytes)} / {formatBytes(quota)}
@@ -109,13 +114,13 @@ export default function AccountsPanel({ pricing, onChanged }: { pricing: Pricing
                     )}
                   </td>
                   <td>
-                    {r.addonsGb > 0 ? `${r.addonsGb.toLocaleString('de-CH')} GB · ${chf(r.addonsChf)}` : <span className="dim">—</span>}
+                    {r.addonsGb > 0 ? `${r.addonsGb.toLocaleString('de-CH')} GB · ${money(r.addonsMonthly, r.currency)}/Mt.` : <span className="dim">—</span>}
                     {(r.plan === 'pro' || r.plan === 'family') && (
                       <button
                         className="small"
                         style={{ marginLeft: 8 }}
                         title="Kulanz: 100 GB gratis gutschreiben"
-                        onClick={() => void act(() => api.adminGrantAddon(r.id, { gb: 100, chfPerMonth: 0, note: 'Kulanz (Admin)' }))}
+                        onClick={() => void act(() => api.adminGrantAddon(r.id, { gb: 100, price: 0, note: 'Kulanz (Admin)' }))}
                       >
                         +100 GB
                       </button>

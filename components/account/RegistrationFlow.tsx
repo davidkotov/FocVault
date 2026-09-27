@@ -5,8 +5,12 @@ import { useMemo, useState } from 'react'
 import { Working } from '@/components/account/AuthShell'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
-import { api, errorMessage } from '@/features/api/client'
+import { api } from '@/features/api/client'
 import { buildRegistration, newRecoveryWords } from '@/features/keys/kdf'
+import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { useErrorText } from '@/features/i18n/errors'
+import { authMessages } from '@/lib/i18n/messages/auth'
+import { commonMessages } from '@/lib/i18n/messages/common'
 
 export type RegistrationMode =
   | { kind: 'email' }
@@ -27,6 +31,11 @@ function pickPositions(): number[] {
 export default function RegistrationFlow({ mode, onStepChange }: { mode: RegistrationMode; onStepChange?: (s: Step) => void }) {
   const router = useRouter()
   const { enter } = useAccount()
+  const { path, locale } = useI18n()
+  const a = useMessages(authMessages)
+  const m = a.register
+  const c = useMessages(commonMessages)
+  const errText = useErrorText()
   const [step, setStepState] = useState<Step>('form')
   const [email, setEmail] = useState('')
   const [pass, setPass] = useState('')
@@ -45,31 +54,28 @@ export default function RegistrationFlow({ mode, onStepChange }: { mode: Registr
   }
   const emailOk = mode.kind === 'wallet' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
   const formOk = emailOk && passphraseReady(pass, pass2) && agree
-  const answersOk = useMemo(
-    () => positions.every((p, i) => answers[i].trim().toLowerCase() === words[p]),
-    [positions, answers, words]
-  )
+  const answersOk = useMemo(() => positions.every((p, i) => answers[i].trim().toLowerCase() === words[p]), [positions, answers, words])
   const stepIndex = { form: 0, kit: 1, confirm: 2, working: 3 }[step]
   const identity = mode.kind === 'wallet' ? (mode.label ?? mode.address) : email.trim().toLowerCase()
 
   const kitText = () =>
     [
-      'FocVault Recovery-Kit',
-      `Konto: ${identity}`,
-      `Erstellt: ${new Date().toLocaleString('de-CH')}`,
+      m.kitFile.title,
+      `${m.kitFile.account}: ${identity}`,
+      `${m.kitFile.created}: ${new Date().toLocaleString(locale === 'en' ? 'en-GB' : 'de-CH')}`,
       '',
       ...words.map((w, i) => `${String(i + 1).padStart(2, ' ')}. ${w}`),
       '',
-      'Mit diesen 24 Wörtern kannst du deinen Tresor wiederherstellen, falls du die Passphrase vergisst.',
-      'Offline aufbewahren (ausgedruckt, Tresor). Wer diese Wörter hat, kann deinen Tresor öffnen.'
+      m.kitFile.use,
+      m.kitFile.keep
     ].join('\n')
 
   const download = () => {
     const url = URL.createObjectURL(new Blob([kitText()], { type: 'text/plain;charset=utf-8' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'FocVault-Recovery-Kit.txt'
-    a.click()
+    const el = document.createElement('a')
+    el.href = url
+    el.download = 'FocVault-Recovery-Kit.txt'
+    el.click()
     setTimeout(() => URL.revokeObjectURL(url), 5000)
   }
 
@@ -77,8 +83,7 @@ export default function RegistrationFlow({ mode, onStepChange }: { mode: Registr
     setStep('working')
     setError(null)
     try {
-      const normalized = email.trim().toLowerCase()
-      const { input, masterKey } = await buildRegistration(normalized, pass, words)
+      const { input, masterKey } = await buildRegistration(email.trim().toLowerCase(), pass, words)
       const view =
         mode.kind === 'email'
           ? await api.register(input)
@@ -91,9 +96,9 @@ export default function RegistrationFlow({ mode, onStepChange }: { mode: Registr
               envelopes: input.envelopes
             })
       await enter(view, masterKey)
-      router.replace('/app')
+      router.replace(path('/app'))
     } catch (e) {
-      setError(errorMessage(e, 'Registrierung fehlgeschlagen.'))
+      setError(errText(e))
       setStep('confirm')
     }
   }
@@ -118,44 +123,29 @@ export default function RegistrationFlow({ mode, onStepChange }: { mode: Registr
             setStep('kit')
           }}
         >
-          <h2>{mode.kind === 'wallet' ? 'Tresor einrichten' : 'Konto erstellen'}</h2>
-          <p className="lead">
-            {mode.kind === 'wallet' ? (
-              <>
-                Angemeldet als <strong>{identity}</strong>. Lege jetzt die Passphrase fest, die deinen Tresor verschlüsselt –
-                sie ist unabhängig von deinem Login und verlässt nie dein Gerät.
-              </>
-            ) : (
-              '5 GB kostenlos, Ende-zu-Ende-verschlüsselt. Keine Wallet, keine Kreditkarte nötig.'
-            )}
-          </p>
+          <h2>{mode.kind === 'wallet' ? m.titleWallet : m.title}</h2>
+          <p className="lead">{mode.kind === 'wallet' ? fmt(m.leadWallet, { name: identity }) : fmt(m.lead, { gb: 5 })}</p>
           {mode.kind === 'email' && (
             <div className="field">
-              <label htmlFor="email">E-Mail</label>
+              <label htmlFor="email">{a.email}</label>
               <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
             </div>
           )}
           <PassphraseFields value={pass} confirm={pass2} onChange={setPass} onConfirmChange={setPass2} />
           <label className="checkline">
             <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} />
-            <span>
-              Ich verstehe: Ohne Passphrase <strong>und</strong> ohne Recovery-Kit kann niemand meine Daten wiederherstellen –
-              auch FocVault nicht.
-            </span>
+            <span>{m.agree}</span>
           </label>
           <button className="primary full" type="submit" disabled={!formOk}>
-            Weiter zum Recovery-Kit
+            {m.toKit}
           </button>
         </form>
       )}
 
       {step === 'kit' && (
         <>
-          <h2>Dein Recovery-Kit</h2>
-          <p className="lead">
-            Diese 24 Wörter sind der Ersatzschlüssel zu deinem Tresor. Schreib sie auf oder speichere sie offline. Sie werden
-            nur jetzt angezeigt und nie an uns übertragen.
-          </p>
+          <h2>{m.kitTitle}</h2>
+          <p className="lead">{m.kitLead}</p>
           <div className="wordgrid" data-testid="recovery-words">
             {words.map((w, i) => (
               <div className="word" key={i}>
@@ -164,23 +154,23 @@ export default function RegistrationFlow({ mode, onStepChange }: { mode: Registr
               </div>
             ))}
           </div>
-          <div className="row" style={{ marginBottom: 14 }}>
+          <div className="row wrap" style={{ marginBottom: 14 }}>
             <button className="small" onClick={() => void navigator.clipboard?.writeText(words.join(' ')).then(() => setCopied(true))}>
-              {copied ? '✓ Kopiert' : 'Kopieren'}
+              {copied ? m.copied : m.copy}
             </button>
             <button className="small" onClick={download}>
-              Als Textdatei speichern
+              {m.saveFile}
             </button>
             <button className="small" onClick={() => window.print()}>
-              Drucken
+              {m.print}
             </button>
           </div>
           <label className="checkline">
             <input type="checkbox" checked={saved} onChange={e => setSaved(e.target.checked)} />
-            <span>Ich habe die 24 Wörter sicher und offline aufbewahrt.</span>
+            <span>{m.saved}</span>
           </label>
           <div className="row">
-            <button onClick={() => setStep('form')}>Zurück</button>
+            <button onClick={() => setStep('form')}>{c.back}</button>
             <button
               className="primary"
               disabled={!saved}
@@ -190,7 +180,7 @@ export default function RegistrationFlow({ mode, onStepChange }: { mode: Registr
                 setStep('confirm')
               }}
             >
-              Weiter
+              {c.next}
             </button>
           </div>
         </>
@@ -203,29 +193,29 @@ export default function RegistrationFlow({ mode, onStepChange }: { mode: Registr
             if (answersOk) void create()
           }}
         >
-          <h2>Kurz prüfen</h2>
-          <p className="lead">Gib die folgenden Wörter aus deinem Recovery-Kit ein – so stellen wir sicher, dass es stimmt.</p>
+          <h2>{m.checkTitle}</h2>
+          <p className="lead">{m.checkLead}</p>
           <div className="confirmwords">
             {positions.map((p, i) => (
               <div className="field" key={p}>
-                <label htmlFor={`w${i}`}>Wort Nr. {p + 1}</label>
+                <label htmlFor={`w${i}`}>{fmt(m.word, { n: p + 1 })}</label>
                 <input
                   id={`w${i}`}
                   autoComplete="off"
                   autoCapitalize="none"
                   spellCheck={false}
                   value={answers[i]}
-                  onChange={e => setAnswers(a => a.map((x, j) => (j === i ? e.target.value : x)))}
+                  onChange={e => setAnswers(prev => prev.map((x, j) => (j === i ? e.target.value : x)))}
                 />
               </div>
             ))}
           </div>
-          <div className="row">
+          <div className="row wrap">
             <button type="button" onClick={() => setStep('kit')}>
-              Kit nochmal zeigen
+              {m.showKit}
             </button>
             <button className="primary" type="submit" disabled={!answersOk}>
-              {mode.kind === 'wallet' ? 'Tresor erstellen' : 'Konto erstellen'}
+              {mode.kind === 'wallet' ? m.createWallet : m.create}
             </button>
           </div>
         </form>
@@ -233,9 +223,9 @@ export default function RegistrationFlow({ mode, onStepChange }: { mode: Registr
 
       {step === 'working' && (
         <>
-          <h2>Tresor wird eingerichtet</h2>
-          <Working label="Schlüssel werden auf deinem Gerät erzeugt (Argon2id) …" />
-          <p className="hint">Das dauert einen Moment – absichtlich, damit Passphrasen nicht erraten werden können.</p>
+          <h2>{m.workingTitle}</h2>
+          <Working label={m.working} />
+          <p className="hint">{m.workingHint}</p>
         </>
       )}
     </>

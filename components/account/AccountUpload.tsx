@@ -2,8 +2,10 @@
 
 import { useRef, useState, type DragEvent } from 'react'
 import { formatBytes, type VaultEntry } from '@/lib/vault'
-import { errorMessage } from '@/features/api/client'
 import { uploadFile } from '@/features/objects/transfer'
+import { fmt, useMessages } from '@/features/i18n/I18nProvider'
+import { useErrorText } from '@/features/i18n/errors'
+import { appMessages } from '@/lib/i18n/messages/app'
 
 interface Job {
   id: string
@@ -22,6 +24,8 @@ interface Props {
 
 /** Drag & Drop, mehrere Dateien, nacheinander: verschlüsseln → hochladen → abschließen. */
 export default function AccountUpload({ masterKey, freeBytes, onStored, onError }: Props) {
+  const m = useMessages(appMessages).upload
+  const errText = useErrorText()
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const [drag, setDrag] = useState(false)
@@ -49,7 +53,7 @@ export default function AccountUpload({ masterKey, freeBytes, onStored, onError 
         onStored(entry)
       } catch (e) {
         patch(job.id, { state: 'error' })
-        onError(`${files[i].name}: ${errorMessage(e, 'Upload fehlgeschlagen.')}`)
+        onError(`${files[i].name}: ${errText(e) || m.failed}`)
       }
     }
     abortRef.current = null
@@ -65,8 +69,8 @@ export default function AccountUpload({ masterKey, freeBytes, onStored, onError 
   return (
     <div className="card">
       <h3>
-        Dateien speichern
-        <span className="dim">{formatBytes(freeBytes)} frei</span>
+        {m.title}
+        <span className="dim">{fmt(m.free, { size: formatBytes(freeBytes) })}</span>
       </h3>
       <div
         className={`dropzone ${busy ? 'disabled' : ''} ${drag ? 'drag' : ''}`}
@@ -82,10 +86,10 @@ export default function AccountUpload({ masterKey, freeBytes, onStored, onError 
       >
         <div className="big">⬆</div>
         <div>
-          <strong>Dateien hierher ziehen</strong> oder klicken
+          <strong>{m.drop}</strong> {m.orClick}
         </div>
         <div style={{ marginTop: 6, fontSize: 13 }}>
-          Verschlüsselung im Browser · AES-256-GCM · gespeichert auf Filecoin (Fil One, EU)
+          {m.info}
         </div>
         <input
           ref={inputRef}
@@ -115,7 +119,7 @@ export default function AccountUpload({ masterKey, freeBytes, onStored, onError 
           {busy && (
             <div className="row">
               <button className="small" onClick={() => abortRef.current?.abort()}>
-                ⏹ Abbrechen
+                ⏹ {m.abort}
               </button>
             </div>
           )}

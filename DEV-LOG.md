@@ -41,6 +41,36 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Jahresabos, CHF/EUR/USD, Pay-as-you-go neu, Deutsch/Englisch, Responsive
+
+**Preismodell v2** (`lib/pricing.ts`, Migration v4): feste Preispunkte je Währung, Monats- und
+Jahresabos (2 Monate geschenkt), Zusatzspeicher folgt Währung/Intervall des Abos. Pay-as-you-go
+jetzt 3 Rp/ct pro GB (86 % Marge), nach Monatsdurchschnitt, Beträge unter dem Minimum werden
+übertragen. Konto hat `currency` + `billing_interval`; Planwechsel per Self-Service
+(`PUT /billing/plan`, ohne Stripe nur Dev), Währung frei wählbar solange kein Abo läuft.
+Auswertung rechnet alle Währungen mit den Kursen des Preisbuchs in CHF um.
+
+**Dashboard „Pakete & Speicher"** (`components/account/PlansView.tsx`): Umschalter Monatlich/Jährlich
+und Währung, drei Paket-Karten mit Wechsel-Button, Pay-as-you-go in drei Schritten erklärt plus
+Rechner (Schieberegler, Kosten, Hinweis ab wann Pro günstiger ist), Zusatzspeicher buchen/kündigen.
+
+**Deutsch/Englisch:** URLs `/de/…` und `/en/…` mit englischen Pfaden (`/en/login`), Middleware leitet
+alte Links weiter (Share-Links `/s/…` unverändert). Texte je Bereich in `lib/i18n/messages/*`
+(DE/EN, von `tsc` auf Vollständigkeit geprüft). Sprache/Währung über ein dezentes Menü mit
+Globus-Symbol. Übersetzt: Landing, Anmeldung/Registrierung/Recovery, Dashboard, Pakete, Fehlermeldungen.
+Admin bleibt vorerst Deutsch (intern). Sprachwechsel im Dashboard behält den entsperrten Tresor.
+
+**Responsive:** Seitenleiste wird auf Tablet/Handy zur Kopfzeile mit Menü, Topbar bricht um, Raster
+einspaltig, Tabellen scrollen. Automatische Prüfung (390/820/1440 px): keine Seite scrollt horizontal.
+Zoom auf dem Handy wieder erlaubt (Barrierefreiheit).
+
+**Gefunden & behoben:** Sprache blieb nach Client-Navigation hängen (Root-Layout wird nicht neu
+gerendert) → Sprache als Client-Zustand. `/de/login` lieferte 404 → englische Pfade in beiden Sprachen.
+Landing versprach veraltete Dinge („nur Wallet“, „Recovery-Kit auf der Roadmap“) → korrigiert.
+
+**Tests:** Vitest 70/70, Playwright 5/5 (neu: Sprache per Browser, Sprachmenü, Jahres-/Währungspreise
+auf der Landing, alte Share-Links).
+
 ### Billing & Admin-Wirtschaftlichkeit (Free 5 GB + PAYG, Pro 1 TB, Family 2 TB, Zusatzspeicher)
 
 **Kernbefund:** Fil One rechnet per Kreditkarte (Stripe) auf den Tagesdurchschnitt ab – für die

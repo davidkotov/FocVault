@@ -6,7 +6,9 @@ import { useState } from 'react'
 import AuthShell, { Working } from '@/components/account/AuthShell'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
-import { api, errorMessage } from '@/features/api/client'
+import { api } from '@/features/api/client'
+import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { useErrorText } from '@/features/i18n/errors'
 import {
   buildPassphraseChange,
   deriveFromRecovery,
@@ -15,13 +17,15 @@ import {
   normalizeRecoveryWords,
   unwrapMasterKeyRaw
 } from '@/features/keys/kdf'
+import { authMessages } from '@/lib/i18n/messages/auth'
 
-/**
- * Zwei Wege: angemeldet (z. B. per Reown) → nur Recovery-Kit + neue Passphrase;
- * nicht angemeldet → E-Mail + Recovery-Kit (E-Mail-Konten).
- */
+/** Angemeldet (z. B. per Reown) → nur Kit + neue Passphrase; sonst E-Mail + Kit. */
 export default function RecoverPage() {
   const router = useRouter()
+  const { path } = useI18n()
+  const a = useMessages(authMessages)
+  const m = a.recover
+  const errText = useErrorText()
   const { status, account, enter } = useAccount()
   const signedIn = (status === 'locked' || status === 'ready') && !!account
   const [email, setEmail] = useState('')
@@ -40,11 +44,9 @@ export default function RecoverPage() {
     setError(null)
     try {
       const rec = await deriveFromRecovery(words)
-      const view = signedIn
-        ? await api.recoveryWithSession(rec.authKey)
-        : await api.recovery(email.trim().toLowerCase(), rec.authKey)
+      const view = signedIn ? await api.recoveryWithSession(rec.authKey) : await api.recovery(email.trim().toLowerCase(), rec.authKey)
       const env = view.envelopes.find(e => e.kekType === 'recovery')
-      if (!env) throw new Error('Recovery-Schlüssel nicht gefunden.')
+      if (!env) throw new Error('recovery envelope missing')
       const raw = await unwrapMasterKeyRaw(env, rec.kek)
       try {
         const updated = await api.setPassphrase(await buildPassphraseChange(raw, pass))
@@ -52,9 +54,9 @@ export default function RecoverPage() {
       } finally {
         raw.fill(0)
       }
-      router.replace('/app')
+      router.replace(path('/app'))
     } catch (e) {
-      setError(errorMessage(e, 'Wiederherstellung fehlgeschlagen.'))
+      setError(errText(e))
       setBusy(false)
     }
   }
@@ -62,7 +64,7 @@ export default function RecoverPage() {
   if (status === 'loading') {
     return (
       <AuthShell>
-        <Working label="Lade …" />
+        <Working label="…" />
       </AuthShell>
     )
   }
@@ -75,26 +77,21 @@ export default function RecoverPage() {
           if (ready && !busy) void submit()
         }}
       >
-        <h2>Tresor wiederherstellen</h2>
+        <h2>{m.title}</h2>
         <p className="lead">
-          {signedIn ? (
-            <>
-              Angemeldet als <strong>{account.label}</strong>.{' '}
-            </>
-          ) : null}
-          Mit deinem Recovery-Kit setzt du eine neue Passphrase. Deine Dateien bleiben erhalten – alle anderen Geräte werden
-          abgemeldet.
-          {!signedIn && ' Konto per Google, Apple oder Wallet? Dann zuerst dort anmelden und hier fortfahren.'}
+          {signedIn ? `${fmt(m.signedIn, { name: account.label })} ` : ''}
+          {m.lead}
+          {!signedIn && ` ${m.socialHint}`}
         </p>
         {error && <div className="errorbox">{error}</div>}
         {!signedIn && (
           <div className="field">
-            <label htmlFor="email">E-Mail</label>
+            <label htmlFor="email">{a.email}</label>
             <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
           </div>
         )}
         <div className="field">
-          <label htmlFor="words">Recovery-Kit (24 Wörter)</label>
+          <label htmlFor="words">{m.words}</label>
           <textarea
             id="words"
             rows={4}
@@ -103,23 +100,23 @@ export default function RecoverPage() {
             spellCheck={false}
             value={words}
             onChange={e => setWords(e.target.value)}
-            placeholder="wort1 wort2 wort3 …"
+            placeholder={m.wordsPlaceholder}
             style={{ fontFamily: 'var(--mono)' }}
           />
           <span className="hint" style={{ color: wordsOk ? 'var(--green)' : undefined }}>
-            {wordsOk ? '✓ Recovery-Kit gültig' : `${count} von 24 Wörtern${count === 24 ? ' – Prüfsumme stimmt nicht' : ''}`}
+            {wordsOk ? m.valid : `${fmt(m.count, { n: count })}${count === 24 ? m.checksum : ''}`}
           </span>
         </div>
-        <PassphraseFields value={pass} confirm={pass2} onChange={setPass} onConfirmChange={setPass2} label="Neue Passphrase" />
+        <PassphraseFields value={pass} confirm={pass2} onChange={setPass} onConfirmChange={setPass2} label={m.newPass} />
         {busy ? (
-          <Working label="Tresor wird entsperrt und neu verschlüsselt …" />
+          <Working label={m.working} />
         ) : (
           <button className="primary full" type="submit" disabled={!ready}>
-            Wiederherstellen
+            {m.submit}
           </button>
         )}
         <div className="authlinks">
-          <Link href={signedIn ? '/app' : '/anmelden'}>{signedIn ? 'Zurück zur App' : 'Zurück zur Anmeldung'}</Link>
+          <Link href={path(signedIn ? '/app' : '/anmelden')}>{signedIn ? m.backApp : m.backLogin}</Link>
         </div>
       </form>
     </AuthShell>

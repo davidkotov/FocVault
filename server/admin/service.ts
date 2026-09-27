@@ -4,7 +4,7 @@ import { ApiError } from '../shared/errors'
 import { isProd } from '../shared/env'
 import { isUuid } from '../shared/ids'
 import type { SessionInfo } from '../auth/sessions'
-import { getPricing } from '../billing/settings'
+import { economicsReport } from '../billing/service'
 
 const TB = 1e12
 /** Fil One Listenpreis (docs.fil.one, 27.09.2026): $4.99 / TB / Monat, Minimum $4.99. */
@@ -46,15 +46,8 @@ export async function adminStats(deps: Deps): Promise<AdminStats> {
   const accountsByPlan: Record<Plan, number> = { free: 0, pro: 0, family: 0, business: 0 }
   for (const r of byPlan) accountsByPlan[r.plan] = Number(r.n)
   const storedBytes = Number(storage[0]?.bytes ?? 0)
-  const pricing = await getPricing(deps.db)
-  const addonMrr = await deps.db.query<{ chf: number }>(
-    `SELECT COALESCE(SUM(ad.chf_per_month), 0)::float8 AS chf FROM account_addons ad JOIN accounts a ON a.id = ad.account_id
-      WHERE ad.status = 'active' AND a.plan IN ('pro', 'family')`
-  )
-  const mrrChf =
-    accountsByPlan.pro * pricing.plans.pro.chfPerMonth +
-    accountsByPlan.family * pricing.plans.family.chfPerMonth +
-    Number(addonMrr[0]?.chf ?? 0)
+  // MRR wie in der Wirtschaftlichkeit: alle Währungen/Intervalle auf CHF pro Monat umgelegt
+  const mrrChf = (await economicsReport(deps)).economics.revenue.totalChf
   return {
     environment: {
       storage: deps.storage.kind,

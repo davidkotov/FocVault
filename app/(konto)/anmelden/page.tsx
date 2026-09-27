@@ -7,11 +7,18 @@ import AuthShell, { Working } from '@/components/account/AuthShell'
 import RegistrationFlow, { type RegistrationMode } from '@/components/account/RegistrationFlow'
 import SocialEntry from '@/components/account/SocialEntry'
 import { useAccount } from '@/features/account/AccountProvider'
-import { api, errorMessage } from '@/features/api/client'
+import { api } from '@/features/api/client'
+import { useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { useErrorText } from '@/features/i18n/errors'
 import { deriveFromPassphrase, unwrapMasterKey } from '@/features/keys/kdf'
+import { authMessages } from '@/lib/i18n/messages/auth'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { path } = useI18n()
+  const a = useMessages(authMessages)
+  const m = a.login
+  const errText = useErrorText()
   const { status, enter } = useAccount()
   const [email, setEmail] = useState('')
   const [pass, setPass] = useState('')
@@ -21,8 +28,8 @@ export default function LoginPage() {
   const [setupStep, setSetupStep] = useState('form')
 
   useEffect(() => {
-    if (!setup && (status === 'ready' || status === 'locked')) router.replace('/app')
-  }, [status, router, setup])
+    if (!setup && (status === 'ready' || status === 'locked')) router.replace(path('/app'))
+  }, [status, router, setup, path])
 
   const submit = async () => {
     setBusy(true)
@@ -33,17 +40,16 @@ export default function LoginPage() {
       const keys = await deriveFromPassphrase(pass, kdf)
       const view = await api.login(normalized, keys.authKey)
       const env = view.envelopes.find(e => e.kekType === 'passphrase')
-      if (!env) throw new Error('Kein Passphrase-Schlüssel für dieses Konto.')
+      if (!env) throw new Error('passphrase envelope missing')
       await enter(view, await unwrapMasterKey(env, keys.kek))
-      router.replace('/app')
+      router.replace(path('/app'))
     } catch (e) {
-      setError(errorMessage(e, 'Anmeldung fehlgeschlagen.'))
+      setError(errText(e))
       setBusy(false)
     }
   }
 
   if (setup) {
-    // Neue Reown-Identität: Tresor direkt hier einrichten.
     return (
       <AuthShell wide={setupStep !== 'form'}>
         <RegistrationFlow mode={setup} onStepChange={setSetupStep} />
@@ -53,8 +59,8 @@ export default function LoginPage() {
 
   return (
     <AuthShell>
-      <h2>Anmelden</h2>
-      <p className="lead">Deine Passphrase entsperrt den Tresor danach direkt auf diesem Gerät.</p>
+      <h2>{m.title}</h2>
+      <p className="lead">{m.lead}</p>
       <SocialEntry onNew={r => setSetup({ kind: 'wallet', registrationToken: r.registrationToken, address: r.address, label: r.label })} />
       <form
         onSubmit={e => {
@@ -64,24 +70,24 @@ export default function LoginPage() {
       >
         {error && <div className="errorbox">{error}</div>}
         <div className="field">
-          <label htmlFor="email">E-Mail</label>
+          <label htmlFor="email">{a.email}</label>
           <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor="pass">Passphrase</label>
+          <label htmlFor="pass">{a.passphrase}</label>
           <input id="pass" type="password" autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} />
         </div>
         {busy ? (
-          <Working label="Schlüssel wird abgeleitet …" />
+          <Working label={m.working} />
         ) : (
           <button className="full" type="submit" disabled={!email || !pass}>
-            Anmelden
+            {m.submit}
           </button>
         )}
         <div className="authlinks">
-          <Link href="/wiederherstellen">Passphrase vergessen?</Link>
+          <Link href={path('/wiederherstellen')}>{m.forgot}</Link>
           <span>
-            Neu hier? <Link href="/registrieren">Konto erstellen</Link>
+            {m.newHere} <Link href={path('/registrieren')}>{m.create}</Link>
           </span>
         </div>
       </form>

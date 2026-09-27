@@ -9,6 +9,9 @@ import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import type { AppKitNetwork } from '@reown/appkit/networks'
 import { filecoin, filecoinCalibration } from '@/lib/chains'
 import { reownEnabled, reownProjectId } from '@/lib/reown'
+import { I18nProvider } from '@/features/i18n/I18nProvider'
+import type { Locale } from '@/lib/i18n/config'
+import type { Currency } from '@/lib/pricing'
 
 const networks = [filecoinCalibration, filecoin] as unknown as [AppKitNetwork, ...AppKitNetwork[]]
 
@@ -52,11 +55,13 @@ function buildConfig(): Config {
 
 const config = buildConfig()
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, locale, currency }: { children: ReactNode; locale: Locale; currency: Currency }) {
   const [queryClient] = useState(() => new QueryClient())
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </WagmiProvider>
+    <I18nProvider locale={locale} initialCurrency={currency}>
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </WagmiProvider>
+    </I18nProvider>
   )
 }

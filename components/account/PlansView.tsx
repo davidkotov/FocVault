@@ -1,0 +1,341 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { useAccount } from '@/features/account/AccountProvider'
+import { api, type PublicOffer } from '@/features/api/client'
+import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { useErrorText } from '@/features/i18n/errors'
+import { billingMessages } from '@/lib/i18n/messages/billing'
+import { CURRENCIES, yearlySavingsPct, type Currency, type Interval } from '@/lib/pricing'
+import { formatBytes } from '@/lib/vault'
+
+type PaidPlan = 'pro' | 'family'
+
+/** Pakete, Pay-as-you-go und Zusatzspeicher – verständlich erklärt, in der Kontowährung. */
+export default function PlansView() {
+  const { account, refreshAccount } = useAccount()
+  const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber } = useI18n()
+  const m = useMessages(billingMessages)
+  const errText = useErrorText()
+  const [offer, setOffer] = useState<PublicOffer | null>(null)
+  const [interval, setIntervalState] = useState<Interval>(account?.billing.interval ?? 'year')
+  const [viewCurrency, setViewCurrency] = useState<Currency>(
+    account && account.plan !== 'free' ? account.billing.currency : prefCurrency
+  )
+  const [calcGb, setCalcGb] = useState(100)
+  const [capGb, setCapGb] = useState(100)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  useEffect(() => {
+    api.offer().then(o => {
+      setOffer(o)
+      setCapGb(c => (account?.billing.payg.enabled ? account.billing.payg.capGb : o.payg.defaultCapGb) || c)
+    }).catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Free-Konten übernehmen die gewählte Währung (PAYG wird darin abgerechnet).
+  useEffect(() => {
+    if (account && account.plan === 'free' && account.billing.currency !== viewCurrency && !account.billing.addons.length) {
+      void api.setCurrency(viewCurrency).then(() => refreshAccount()).catch(() => undefined)
+    }
+  }, [account, viewCurrency, refreshAccount])
+
+  const isFree = account?.plan === 'free'
+  const b = account?.billing
+
+  const run = async (id: string, fn: () => Promise<unknown>, ok: string) => {
+    setBusy(id)
+    setMsg(null)
+    try {
+      await fn()
+      await refreshAccount()
+      setMsg({ ok: true, text: ok })
+    } catch (e) {
+      setMsg({ ok: false, text: errText(e) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const calc = useMemo(() => {
+    if (!offer) return null
+    const perGb = offer.payg.perGbMonth[viewCurrency]
+    const cost = Math.round(calcGb * perGb * 100) / 100
+    const breakEven = perGb > 0 ? Math.ceil(offer.plans.pro.monthly[viewCurrency] / perGb) : 0
+    return { perGb, cost, carry: cost < offer.payg.minInvoice[viewCurrency], breakEven }
+  }, [offer, viewCurrency, calcGb])
+
+  if (!account || !b || !offer || !calc) return <div className="card">…</div>
+
+  const tb = (gb: number) => fmtNumber(gb / 1000, 1)
+  /** 0.03 → 2 Stellen, 0.035 → 3 Stellen (keine überflüssige Null) */
+  const perGbMoney = (amount: number, c: Currency) => fmtMoney(amount, c, Math.round(amount * 1000) % 10 === 0 ? 2 : 3)
+  const cur = viewCurrency
+  const pct = account.quotaBytes > 0 ? Math.min(100, (account.usedBytes / account.quotaBytes) * 100) : 0
+
+  const PlanCard = ({ plan }: { plan: 'free' | PaidPlan }) => {
+    const isCurrent =
+      account.plan === plan && (plan === 'free' || (b.interval === interval && b.currency === cur))
+    const text = plan === 'free' ? m.free : plan === 'pro' ? m.pro : m.family
+    const item = plan === 'free' ? null : offer.plans[plan]
+    const vars = { gb: offer.free.quotaGb, tb: item ? tb(item.quotaGb) : 0, seats: offer.plans.family.seats }
+    const label = isCurrent ? m.current : plan === 'free' ? m.downgrade : isFree ? m.upgrade : m.switchTo
+    return (
+      <div className={`plancard ${plan === 'pro' ? 'featured' : ''} ${isCurrent ? 'current' : ''}`}>
+        {plan === 'pro' && <span className="plantag">{m.popular}</span>}
+        <h4>{text.name}</h4>
+        <p className="dim">{fmt(text.tagline, vars)}</p>
+        <div className="planprice">
+          {item ? (
+            <>
+              <strong>{fmtMoney(interval === 'year' ? item.yearly[cur] / 12 : item.monthly[cur], cur)}</strong>
+              <span>{m.perMonth}</span>
+            </>
+          ) : (
+            <>
+              <strong>{fmtMoney(0, cur, 0)}</strong>
+              <span>{m.perMonth}</span>
+            </>
+          )}
+        </div>
+        <div className="planbilled">
+          {item && interval === 'year' ? (
+            <>
+              {fmt(m.billedYearly, { amount: fmtMoney(item.yearly[cur], cur) })}{' '}
+              <span className="badge ok">{fmt(m.savePct, { pct: yearlySavingsPct(item, cur) })}</span>
+            </>
+          ) : plan === 'free' ? (
+            fmt(m.payg.step2Title, { price: perGbMoney(offer.payg.perGbMonth[cur], cur) })
+          ) : (
+            '\u00a0'
+          )}
+        </div>
+        <ul>
+          {text.features.map(f => (
+            <li key={f}>{fmt(f, vars)}</li>
+          ))}
+        </ul>
+        <button
+          className={isCurrent ? '' : plan === 'free' ? '' : 'primary'}
+          disabled={isCurrent || !!busy || !offer.purchasesEnabled}
+          onClick={() => {
+            if (plan === 'free' && !window.confirm(fmt(m.confirmDowngrade, { gb: offer.free.quotaGb }))) return
+            void run(plan, () => api.changePlan(plan, interval, cur), fmt(m.planChanged, { plan: text.name }))
+          }}
+        >
+          {busy === plan ? '…' : label}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {msg && <div className={msg.ok ? 'notice' : 'errorbox'}>{msg.text}</div>}
+
+      <div className="card planhead">
+        <div>
+          <h3 style={{ marginBottom: 6 }}>{m.title}</h3>
+          <p className="dim">{m.subtitle}</p>
+        </div>
+        <div className="planusage">
+          <div className="lbl">
+            <span>{m.usage}</span>
+            <span>
+              {formatBytes(account.usedBytes)} {m.of} {formatBytes(account.quotaBytes)}
+            </span>
+          </div>
+          <div className="quotabar">
+            <div className={pct >= 100 ? 'full' : ''} style={{ width: `${pct}%` }} />
+          </div>
+          <div className="lbl" style={{ marginTop: 8 }}>
+            <span>{m.monthlyTotal}</span>
+            <span>
+              <strong>{fmtMoney(b.monthlyTotal, b.currency)}</strong> <span className="dim">{m.monthlyTotalHint}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="plancontrols">
+        <div className="segmented" role="group" aria-label={m.yearly}>
+          {(['month', 'year'] as const).map(i => (
+            <button key={i} className={interval === i ? 'active' : ''} aria-pressed={interval === i} onClick={() => setIntervalState(i)}>
+              {i === 'month' ? m.monthly : m.yearly}
+              {i === 'year' && <span className="savechip">{m.yearlySave}</span>}
+            </button>
+          ))}
+        </div>
+        <label className="currencypick">
+          <span className="dim">{m.currency}</span>
+          <select
+            value={cur}
+            onChange={e => {
+              const c = e.target.value as Currency
+              setViewCurrency(c)
+              setCurrency(c)
+            }}
+          >
+            {CURRENCIES.map(c => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="plancards">
+        <PlanCard plan="free" />
+        <PlanCard plan="pro" />
+        <PlanCard plan="family" />
+      </div>
+      <p className="hint" style={{ marginBottom: 18 }}>
+        {m.vatNote} {offer.purchasesEnabled ? m.devNote : m.stripeSoon}
+      </p>
+
+      {isFree && (
+        <div className="card">
+          <h3>
+            {m.payg.title} <span className="badge ok">{m.payg.badge}</span>
+          </h3>
+          <p className="lead" style={{ marginTop: 0 }}>
+            {fmt(m.payg.intro, { gb: offer.free.quotaGb })}
+          </p>
+          <div className="paygsteps">
+            {[
+              [fmt(m.payg.step1Title, { gb: offer.free.quotaGb }), m.payg.step1],
+              [fmt(m.payg.step2Title, { price: perGbMoney(calc.perGb, cur) }), m.payg.step2],
+              [m.payg.step3Title, fmt(m.payg.step3, { min: fmtMoney(offer.payg.minInvoice[cur], cur) })]
+            ].map(([title, body], i) => (
+              <div className="paygstep" key={i}>
+                <span className="stepnum">{i + 1}</span>
+                <strong>{title}</strong>
+                <p className="dim">{body}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid2" style={{ marginTop: 16 }}>
+            <div className="paygcalc">
+              <strong>{m.payg.calcTitle}</strong>
+              <label className="field" style={{ marginTop: 10 }}>
+                <span className="dim">
+                  {m.payg.calcExtra}: <strong>{fmtNumber(calcGb)} GB</strong>
+                </span>
+                <input type="range" min={0} max={1000} step={10} value={calcGb} onChange={e => setCalcGb(Number(e.target.value))} />
+              </label>
+              <div className="stat">
+                <span className="k">{m.payg.calcCost}</span>
+                <span className="v">
+                  <strong>{fmtMoney(calc.cost, cur)}</strong>
+                  {calc.carry && calc.cost > 0 && (
+                    <span className="dim"> · {fmt(m.payg.calcCarry, { min: fmtMoney(offer.payg.minInvoice[cur], cur) })}</span>
+                  )}
+                </span>
+              </div>
+              <p className="hint" style={{ color: calcGb >= calc.breakEven ? 'var(--accent-dark)' : undefined }}>
+                {calcGb >= calc.breakEven
+                  ? m.payg.proCheaperNow
+                  : fmt(m.payg.proCheaper, { gb: fmtNumber(calc.breakEven), tb: tb(offer.plans.pro.quotaGb) })}
+              </p>
+            </div>
+
+            <div>
+              <div className="stat">
+                <span className="k">{m.payg.status}</span>
+                <span className="v">{b.payg.enabled ? fmt(m.payg.active, { cap: fmtNumber(b.payg.capGb) }) : m.payg.inactive}</span>
+              </div>
+              {b.payg.enabled && (
+                <div className="stat">
+                  <span className="k">{m.payg.thisMonth}</span>
+                  <span className="v">
+                    {fmtMoney(b.payg.estimate, b.currency)} · {fmt(m.payg.billable, { gb: fmtNumber(b.payg.billableGb, 1) })}
+                  </span>
+                </div>
+              )}
+              <div className="row" style={{ marginTop: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <label className="field" style={{ maxWidth: 160, marginBottom: 0 }}>
+                  <span className="hint">{m.payg.cap}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={offer.payg.maxCapGb}
+                    value={capGb}
+                    onChange={e => setCapGb(Math.max(1, Math.min(offer.payg.maxCapGb, Number(e.target.value) || 1)))}
+                  />
+                </label>
+                {b.payg.enabled ? (
+                  <>
+                    <button className="small" disabled={!!busy} onClick={() => void run('payg', () => api.setPayg(true, capGb), m.payg.capSaved)}>
+                      {m.payg.saveCap}
+                    </button>
+                    <button className="small" disabled={!!busy} onClick={() => void run('payg', () => api.setPayg(false), m.payg.disabled)}>
+                      {m.payg.disable}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="primary"
+                    disabled={!!busy || !offer.purchasesEnabled}
+                    onClick={() => void run('payg', () => api.setPayg(true, capGb), m.payg.enabled)}
+                  >
+                    {m.payg.enable}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isFree && (account.plan === 'pro' || account.plan === 'family') && (
+        <div className="card">
+          <h3>{m.addons.title}</h3>
+          <p className="dim" style={{ marginBottom: 12 }}>
+            {m.addons.intro}
+          </p>
+          {b.addons.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <strong>{m.addons.yours}</strong>
+              {b.addons.map(a => (
+                <div className="stat" key={a.id}>
+                  <span className="k">
+                    +{a.gb >= 1000 ? `${tb(a.gb)} TB` : `${fmtNumber(a.gb)} GB`} {a.source === 'admin' ? `(${m.addons.grant})` : ''}
+                  </span>
+                  <span className="v">
+                    {fmtMoney(a.price, a.currency)} {a.interval === 'year' ? m.perYear : m.perMonth}{' '}
+                    <button className="small" disabled={!!busy} onClick={() => void run(a.id, () => api.cancelAddon(a.id), m.addons.cancelled)}>
+                      {m.addons.cancel}
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="storeoptions">
+            {offer.addons.map(a => {
+              const label = a.gb >= 1000 ? `${tb(a.gb)} TB` : `${fmtNumber(a.gb)} GB`
+              return (
+                <div className="storeoption" key={a.id}>
+                  <span className="gb">+{label}</span>
+                  <span className="price">
+                    {fmtMoney((b.interval === 'year' ? a.yearly : a.monthly)[b.currency], b.currency)}{' '}
+                    {b.interval === 'year' ? m.perYear : m.perMonth}
+                  </span>
+                  <button
+                    className="small primary"
+                    disabled={!!busy || !offer.purchasesEnabled}
+                    onClick={() => void run(a.id, () => api.buyAddon(a.id), fmt(m.addons.booked, { gb: label }))}
+                  >
+                    {busy === a.id ? '…' : m.addons.book}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}

@@ -5,9 +5,12 @@ import { useAccount as useWagmiAccount, useChainId, useDisconnect, useSignMessag
 import { createSiweMessage } from 'viem/siwe'
 import { useAppKit, useAppKitAccount } from '@reown/appkit/react'
 import type { AccountView } from '@/lib/api-types'
-import { SIWE_STATEMENT, shortAddress } from '@/lib/reown'
-import { api, errorMessage } from '@/features/api/client'
+import { shortAddress } from '@/lib/reown'
+import { api } from '@/features/api/client'
 import { Working } from '@/components/account/AuthShell'
+import { useMessages } from '@/features/i18n/I18nProvider'
+import { useErrorText } from '@/features/i18n/errors'
+import { authMessages } from '@/lib/i18n/messages/auth'
 
 export type WalletLoginResult =
   | { kind: 'existing'; account: AccountView }
@@ -19,6 +22,8 @@ export type WalletLoginResult =
  * Reown liefert nur die Identität – der Tresor bleibt mit Passphrase/Recovery-Kit verschlüsselt.
  */
 export default function WalletLogin({ onResult }: { onResult: (r: WalletLoginResult) => void }) {
+  const m = useMessages(authMessages).social
+  const errText = useErrorText()
   const { open } = useAppKit()
   const { embeddedWalletInfo } = useAppKitAccount()
   const { address, isConnected } = useWagmiAccount()
@@ -45,7 +50,7 @@ export default function WalletLogin({ onResult }: { onResult: (r: WalletLoginRes
           chainId,
           nonce,
           version: '1',
-          statement: SIWE_STATEMENT,
+          statement: m.statement,
           issuedAt: new Date()
         })
         const signature = await signMessageAsync({ message })
@@ -63,15 +68,15 @@ export default function WalletLogin({ onResult }: { onResult: (r: WalletLoginRes
           })
         }
       } catch (e) {
-        const msg = errorMessage(e, 'Anmeldung fehlgeschlagen.')
-        setError(/reject|denied|abgelehnt/i.test(msg) ? 'Signatur abgelehnt.' : msg)
+        const msg = errText(e)
+        setError(/reject|denied|abgelehnt/i.test(msg) ? m.rejected : msg)
       } finally {
         runningRef.current = false
         setBusy(false)
         setPending(false)
       }
     },
-    [chainId, signMessageAsync, disconnectAsync, embeddedWalletInfo, onResult]
+    [chainId, signMessageAsync, disconnectAsync, embeddedWalletInfo, onResult, m, errText]
   )
 
   useEffect(() => {
@@ -82,7 +87,7 @@ export default function WalletLogin({ onResult }: { onResult: (r: WalletLoginRes
     <div>
       {error && <div className="errorbox">{error}</div>}
       {busy ? (
-        <Working label="Bitte die Anmeldung in deiner Wallet bestätigen …" />
+        <Working label={m.confirm} />
       ) : (
         <button
           type="button"
@@ -96,11 +101,11 @@ export default function WalletLogin({ onResult }: { onResult: (r: WalletLoginRes
             }
           }}
         >
-          Mit Google, Apple, E-Mail oder Wallet
+          {m.button}
         </button>
       )}
       <p className="hint" style={{ marginTop: 8, textAlign: 'center' }}>
-        über Reown · keine Transaktion, keine Kosten
+        {m.hint}
       </p>
     </div>
   )

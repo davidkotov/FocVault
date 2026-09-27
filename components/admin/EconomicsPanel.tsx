@@ -8,7 +8,7 @@ const PLAN_LABEL = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Busi
 
 /** Ist-Wirtschaftlichkeit: was kostet uns wer, was bringt wer – aus Echtdaten. */
 export default function EconomicsPanel({ report }: { report: EconomicsReport }) {
-  const { economics: e, pricing: p, history, inactiveFree } = report
+  const { economics: e, pricing: p, history, inactiveFree, mix } = report
   const ft = e.freeTier
   const budgetState = ft.budgetUsedPct >= 100 ? 'err' : ft.budgetUsedPct >= 80 ? 'warn' : 'ok'
   const maxHist = Math.max(1, ...history.map(h => h.storedBytes))
@@ -39,7 +39,7 @@ export default function EconomicsPanel({ report }: { report: EconomicsReport }) 
           <div className="k">Gespeichert</div>
           <div className="v">{formatBytes(e.storedBytes)}</div>
           <div className="s">
-            Fil One ${p.filOneUsdPerTbMonth}/TB · Kurs {p.usdToChf} CHF/USD
+            Fil One ${p.filOneUsdPerTbMonth}/TB · USD {p.fx.usdToChf} · EUR {p.fx.eurToChf}
           </div>
         </div>
       </div>
@@ -101,7 +101,7 @@ export default function EconomicsPanel({ report }: { report: EconomicsReport }) 
           <div className="stat">
             <span className="k">Pay-as-you-go</span>
             <span className="v">
-              {(p.payg.chfPerGbMonth * 100).toFixed(1)} Rp / GB · ab {chf(p.payg.minInvoiceChf)}
+              {(p.payg.perGbMonth.CHF * 100).toFixed(1)} Rp / GB · ab {chf(p.payg.minInvoice.CHF)}
             </span>
           </div>
           <p className="hint" style={{ marginTop: 10 }}>
@@ -165,6 +165,15 @@ export default function EconomicsPanel({ report }: { report: EconomicsReport }) 
             </tbody>
           </table>
         </div>
+        {mix.length > 0 && (
+          <p className="hint" style={{ marginTop: 10 }}>
+            Abo-Mix:{' '}
+            {mix
+              .map(x => `${PLAN_LABEL[x.plan]} ${x.interval === 'year' ? 'jährlich' : 'monatlich'} ${x.currency}: ${x.accounts}`)
+              .join(' · ')}
+            . Umsatz je Währung mit den Kursen des Preisbuchs in CHF umgerechnet, Jahresabos auf den Monat umgelegt.
+          </p>
+        )}
       </div>
     </>
   )

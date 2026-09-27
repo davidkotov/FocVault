@@ -44,14 +44,41 @@ export interface AccountView {
   isAdmin: boolean
 }
 
+export type BillingCurrency = 'CHF' | 'EUR' | 'USD'
+export type BillingInterval = 'month' | 'year'
+
+/** Abrechnung eines Kontos – alle Beträge in der Kontowährung. */
 export interface AccountBilling {
   baseBytes: number
   addonBytes: number
   paygBytes: number
-  addons: Array<{ id: string; packId: string | null; gb: number; chfPerMonth: number; source: string; createdAt: string }>
-  payg: { enabled: boolean; capGb: number; chfPerGbMonth: number; estimateChf: number }
-  planChf: number
-  monthlyChf: number
+  currency: BillingCurrency
+  interval: BillingInterval
+  /** Abopreis pro Intervall (0 bei Free) */
+  planPrice: number
+  addons: Array<{
+    id: string
+    packId: string | null
+    gb: number
+    price: number
+    currency: BillingCurrency
+    interval: BillingInterval
+    source: string
+    createdAt: string
+  }>
+  payg: {
+    enabled: boolean
+    capGb: number
+    perGb: number
+    minInvoice: number
+    billableGb: number
+    estimate: number
+    /** wird diesen Monat verrechnet – sonst in den nächsten Monat übertragen */
+    charged: boolean
+    proBreakEvenGb: number
+  }
+  /** Summe auf einen Monat umgelegt (Jahresabo / 12) */
+  monthlyTotal: number
 }
 
 export interface RegisterInput {

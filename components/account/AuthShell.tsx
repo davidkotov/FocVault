@@ -1,5 +1,10 @@
+'use client'
+
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import LocaleSwitch from '@/components/LocaleSwitch'
+import { useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { authMessages } from '@/lib/i18n/messages/auth'
 
 export function BrandMark({ size = 32 }: { size?: number }) {
   return (
@@ -13,17 +18,19 @@ export function BrandMark({ size = 32 }: { size?: number }) {
 }
 
 export default function AuthShell({ children, wide, foot }: { children: ReactNode; wide?: boolean; foot?: ReactNode }) {
+  const { path } = useI18n()
+  const m = useMessages(authMessages)
   return (
     <main className="authshell">
-      <Link href="/" className="authbrand">
-        <BrandMark />
-        Foc<span>Vault</span>
-      </Link>
+      <div className="authtop">
+        <Link href={path('/')} className="authbrand">
+          <BrandMark />
+          Foc<span>Vault</span>
+        </Link>
+        <LocaleSwitch />
+      </div>
       <div className={`authcard ${wide ? 'wide' : ''}`}>{children}</div>
-      <p className="authfoot">
-        {foot ??
-          'Ende-zu-Ende-verschlüsselt: Passphrase und Schlüssel verlassen nie dein Gerät. Gespeichert auf Filecoin über Fil One (EU).'}
-      </p>
+      <p className="authfoot">{foot ?? m.shellFoot}</p>
     </main>
   )
 }

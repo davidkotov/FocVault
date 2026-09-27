@@ -1,47 +1,63 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useConnect } from 'wagmi'
+import LocaleSwitch from '@/components/LocaleSwitch'
+import { api } from '@/features/api/client'
+import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { filecoinCalibration } from '@/lib/chains'
+import { landingMessages } from '@/lib/i18n/messages/landing'
+import { DEFAULT_PRICING, type Interval, type PricingConfig } from '@/lib/pricing'
 
 /** Konto-Modus (Fil One): in Dev immer, in Production erst mit NEXT_PUBLIC_ACCOUNTS_ENABLED=1. */
-const ACCOUNTS_ENABLED =
-  process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === '1'
+const ACCOUNTS_ENABLED = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === '1'
+
+type Offer = Pick<PricingConfig, 'free' | 'payg' | 'plans' | 'addons'>
 
 export default function Landing() {
   const router = useRouter()
+  const { path, currency, fmtMoney, fmtNumber } = useI18n()
+  const t = useMessages(landingMessages)
   const { connect, connectors, isPending, error } = useConnect()
-  const injected = connectors.find(c => c.id === 'injected')
-  const walletConnectC = connectors.find(c => c.id === 'walletConnect')
+  const [interval, setIntervalState] = useState<Interval>('year')
+  const [offer, setOffer] = useState<Offer>(DEFAULT_PRICING)
+
+  useEffect(() => {
+    if (ACCOUNTS_ENABLED) api.offer().then(setOffer).catch(() => undefined)
+  }, [])
 
   const handleConnect = () => {
-    const connector = injected ?? walletConnectC
+    const connector = connectors.find(c => c.id === 'injected') ?? connectors.find(c => c.id === 'walletConnect') ?? connectors[0]
     if (connector) connect({ connector, chainId: filecoinCalibration.id })
   }
-  const goLogin = () => (ACCOUNTS_ENABLED ? router.push('/anmelden') : handleConnect())
-  const goRegister = () => (ACCOUNTS_ENABLED ? router.push('/registrieren') : handleConnect())
+  const goLogin = () => (ACCOUNTS_ENABLED ? router.push(path('/anmelden')) : handleConnect())
+  const goRegister = () => (ACCOUNTS_ENABLED ? router.push(path('/registrieren')) : handleConnect())
+
+  const gb = offer.free.quotaGb
+  const payg = fmtMoney(offer.payg.perGbMonth[currency], currency, 2)
+  const perMonth = (item: { monthly: Record<string, number>; yearly: Record<string, number> }) =>
+    interval === 'year' ? item.yearly[currency] / 12 : item.monthly[currency]
+  const tb = (quota: number) => fmtNumber(quota / 1000, 1)
+  const cheapestAddon = Math.min(...offer.addons.map(a => (interval === 'year' ? a.yearly[currency] / 12 : a.monthly[currency])))
+  const vars = { gb, price: payg, pro: fmtMoney(offer.plans.pro.monthly[currency], currency), family: fmtMoney(offer.plans.family.monthly[currency], currency) }
 
   return (
-    <div>
+    <div className="landing">
       <div className="utilbar">
         <div className="wrap">
-          <div>
-            <a href="https://docs.filecoin.cloud" target="_blank" rel="noreferrer">
-              Dokumentation
+          <div className="utillinks">
+            <a href="https://docs.fil.one" target="_blank" rel="noreferrer">
+              {t.util.docs}
             </a>
-            <a href="#sicherheit">Sicherheit</a>
-            <a href="#faq">Support</a>
+            <a href="#sicherheit">{t.util.security}</a>
+            <a href="#faq">{t.util.support}</a>
           </div>
-          <div>
-            <a href="#" onClick={e => { e.preventDefault(); goLogin() }}>
-              Anmelden
-            </a>
-            <a href="#" onClick={e => { e.preventDefault(); goRegister() }}>
-              Registrieren
-            </a>
-            <a className="utilwallet" href="#" onClick={e => { e.preventDefault(); handleConnect() }}>
+          <div className="utilright">
+            <LocaleSwitch showCurrency />
+            <a className="utilwallet hide-mobile" href="#" onClick={e => { e.preventDefault(); handleConnect() }}>
               <WalletIcon />
-              Wallet verbinden
+              {t.wallet}
             </a>
           </div>
         </div>
@@ -60,109 +76,89 @@ export default function Landing() {
             Foc<span style={{ color: '#0090ff' }}>Vault</span>
           </div>
           <div className="navlinks">
-            <a href="#produkt">Produkt</a>
-            <a href="#sicherheit">Sicherheit</a>
-            <a href="#preise">Preise</a>
-            <a href="#faq">FAQ</a>
+            <a href="#produkt">{t.nav.product}</a>
+            <a href="#sicherheit">{t.nav.security}</a>
+            <a href="#preise">{t.nav.pricing}</a>
+            <a href="#faq">{t.nav.faq}</a>
           </div>
           <div className="navcta">
             <button disabled={isPending} onClick={goLogin}>
-              Anmelden
+              {t.login}
             </button>
-            <button disabled={isPending} onClick={goRegister}>
-              Registrieren
-            </button>
-            <button className="primary" disabled={isPending} onClick={handleConnect}>
-              {isPending ? 'Verbinde…' : 'Wallet verbinden'}
-              {!isPending && <WalletIcon />}
+            <button className="primary" disabled={isPending} onClick={goRegister}>
+              {t.register}
             </button>
           </div>
-          {error && <span className="navconnecterr">{(error as Error).message}</span>}
         </div>
       </nav>
 
       <header className="hero">
         <div className="wrap">
           <span className="pill">
-            <b>NEU</b> Secure Send &amp; Mobile-Sync
+            <b>{t.hero.pill}</b> {t.hero.pillText}
           </span>
           <h1>
-            Deine Privacy Cloud für
+            {t.hero.title1}
             <br />
-            Dateien, Fotos &amp; mehr
+            {t.hero.title2}
           </h1>
-          <p className="lead">
-            Ende-zu-Ende-verschlüsselt in deinem Browser, dezentral gespeichert auf Filecoin.
-            Niemand außer dir sieht deine Daten — nicht einmal wir.
-          </p>
+          <p className="lead">{t.hero.lead}</p>
           <div className="herobtns">
             <button className="primary lg" disabled={isPending} onClick={goRegister}>
-              {isPending ? 'Verbinde…' : 'Kostenlos starten'}
+              {isPending ? t.connecting : t.hero.cta}
             </button>
-            <a href="#produkt">
-              <button className="lg">Live-Demo ansehen</button>
+            <a href="#how">
+              <button className="lg">{t.hero.demo}</button>
             </a>
           </div>
-          <div className="trustline">
-            <b>5 GB kostenlos</b> · danach Pay-as-you-go · Keine Kreditkarte nötig
-          </div>
+          <div className="trustline">{fmt(t.hero.trust, { gb })}</div>
 
-          <div className="preview">
+          <div className="preview" aria-hidden="true">
             <div className="barfake">
               <span className="fdot" />
               <span className="fdot" />
               <span className="fdot" />
-              <span className="urlfake">app.focvault.io/cloud</span>
+              <span className="urlfake">focvault.app/cloud</span>
             </div>
             <div className="pvbody">
               <div className="pv-side">
-                <div className="pv-navitem active">☁️ Meine Cloud</div>
-                <div className="pv-navitem">🔗 Secure Send</div>
-                <div className="pv-navitem">💳 Konto</div>
-                <div className="pv-navitem" style={{ opacity: 0.4 }}>
-                  🔐 Passwörter
-                </div>
-                <div className="pv-navitem" style={{ opacity: 0.4 }}>
-                  📝 Notizen
-                </div>
+                <div className="pv-navitem active">☁️ {t.preview.cloud}</div>
+                <div className="pv-navitem">🔗 {t.preview.send}</div>
+                <div className="pv-navitem">💳 {t.preview.account}</div>
+                <div className="pv-navitem">🔐 {t.preview.passwords}</div>
+                <div className="pv-navitem">📝 {t.preview.notes}</div>
               </div>
               <div className="pv-main">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong style={{ fontSize: 15 }}>Meine Cloud</strong>
+                  <strong style={{ fontSize: 15 }}>{t.preview.cloud}</strong>
                   <span className="chip active" style={{ fontSize: 12 }}>
-                    + Hochladen
+                    {t.preview.upload}
                   </span>
                 </div>
                 <div style={{ marginTop: 14 }}>
-                  <span className="chip active">Alle (12)</span>
+                  <span className="chip active">{t.preview.all}</span>
                   <span className="chip" style={{ marginLeft: 8 }}>
-                    📄 Dokumente
+                    📄 {t.preview.docs}
                   </span>
                   <span className="chip" style={{ marginLeft: 8 }}>
-                    🖼️ Fotos
+                    🖼️ {t.preview.photos}
                   </span>
                 </div>
                 <div className="pv-grid">
-                  <div className="pv-card">
-                    <div className="pv-tile" style={{ background: 'var(--accent-soft)' }} />
-                    <div className="pv-name">Vertrag.pdf</div>
-                    <div className="pv-meta">1.2 MB · heute</div>
-                  </div>
-                  <div className="pv-card">
-                    <div className="pv-tile" style={{ background: 'var(--red-soft)' }} />
-                    <div className="pv-name">Urlaub_04.jpg</div>
-                    <div className="pv-meta">4.8 MB · gestern</div>
-                  </div>
-                  <div className="pv-card">
-                    <div className="pv-tile" style={{ background: 'var(--green-soft)' }} />
-                    <div className="pv-name">Backup.zip</div>
-                    <div className="pv-meta">220 MB · 3 Tage</div>
-                  </div>
-                  <div className="pv-card">
-                    <div className="pv-tile" style={{ background: 'var(--yellow-soft)' }} />
-                    <div className="pv-name">Notizen.txt</div>
-                    <div className="pv-meta">4 KB · 1 Woche</div>
-                  </div>
+                  {[
+                    ['var(--accent-soft)', '1.2 MB', t.preview.today],
+                    ['var(--red-soft)', '4.8 MB', t.preview.yesterday],
+                    ['var(--green-soft)', '220 MB', t.preview.days],
+                    ['var(--yellow-soft)', '4 KB', t.preview.week]
+                  ].map(([bg, size, when], i) => (
+                    <div className="pv-card" key={i}>
+                      <div className="pv-tile" style={{ background: bg }} />
+                      <div className="pv-name">{t.preview.files[i]}</div>
+                      <div className="pv-meta">
+                        {size} · {when}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -172,263 +168,195 @@ export default function Landing() {
 
       <div className="trustbar">
         <div className="wrap">
-          <span className="trustbadge">⛓️ Filecoin Onchain Cloud</span>
-          <span className="trustbadge">✅ PDP-verifiziert</span>
-          <span className="trustbadge">🔒 Zero-Knowledge</span>
-          <span className="trustbadge">🧩 Open Source</span>
+          {['⛓️', '🔒', '🇪🇺', '🧩'].map((icon, i) => (
+            <span className="trustbadge" key={i}>
+              {icon} {t.trustbar[i]}
+            </span>
+          ))}
         </div>
       </div>
 
       <section className="msection" id="produkt">
         <div className="wrap">
-          <div className="eyebrow">Produkt</div>
-          <h2 className="sectitle">Eine Cloud. Volle Kontrolle.</h2>
-          <p className="subtitle">
-            Komfortable Oberfläche, dezentrale Infrastruktur darunter — du musst nie wissen,
-            was technisch dahinter passiert.
-          </p>
+          <div className="eyebrow">{t.product.eyebrow}</div>
+          <h2 className="sectitle">{t.product.title}</h2>
+          <p className="subtitle">{t.product.subtitle}</p>
           <div className="features">
-            <div className="feature">
-              <div className="fi">
-                <svg className="icon" viewBox="0 0 24 24">
-                  <path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" />
-                  <path d="M9 12l2 2 4-4" />
-                </svg>
+            {t.product.features.map((f, i) => (
+              <div className="feature" key={f.title}>
+                <div className="fi">
+                  <svg className="icon" viewBox="0 0 24 24">
+                    {FEATURE_ICONS[i]}
+                  </svg>
+                </div>
+                <h3>{f.title}</h3>
+                <p>{f.body}</p>
               </div>
-              <h3>Zero-Knowledge</h3>
-              <p>AES-256-GCM-Verschlüsselung direkt im Browser. Schlüssel verlassen dein Gerät nie.</p>
-            </div>
-            <div className="feature">
-              <div className="fi">
-                <svg className="icon" viewBox="0 0 24 24">
-                  <ellipse cx="12" cy="5" rx="8" ry="3" />
-                  <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
-                  <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
-                </svg>
-              </div>
-              <h3>Dezentrale Speicherung</h3>
-              <p>Filecoin Onchain Cloud, 2 Kopien bei unabhängigen Providern, PDP-verifiziert.</p>
-            </div>
-            <div className="feature">
-              <div className="fi">
-                <svg className="icon" viewBox="0 0 24 24">
-                  <circle cx="18" cy="5" r="3" />
-                  <circle cx="6" cy="12" r="3" />
-                  <circle cx="18" cy="19" r="3" />
-                  <path d="M8.6 10.6l6.8-3.2M8.6 13.4l6.8 3.2" />
-                </svg>
-              </div>
-              <h3>Secure Send</h3>
-              <p>Dateien teilen ohne Empfänger-Konto — Schlüssel im Link, nie auf dem Server.</p>
-            </div>
-            <div className="feature">
-              <div className="fi">
-                <svg className="icon" viewBox="0 0 24 24">
-                  <rect x="3" y="6" width="18" height="13" rx="2" />
-                  <path d="M3 10h18" />
-                  <path d="M7 15h4" />
-                </svg>
-              </div>
-              <h3>Faire Abrechnung</h3>
-              <p>Pay-as-you-go: über den Free-Tier hinaus zahlst du nur die echte Filecoin-Infrastruktur (≈ 0,5 Rp/GB/Monat). Abos via Stripe in CHF.</p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="msection" style={{ background: 'var(--card-soft)' }}>
+      <section className="msection" id="how" style={{ background: 'var(--card-soft)' }}>
         <div className="wrap">
-          <div className="eyebrow">So funktioniert's</div>
-          <h2 className="sectitle">In drei Schritten in deiner Cloud</h2>
-          <p className="subtitle">Keine Installation, kein Konto mit Passwort — deine Wallet ist deine Identität.</p>
+          <div className="eyebrow">{t.how.eyebrow}</div>
+          <h2 className="sectitle">{t.how.title}</h2>
+          <p className="subtitle">{t.how.subtitle}</p>
           <div className="howsteps">
-            <div className="howstep">
-              <div className="num">1</div>
-              <h4>Wallet verbinden</h4>
-              <p>MetaMask oder WalletConnect — dauert 10 Sekunden.</p>
-            </div>
-            <div className="howstep">
-              <div className="num">2</div>
-              <h4>Automatisch verschlüsseln</h4>
-              <p>Jede Datei wird lokal in deinem Browser AES-256-verschlüsselt.</p>
-            </div>
-            <div className="howstep">
-              <div className="num">3</div>
-              <h4>Speichern &amp; teilen</h4>
-              <p>Landet automatisch im richtigen Ordner, teilbar per Secure Send.</p>
-            </div>
+            {t.how.steps.map((s, i) => (
+              <div className="howstep" key={s.title}>
+                <div className="num">{i + 1}</div>
+                <h4>{s.title}</h4>
+                <p>{s.body}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       <section className="msection" id="sicherheit">
         <div className="wrap">
-          <div className="eyebrow">Vergleich</div>
-          <h2 className="sectitle">Wie sich FocVault einordnet</h2>
-          <p className="subtitle">Wir sind keine S3-Pipeline für Teams — sondern die persönliche Privacy-Cloud darüber.</p>
-          <table className="comptable">
-            <tbody>
-              <tr>
-                <th>&nbsp;</th>
-                <th className="colhi">FocVault</th>
-                <th>Klassische Cloud</th>
-                <th>S3-Objektstorage</th>
-              </tr>
-              <tr>
-                <td>Zero-Knowledge-Verschlüsselung</td>
-                <td className="colhi">
-                  <span className="okc">✓ ja</span>
-                </td>
-                <td>✗ nein</td>
-                <td>✗ nein</td>
-              </tr>
-              <tr>
-                <td>Mindestgebühr</td>
-                <td className="colhi">
-                  <span className="okc">Keine</span>
-                </td>
-                <td>meist ja</td>
-                <td>z.B. $4.99/Monat</td>
-              </tr>
-              <tr>
-                <td>Account/Login nötig</td>
-                <td className="colhi">
-                  <span className="okc">Nur Wallet</span>
-                </td>
-                <td>E-Mail + Passwort</td>
-                <td>API-Keys</td>
-              </tr>
-              <tr>
-                <td>Zielgruppe</td>
-                <td className="colhi">Privatpersonen</td>
-                <td>Privatpersonen</td>
-                <td>Dev-Teams</td>
-              </tr>
-              <tr>
-                <td>Datenhoheit bei Anbieterwechsel</td>
-                <td className="colhi">
-                  <span className="okc">Export + eigene Keys</span>
-                </td>
-                <td>oft Lock-in</td>
-                <td>S3-kompatibel</td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="eyebrow">{t.compare.eyebrow}</div>
+          <h2 className="sectitle">{t.compare.title}</h2>
+          <p className="subtitle">{t.compare.subtitle}</p>
+          <div className="tablescroll">
+            <table className="comptable">
+              <tbody>
+                <tr>
+                  <th>&nbsp;</th>
+                  {t.compare.cols.map((c, i) => (
+                    <th key={c} className={i === 0 ? 'colhi' : ''}>
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+                {t.compare.rows.map(row => (
+                  <tr key={row[0]}>
+                    <td>{row[0]}</td>
+                    <td className="colhi">
+                      <span className="okc">{row[1]}</span>
+                    </td>
+                    <td>{row[2]}</td>
+                    <td>{row[3]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
       <section className="msection" id="preise" style={{ background: 'var(--card-soft)' }}>
         <div className="wrap">
-          <div className="eyebrow">Preise</div>
-          <h2 className="sectitle">Privacy hat ihren Preis – und ist ihn wert</h2>
-          <p className="subtitle">
-            5 GB kostenlos, danach Pay-as-you-go pro GB. Oder ein Abo in CHF mit allen
-            Privacy-Modulen – und jederzeit zubuchbarem Zusatzspeicher.
-          </p>
+          <div className="eyebrow">{t.pricing.eyebrow}</div>
+          <h2 className="sectitle">{t.pricing.title}</h2>
+          <p className="subtitle">{fmt(t.pricing.subtitle, { gb })}</p>
+          <div className="plancontrols center">
+            <div className="segmented" role="group">
+              {(['month', 'year'] as const).map(i => (
+                <button key={i} className={interval === i ? 'active' : ''} aria-pressed={interval === i} onClick={() => setIntervalState(i)}>
+                  {i === 'month' ? t.pricing.monthly : t.pricing.yearly}
+                  {i === 'year' && <span className="savechip">{t.pricing.yearlySave}</span>}
+                </button>
+              ))}
+            </div>
+            <LocaleSwitch showCurrency />
+          </div>
           <div className="pricing">
             <div className="plan">
               <h3>Free</h3>
-              <div className="price">0 CHF<span>/Monat</span></div>
-              <div className="desc">Inklusive 5 GB, danach Pay-as-you-go für 2 Rappen pro GB und Monat.</div>
+              <div className="price">
+                {fmtMoney(0, currency, 0)}
+                <span>{t.pricing.perMonth}</span>
+              </div>
+              <div className="desc">{fmt(t.pricing.freeDesc, { gb, price: payg })}</div>
               <ul>
-                <li><CheckIcon />5 GB Speicher inklusive</li>
-                <li><CheckIcon />Pay-as-you-go mit selbst gewählter Obergrenze</li>
-                <li><CheckIcon />Zero-Knowledge-Verschlüsselung</li>
-                <li><CheckIcon />Secure Send</li>
-                <li><CheckIcon />Modul-Quota ohne Cloud-Speicher</li>
+                {t.pricing.freeFeatures.map(f => (
+                  <li key={f}>
+                    <CheckIcon />
+                    {fmt(f, { gb })}
+                  </li>
+                ))}
               </ul>
-              <button onClick={goRegister}>Kostenlos starten</button>
+              <button onClick={goRegister}>{t.pricing.freeCta}</button>
             </div>
             <div className="plan highlight">
-              <span className="tag">Beliebt</span>
-              <h3>Pro</h3>
-              <div className="price">13.90 CHF<span>/Monat</span></div>
-              <div className="desc">Deine komplette persönliche Privacy-Cloud – inkl. aller Module.</div>
+              <span className="tag">{t.pricing.popular}</span>
+              <h3>{offer.plans.pro.label}</h3>
+              <div className="price">
+                {fmtMoney(perMonth(offer.plans.pro), currency)}
+                <span>{t.pricing.perMonth}</span>
+              </div>
+              <div className="billednote">
+                {interval === 'year' ? fmt(t.pricing.billedYearly, { amount: fmtMoney(offer.plans.pro.yearly[currency], currency) }) : '\u00a0'}
+              </div>
+              <div className="desc">{t.pricing.proDesc}</div>
               <ul>
-                <li><CheckIcon />1 TB Speicher, Zusatzspeicher ab 2.90 CHF</li>
-                <li><CheckIcon />Passwörter, Notizen &amp; 2FA-Authenticator</li>
-                <li><CheckIcon />Passkeys &amp; Device-Backup (bald)</li>
-                <li><CheckIcon />Vault-Sync über alle Geräte</li>
-                <li><CheckIcon />Priorisierter Support</li>
+                {t.pricing.proFeatures.map(f => (
+                  <li key={f}>
+                    <CheckIcon />
+                    {fmt(f, { tb: tb(offer.plans.pro.quotaGb), addon: fmtMoney(cheapestAddon, currency) })}
+                  </li>
+                ))}
               </ul>
-              <button className="primary" onClick={goRegister}>Pro aktivieren</button>
+              <button className="primary" onClick={goRegister}>
+                {t.pricing.proCta}
+              </button>
             </div>
             <div className="plan">
-              <h3>Family</h3>
-              <div className="price">19.90 CHF<span>/Monat</span></div>
-              <div className="desc">Geteilter Speicher für 2–6 Personen – jede*r mit eigenem Vault &amp; Schlüssel.</div>
+              <h3>{offer.plans.family.label}</h3>
+              <div className="price">
+                {fmtMoney(perMonth(offer.plans.family), currency)}
+                <span>{t.pricing.perMonth}</span>
+              </div>
+              <div className="billednote">
+                {interval === 'year' ? fmt(t.pricing.billedYearly, { amount: fmtMoney(offer.plans.family.yearly[currency], currency) }) : '\u00a0'}
+              </div>
+              <div className="desc">{fmt(t.pricing.familyDesc, { seats: offer.plans.family.seats })}</div>
               <ul>
-                <li><CheckIcon />2 TB geteilt, Zusatzspeicher buchbar</li>
-                <li><CheckIcon />2–6 Mitglieder, je eigener Vault &amp; Key</li>
-                <li><CheckIcon />Alle Module für jedes Mitglied</li>
-                <li><CheckIcon />Echtes Privacy-Versprechen für die ganze Familie</li>
+                {t.pricing.familyFeatures.map(f => (
+                  <li key={f}>
+                    <CheckIcon />
+                    {fmt(f, { tb: tb(offer.plans.family.quotaGb), seats: offer.plans.family.seats })}
+                  </li>
+                ))}
               </ul>
-              <button onClick={goRegister}>Family starten</button>
+              <button onClick={goRegister}>{t.pricing.familyCta}</button>
             </div>
             <div className="plan">
-              <h3>Business / Custom</h3>
-              <div className="price">Individuell</div>
-              <div className="desc">Teams, Compliance-Anforderungen, dedizierte Kapazität.</div>
+              <h3>{t.pricing.business}</h3>
+              <div className="price">{t.pricing.businessPrice}</div>
+              <div className="desc">{t.pricing.businessDesc}</div>
               <ul>
-                <li><CheckIcon />Datenresidenz CH/EU</li>
-                <li><CheckIcon />S3-/Fil-One-Migration</li>
-                <li><CheckIcon />API &amp; SLA &amp; Audit-Logs</li>
-                <li><CheckIcon />Managed Keys</li>
+                {t.pricing.businessFeatures.map(f => (
+                  <li key={f}>
+                    <CheckIcon />
+                    {f}
+                  </li>
+                ))}
               </ul>
-              <button onClick={handleConnect}>Kontakt</button>
+              <a href="mailto:hello@focvault.app">
+                <button className="full">{t.pricing.businessCta}</button>
+              </a>
             </div>
           </div>
+          <p className="hint" style={{ textAlign: 'center', marginTop: 14 }}>
+            {t.pricing.vat}
+          </p>
         </div>
       </section>
 
       <section className="msection" id="faq">
         <div className="wrap">
           <div className="eyebrow">FAQ</div>
-          <h2 className="sectitle">Häufige Fragen</h2>
+          <h2 className="sectitle">{t.faq.title}</h2>
           <div className="faq">
-            <details open>
-              <summary>Was bedeutet Zero-Knowledge genau?</summary>
-              <p>
-                Deine Dateien werden vor dem Hochladen in deinem Browser verschlüsselt. Wir
-                speichern nur die verschlüsselten Bytes und eine Prüfsumme (CID) — den
-                Schlüssel sehen wir nie.
-              </p>
-            </details>
-            <details>
-              <summary>Brauche ich eine Kryptowährung?</summary>
-              <p>
-                Nein. Du meldest dich mit E-Mail, Google, Apple oder – wenn du willst – einer
-                Wallet an. Im Free-Tier sind 5 GB enthalten; darüber zahlst du Pay-as-you-go
-                in CHF (2 Rappen pro GB und Monat, mit selbst gewählter Obergrenze). Abos
-                laufen über Stripe in CHF.
-              </p>
-            </details>
-            <details>
-              <summary>Was kostet das Abo, und warum darf Privacy etwas mehr kosten?</summary>
-              <p>
-                Pro kostet 13.90 CHF/Monat (1 TB), Family 19.90 CHF/Monat (2 TB für 2–6
-                Personen, jede*r mit eigenem Vault und Schlüssel). Mehr Platz buchst du als
-                Zusatzspeicher dazu. Du bezahlst nicht nur Speicher, sondern Zero-Knowledge:
-                Niemand – auch wir nicht – kann deine Dateien lesen, gespeichert auf Filecoin mit
-                nachweisbarer Integrität, dazu Passwort-Manager und 2FA im selben Tresor.
-              </p>
-            </details>
-            <details>
-              <summary>Was passiert, wenn ich meine Wallet verliere?</summary>
-              <p>
-                Deine Wallet ist deine Identität — wie bei einem Passwort-Manager solltest du
-                deine Wallet-Seed-Phrase sicher aufbewahren. Ein Recovery-Kit ist auf der
-                Roadmap.
-              </p>
-            </details>
-            <details>
-              <summary>Wie unterscheidet sich das von S3-Anbietern wie fil.one?</summary>
-              <p>
-                S3-Anbieter richten sich an Entwickler-Teams (Buckets, API-Keys, kein
-                Zero-Knowledge). FocVault ist die persönliche Privacy-Cloud für Menschen —
-                Identity-Layer, Ende-zu-Ende-Verschlüsselung und eine Oberfläche ohne Code.
-              </p>
-            </details>
+            {t.faq.items.map((item, i) => (
+              <details key={item.q} open={i === 0}>
+                <summary>{item.q}</summary>
+                <p>{fmt(item.a, vars)}</p>
+              </details>
+            ))}
           </div>
         </div>
       </section>
@@ -436,13 +364,15 @@ export default function Landing() {
       <section className="msection">
         <div className="wrap">
           <div className="ctaband">
-            <h2>Bereit für deine eigene Privacy Cloud?</h2>
-            <p>5 GB kostenlos. Keine Kreditkarte. In 2 Minuten startklar.</p>
+            <h2>{t.cta.title}</h2>
+            <p>{fmt(t.cta.body, { gb })}</p>
             <div className="herobtns" style={{ justifyContent: 'center' }}>
               <button className="primary lg" onClick={goRegister}>
-                {isPending ? 'Verbinde…' : 'Kostenlos starten'}
+                {t.cta.start}
               </button>
-              <button className="lg">Mit uns sprechen</button>
+              <a href="mailto:hello@focvault.app">
+                <button className="lg">{t.cta.talk}</button>
+              </a>
             </div>
           </div>
         </div>
@@ -458,32 +388,29 @@ export default function Landing() {
                 </svg>
                 FocVault
               </div>
-              <div className="foottag">
-                Deine Privacy Cloud auf Filecoin Onchain Cloud. Identity, Verschlüsselung,
-                Storage — alles bei dir.
-              </div>
+              <div className="foottag">{t.footer.tag}</div>
             </div>
             <div className="footcol">
-              <h5>Produkt</h5>
-              <a href="#produkt">Meine Cloud</a>
+              <h5>{t.footer.product}</h5>
+              <a href="#produkt">{t.footer.cloud}</a>
               <a href="#produkt">Secure Send</a>
-              <a href="#preise">Preise</a>
+              <a href="#preise">{t.nav.pricing}</a>
             </div>
             <div className="footcol">
-              <h5>Unternehmen</h5>
-              <a href="#sicherheit">Sicherheit</a>
+              <h5>{t.footer.company}</h5>
+              <a href="#sicherheit">{t.nav.security}</a>
               <a href="#faq">FAQ</a>
             </div>
             <div className="footcol">
-              <h5>Rechtliches</h5>
-              <a href="#">Datenschutz</a>
-              <a href="#">AGB</a>
-              <a href="#">Impressum</a>
+              <h5>{t.footer.legal}</h5>
+              <a href="#">{t.footer.privacy}</a>
+              <a href="#">{t.footer.terms}</a>
+              <a href="#">{t.footer.imprint}</a>
             </div>
           </div>
           <div className="footbottom">
-            <span>© 2026 FocVault. Gebaut auf Filecoin Onchain Cloud.</span>
-            <span>Made possible by Synapse SDK &amp; FOC</span>
+            <span>{t.footer.copy}</span>
+            <LocaleSwitch />
           </div>
         </div>
       </footer>
@@ -491,9 +418,31 @@ export default function Landing() {
   )
 }
 
+const FEATURE_ICONS = [
+  <>
+    <path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" />
+    <path d="M9 12l2 2 4-4" />
+  </>,
+  <>
+    <ellipse cx="12" cy="5" rx="8" ry="3" />
+    <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+    <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+  </>,
+  <>
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <path d="M8.6 10.6l6.8-3.2M8.6 13.4l6.8 3.2" />
+  </>,
+  <>
+    <rect x="5" y="11" width="14" height="9" rx="2" />
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </>
+]
+
 function CheckIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24">
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" fill="none" />
     </svg>
   )

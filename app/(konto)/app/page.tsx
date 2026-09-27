@@ -13,26 +13,25 @@ import TotpPanel from '@/components/TotpPanel'
 import AuthShell, { Working } from '@/components/account/AuthShell'
 import AccountMenu from '@/components/account/AccountMenu'
 import AccountUpload from '@/components/account/AccountUpload'
+import PlansView from '@/components/account/PlansView'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
-import StorageOptions from '@/components/account/StorageOptions'
 import { useAccount } from '@/features/account/AccountProvider'
-import { ApiClientError, api, errorMessage } from '@/features/api/client'
+import { ApiClientError, api } from '@/features/api/client'
+import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { useErrorText } from '@/features/i18n/errors'
 import { buildPassphraseChange, deriveFromPassphrase, unwrapMasterKeyRaw } from '@/features/keys/kdf'
 import { downloadFile } from '@/features/objects/transfer'
+import { appMessages } from '@/lib/i18n/messages/app'
 import { formatBytes, type SecretEntry, type TierName, type VaultEntry } from '@/lib/vault'
 
 const TIER: Record<string, TierName> = { free: 'FREE', pro: 'PRO', family: 'FAMILY', business: 'BUSINESS' }
-const TITLES: Record<ViewId, string> = {
-  cloud: 'Meine Cloud',
-  send: 'Secure Send',
-  account: 'Konto & Sicherheit',
-  passwords: 'Passwörter',
-  notes: 'Notizen',
-  '2fa': '2FA-Authenticator'
-}
+const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Business' }
 
 function UnlockScreen() {
   const { account, unlock, logout } = useAccount()
+  const { path } = useI18n()
+  const m = useMessages(appMessages).unlock
+  const errText = useErrorText()
   const [pass, setPass] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -47,30 +46,27 @@ function UnlockScreen() {
           try {
             await unlock(pass)
           } catch (err) {
-            setError(errorMessage(err, 'Entsperren fehlgeschlagen.'))
+            setError(errText(err))
             setBusy(false)
           }
         }}
       >
-        <h2>Tresor entsperren</h2>
-        <p className="lead">
-          Angemeldet als <strong>{account?.label}</strong>. Dein Schlüssel wird nur im Arbeitsspeicher gehalten und nach 30
-          Minuten Inaktivität verworfen.
-        </p>
+        <h2>{m.title}</h2>
+        <p className="lead">{fmt(m.lead, { name: account?.label ?? '' })}</p>
         {error && <div className="errorbox">{error}</div>}
         <div className="field">
-          <label htmlFor="unlock">Passphrase</label>
+          <label htmlFor="unlock">{m.passphrase}</label>
           <input id="unlock" type="password" autoFocus autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} />
         </div>
         {busy ? (
-          <Working label="Schlüssel wird abgeleitet …" />
+          <Working label={m.working} />
         ) : (
           <button className="primary full" type="submit" disabled={!pass}>
-            Entsperren
+            {m.submit}
           </button>
         )}
         <div className="authlinks">
-          <Link href="/wiederherstellen">Passphrase vergessen?</Link>
+          <Link href={path('/wiederherstellen')}>{m.forgot}</Link>
           <a
             href="#"
             onClick={e => {
@@ -78,7 +74,7 @@ function UnlockScreen() {
               void logout()
             }}
           >
-            Abmelden
+            {m.logout}
           </a>
         </div>
       </form>
@@ -88,6 +84,8 @@ function UnlockScreen() {
 
 function ChangePassphraseCard() {
   const { account, refreshAccount } = useAccount()
+  const m = useMessages(appMessages).changePass
+  const errText = useErrorText()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [next2, setNext2] = useState('')
@@ -99,7 +97,7 @@ function ChangePassphraseCard() {
     setMsg(null)
     try {
       const env = account.envelopes.find(e => e.kekType === 'passphrase')
-      if (!env) throw new Error('Kein Passphrase-Schlüssel gefunden.')
+      if (!env) throw new Error('passphrase envelope missing')
       const { kek } = await deriveFromPassphrase(current, account.kdf)
       const raw = await unwrapMasterKeyRaw(env, kek)
       try {
@@ -111,20 +109,16 @@ function ChangePassphraseCard() {
       setCurrent('')
       setNext('')
       setNext2('')
-      setMsg({ ok: true, text: 'Passphrase geändert. Andere Geräte wurden abgemeldet.' })
+      setMsg({ ok: true, text: m.done })
     } catch (e) {
-      const text =
-        e instanceof ApiClientError && e.code === 'REAUTH_REQUIRED'
-          ? 'Aus Sicherheitsgründen bitte kurz ab- und wieder anmelden, dann erneut versuchen.'
-          : errorMessage(e, 'Änderung fehlgeschlagen.')
-      setMsg({ ok: false, text })
+      setMsg({ ok: false, text: e instanceof ApiClientError && e.code === 'REAUTH_REQUIRED' ? m.reauth : errText(e) })
     } finally {
       setBusy(false)
     }
   }
   return (
     <div className="card">
-      <h3>Passphrase ändern</h3>
+      <h3>{m.title}</h3>
       {msg && <div className={msg.ok ? 'notice' : 'errorbox'}>{msg.text}</div>}
       <form
         onSubmit={e => {
@@ -133,15 +127,15 @@ function ChangePassphraseCard() {
         }}
       >
         <div className="field">
-          <label htmlFor="cur">Aktuelle Passphrase</label>
+          <label htmlFor="cur">{m.current}</label>
           <input id="cur" type="password" autoComplete="current-password" value={current} onChange={e => setCurrent(e.target.value)} />
         </div>
-        <PassphraseFields value={next} confirm={next2} onChange={setNext} onConfirmChange={setNext2} label="Neue Passphrase" />
+        <PassphraseFields value={next} confirm={next2} onChange={setNext} onConfirmChange={setNext2} label={m.newLabel} />
         {busy ? (
-          <Working label="Wird neu verschlüsselt …" />
+          <Working label={m.working} />
         ) : (
           <button className="primary" type="submit" disabled={!current || !passphraseReady(next, next2)}>
-            Passphrase ändern
+            {m.submit}
           </button>
         )}
       </form>
@@ -151,6 +145,9 @@ function ChangePassphraseCard() {
 
 export default function AppPage() {
   const router = useRouter()
+  const { path, fmtDate, fmtNumber } = useI18n()
+  const t = useMessages(appMessages)
+  const errText = useErrorText()
   const { status, account, masterKey, vault, mutate, refreshAccount, syncError, bootError } = useAccount()
   const [view, setView] = useState<ViewId>('cloud')
   const [search, setSearch] = useState('')
@@ -162,11 +159,14 @@ export default function AppPage() {
   const [devPro, setDevPro] = useState(false)
 
   useEffect(() => {
-    if (status === 'signedOut') router.replace('/anmelden')
-  }, [status, router])
+    if (status === 'signedOut') router.replace(path('/anmelden'))
+  }, [status, router, path])
 
   useEffect(() => {
-    setDevPro(process.env.NODE_ENV !== 'production' && new URLSearchParams(window.location.search).get('pro') === '1')
+    const q = new URLSearchParams(window.location.search)
+    setDevPro(process.env.NODE_ENV !== 'production' && q.get('pro') === '1')
+    const v = q.get('view')
+    if (v === 'plans' || v === 'account' || v === 'send') setView(v)
   }, [])
 
   const onStored = useCallback(
@@ -191,21 +191,21 @@ export default function AppPage() {
           onProgress: p => setDl({ name: entry.name, pct: p.total ? Math.round((p.done / p.total) * 100) : 100 })
         })
       } catch (e) {
-        setError(errorMessage(e, 'Download fehlgeschlagen.'))
+        setError(errText(e) || t.download.failed)
       } finally {
         setBusyId(null)
         setDl(null)
         dlAbort.current = null
       }
     },
-    [masterKey]
+    [masterKey, errText, t]
   )
 
   const onDelete = useCallback(
     async (id: string) => {
       const entry = vault.files.find(f => f.id === id)
       if (!entry) return
-      if (!window.confirm(`„${entry.name}" endgültig löschen?`)) return
+      if (!window.confirm(fmt(t.files.confirmDelete, { name: entry.name }))) return
       setBusyId(id)
       setError(null)
       try {
@@ -219,12 +219,12 @@ export default function AppPage() {
         mutate(c => ({ ...c, files: c.files.filter(f => f.id !== id) }))
         void refreshAccount()
       } catch (e) {
-        setError(errorMessage(e, 'Löschen fehlgeschlagen.'))
+        setError(errText(e))
       } finally {
         setBusyId(null)
       }
     },
-    [vault.files, mutate, refreshAccount]
+    [vault.files, mutate, refreshAccount, errText, t]
   )
 
   const upsertSecret = useCallback(
@@ -239,23 +239,25 @@ export default function AppPage() {
       }),
     [mutate]
   )
-  const deleteSecret = useCallback(
-    (id: string) => mutate(c => ({ ...c, secrets: c.secrets.filter(x => x.id !== id) })),
-    [mutate]
-  )
+  const deleteSecret = useCallback((id: string) => mutate(c => ({ ...c, secrets: c.secrets.filter(x => x.id !== id) })), [mutate])
 
   if (status === 'loading' || status === 'signedOut') {
-    return (
-      <AuthShell>
-        {bootError ? <div className="errorbox">{bootError}</div> : <Working label="Lade Konto …" />}
-      </AuthShell>
-    )
+    return <AuthShell>{bootError ? <div className="errorbox">{bootError}</div> : <Working label={t.loadingAccount} />}</AuthShell>
   }
   if (status === 'locked' || !account || !masterKey) return <UnlockScreen />
 
   const tier = TIER[account.plan]
   const isPro = account.plan !== 'free' || devPro
   const freeBytes = Math.max(0, account.quotaBytes - account.usedBytes)
+  const titles: Record<ViewId, string> = {
+    cloud: t.nav.cloud,
+    send: t.nav.send,
+    plans: t.nav.plans,
+    account: t.nav.account,
+    passwords: t.nav.passwords,
+    notes: t.nav.notes,
+    '2fa': t.nav.totp
+  }
 
   return (
     <div className="shell">
@@ -264,38 +266,28 @@ export default function AppPage() {
         onNavigate={setView}
         usedBytes={account.usedBytes}
         quotaBytes={account.quotaBytes}
-        tierLabel={account.plan === 'free' ? 'Free' : account.plan[0].toUpperCase() + account.plan.slice(1)}
+        tierLabel={PLAN_LABEL[account.plan]}
         tier={tier}
+        showPlans
       />
       <div className="main">
-        <Topbar
-          title={TITLES[view]}
-          search={search}
-          onSearchChange={setSearch}
-          showSearch={view === 'cloud'}
-          right={<AccountMenu />}
-        />
+        <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
         <div className="content">
           {error && (
-            <div className="errorbox" onClick={() => setError(null)} title="Schließen">
+            <div className="errorbox" onClick={() => setError(null)}>
               {error}
             </div>
           )}
           {notice && (
-            <div className="notice" onClick={() => setNotice(null)} title="Schließen">
+            <div className="notice" onClick={() => setNotice(null)}>
               {notice}
             </div>
           )}
-          {syncError && <div className="errorbox">Tresor nicht synchronisiert: {syncError}</div>}
+          {syncError && <div className="errorbox">{fmt(t.syncError, { error: syncError })}</div>}
 
           {view === 'cloud' && (
             <>
-              <AccountUpload
-                masterKey={masterKey}
-                freeBytes={freeBytes}
-                onStored={onStored}
-                onError={msg => setError(msg)}
-              />
+              <AccountUpload masterKey={masterKey} freeBytes={freeBytes} onStored={onStored} onError={msg => setError(msg)} />
               {dl && (
                 <div className="dlbar">
                   <span className="dlbar-name" title={dl.name}>
@@ -306,7 +298,7 @@ export default function AppPage() {
                   </div>
                   <span className="dlbar-pct">{dl.pct}%</span>
                   <button className="small" onClick={() => dlAbort.current?.abort()}>
-                    Abbrechen
+                    {t.download.cancel}
                   </button>
                 </div>
               )}
@@ -317,12 +309,8 @@ export default function AppPage() {
                 searchQuery={search}
                 onDownload={e => void onDownload(e)}
                 onDelete={id => void onDelete(id)}
-                deleteNote="„Entfernen“ löscht die verschlüsselten Daten sofort aus dem Speicher und gibt den Platz frei. Ein Papierkorb folgt in Phase 2."
-                onShare={() =>
-                  setNotice(
-                    'Secure Send für Konto-Dateien kommt in Phase 2: Links, die sich jederzeit widerrufen lassen, mit echter serverseitiger Einmal- und Download-Grenze.'
-                  )
-                }
+                onShare={() => setNotice(t.send.notice)}
+                deleteNote={t.files.deleteNote}
               />
             </>
           )}
@@ -330,28 +318,22 @@ export default function AppPage() {
           {view === 'send' && (
             <div className="card">
               <h3>
-                Secure Send <span>Phase 2</span>
+                {t.send.title} <span>{t.send.badge}</span>
               </h3>
-              <p className="dim">
-                Im Konto-Modus werden Share-Links vom Backend abgesichert: Ablauf, Einmal-Link und Download-Limit gelten global
-                und jeder Link lässt sich sofort widerrufen. Empfänger brauchen weder Konto noch Wallet. Der Schlüssel bleibt wie
-                bisher im URL-Fragment und erreicht nie den Server.
-              </p>
+              <p className="dim">{t.send.body}</p>
             </div>
           )}
+
+          {view === 'plans' && <PlansView />}
 
           {(view === 'passwords' || view === 'notes' || view === '2fa') &&
             (!isPro ? (
               <UpgradeWall
-                title={TITLES[view]}
+                title={titles[view]}
                 description={
-                  view === 'passwords'
-                    ? 'Speichere Logins, Passwörter und Zugänge – Ende-zu-Ende-verschlüsselt in deinem Tresor.'
-                    : view === 'notes'
-                      ? 'Verschlüsselte Notizen für PINs, Recovery-Hinweise, Ideen – niemand sonst liest mit.'
-                      : '2FA-Codes direkt hier: TOTP-Secrets sicher speichern und Codes im Browser erzeugen.'
+                  view === 'passwords' ? t.upgradeWall.passwordsDesc : view === 'notes' ? t.upgradeWall.notesDesc : t.upgradeWall.totpDesc
                 }
-                onUpgrade={() => setView('account')}
+                onUpgrade={() => setView('plans')}
               />
             ) : view === 'passwords' ? (
               <PasswordsPanel
@@ -370,67 +352,65 @@ export default function AppPage() {
             <>
               <div className="grid2">
                 <div className="card">
-                  <h3>Konto</h3>
+                  <h3>{t.account.title}</h3>
                   <div className="stat">
-                    <span className="k">{account.email ? 'E-Mail' : 'Konto'}</span>
+                    <span className="k">{account.email ? t.account.email : t.account.account}</span>
                     <span className="v">{account.email ?? account.label}</span>
                   </div>
                   {account.wallets.map(w => (
                     <div className="stat" key={w}>
-                      <span className="k">Login per Reown</span>
-                      <span className="v" style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
+                      <span className="k">{t.account.login}</span>
+                      <span className="v mono">
                         {w.slice(0, 10)}…{w.slice(-6)}
                       </span>
                     </div>
                   ))}
                   <div className="stat">
-                    <span className="k">Plan</span>
-                    <span className="v">{tier}</span>
+                    <span className="k">{t.account.plan}</span>
+                    <span className="v">{PLAN_LABEL[account.plan]}</span>
                   </div>
                   <div className="stat">
-                    <span className="k">Speicher</span>
+                    <span className="k">{t.account.storage}</span>
                     <span className="v">
-                      {formatBytes(account.usedBytes)} von {formatBytes(account.quotaBytes)}
+                      {formatBytes(account.usedBytes)} / {formatBytes(account.quotaBytes)}
                     </span>
                   </div>
                   <div className="stat">
-                    <span className="k">Dateien · Einträge</span>
+                    <span className="k">{t.account.entries}</span>
                     <span className="v">
-                      {vault.files.length} · {vault.secrets.length}
+                      {fmtNumber(vault.files.length)} · {fmtNumber(vault.secrets.length)}
                     </span>
                   </div>
                   <div className="stat">
-                    <span className="k">Mitglied seit</span>
-                    <span className="v">{new Date(account.createdAt).toLocaleDateString('de-CH')}</span>
+                    <span className="k">{t.account.since}</span>
+                    <span className="v">{fmtDate(account.createdAt)}</span>
+                  </div>
+                  <div className="row" style={{ marginTop: 14 }}>
+                    <button className="primary" onClick={() => setView('plans')}>
+                      {t.account.managePlan}
+                    </button>
                   </div>
                 </div>
-                <StorageOptions />
-              </div>
-              <div className="grid2">
-                <ChangePassphraseCard />
                 <div className="card">
-                  <h3>Sicherheit</h3>
-                  <p className="dim">
-                    Deine Dateien werden im Browser mit AES-256-GCM verschlüsselt. Der Master-Key ist zufällig und nur doppelt
-                    gewrappt gespeichert: mit deiner Passphrase (Argon2id) und mit deinem Recovery-Kit. FocVault und Fil One sehen
-                    ausschließlich verschlüsselte Daten – keine Dateinamen, keine Inhalte.
-                  </p>
+                  <h3>{t.security.title}</h3>
+                  <p className="dim">{t.security.body}</p>
                   <div className="stat">
-                    <span className="k">Schlüsselableitung</span>
+                    <span className="k">{t.security.kdf}</span>
                     <span className="v">
                       Argon2id · {Math.round(account.kdf.m / 1024)} MiB · t={account.kdf.t}
                     </span>
                   </div>
                   <div className="stat">
-                    <span className="k">Auto-Sperre</span>
-                    <span className="v">nach 30 Min. Inaktivität</span>
+                    <span className="k">{t.security.autolock}</span>
+                    <span className="v">{t.security.autolockValue}</span>
                   </div>
                   <div className="stat">
-                    <span className="k">Recovery-Kit</span>
-                    <span className="v">bei Registrierung erstellt · neu erzeugen folgt in Phase 2</span>
+                    <span className="k">{t.security.kit}</span>
+                    <span className="v">{t.security.kitValue}</span>
                   </div>
                 </div>
               </div>
+              <ChangePassphraseCard />
             </>
           )}
         </div>
