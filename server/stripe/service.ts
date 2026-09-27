@@ -8,6 +8,7 @@ import { audit, type Deps } from '../deps'
 import { getPricing } from '../billing/settings'
 import { ApiError } from '../shared/errors'
 import { uuidv7 } from '../shared/ids'
+import { syncFamilyAfterPlanChange } from '../family/service'
 import { stripeTaxEnabled, type Cur, type PriceData, type StripeEventLite, type StripeGateway, type SubscriptionLite } from './gateway'
 
 /**
@@ -253,6 +254,7 @@ export async function applySubscription(deps: Deps, gw: StripeGateway, sub: Subs
         [accountId, itemIds]
       )
     })
+    await syncFamilyAfterPlanChange(deps.db, accountId)
     return
   }
 
@@ -274,6 +276,7 @@ export async function applySubscription(deps: Deps, gw: StripeGateway, sub: Subs
       [accountId]
     )
   })
+  await syncFamilyAfterPlanChange(deps.db, accountId)
   await audit(deps.db, accountId, 'system', 'billing.subscription_ended', { status: sub.status })
 }
 

@@ -1,3 +1,4 @@
+import { pooledUsedBytes } from '../family/service'
 import type { z } from 'zod'
 import type { AccountView, KdfParams, KekType, KeyEnvelope, Plan } from '../../lib/api-types'
 import { audit, type Deps } from '../deps'
@@ -220,7 +221,7 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
   const envelopes: KeyEnvelope[] = keys
     .filter(k => k.kek_type === 'passphrase' || extraKeks.includes(k.kek_type))
     .map(k => ({ kekType: k.kek_type, iv: b64uEncode(k.mk_iv), cipher: b64uEncode(k.mk_wrapped) }))
-  const used = await usedBytes(deps.db, a.id)
+  const used = await pooledUsedBytes(deps.db, a.id)
   const { quotaBytes, ...billing } = await accountBilling(deps, a.id, used)
   return {
     id: a.id,

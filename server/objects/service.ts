@@ -11,6 +11,7 @@ import { quotaFor } from '../billing/quota'
 import { getPricing } from '../billing/settings'
 import { objectPieceKey } from '../storage/provider'
 import { assertFocWritable } from '../foc/health'
+import { pooledUsedBytes } from '../family/service'
 
 const UPLOAD_URL_TTL_SEC = 60 * 60
 const DOWNLOAD_URL_TTL_SEC = 15 * 60
@@ -103,7 +104,7 @@ export async function createObject(
     if (!acc[0]) throw new ApiError('UNAUTHENTICATED', 'Konto nicht gefunden.')
     if (acc[0].status !== 'active') throw new ApiError('FORBIDDEN', 'Konto ist schreibgeschützt.')
     const { quotaBytes: quota } = await quotaFor(tx, acc[0], await getPricing(tx))
-    const used = await usedBytes(tx, session.accountId)
+    const used = await pooledUsedBytes(tx, session.accountId)
     if (used + total > quota) {
       const free = Math.max(0, quota - used)
       const hint =

@@ -41,6 +41,23 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Family: gemeinsamer Speicher, eigene Tresore
+
+Migration v10 (`families`, `family_members`, `family_invites`), `server/family/service.ts`.
+Der Inhaber eines Family-Abos lädt per Link ein (einmalig, 7 Tage, nur gehasht gespeichert; Plätze laut
+Preisbuch inkl. offener Einladungen). Wer den Link öffnet, wird bei Bedarf zur Registrierung geführt und
+danach gefragt, ob er beitreten will. Mitglieder bekommen alle Pro-Module (auch Papierkorb/Versionen)
+und teilen die Quota inkl. Zusatzspeicher des Inhabers; Uploads prüfen den gesamten Pool. Jedes Mitglied
+behält eigenes Konto, eigene Passphrase und eigenen Tresor – der Inhaber sieht nur Namen und Speicher
+je Person, nie Inhalte. Beitritt nur ohne eigenes laufendes Abo; Mitglieder können kein eigenes Abo und
+keinen Zusatzspeicher buchen. Entfernen/Austreten → Free (Daten bleiben). Endet das Family-Abo
+(Kündigung, Stripe, Admin), fallen alle Mitglieder automatisch auf Free.
+Noch nicht: gemeinsamer Familienordner (braucht geteilte Schlüssel, §4.5) – kommt als nächster Schritt.
+
+**Tests:** Vitest 87/87 (Einladen, einmaliger Link, Pool-Speicher, Sperre für eigenes Abo, Entfernen,
+Abo-Ende, Plätze), Playwright 6/6 (neu: Inhaber lädt ein → neues Konto registriert sich über den Link
+→ tritt bei → Pro-Module frei → Link verbraucht → Inhaber entfernt Mitglied).
+
 ### Dateiversionen (Pro/Family)
 
 Gleicher Name im selben Ordner erneut hochgeladen → neue Fassung wird aktuell, die bisherige bleibt als

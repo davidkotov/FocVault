@@ -18,8 +18,9 @@ import type { FocAdminStatus } from '@/server/foc/service'
 import type { FocSyncResult } from '@/server/foc/sync'
 import type { PublicShare, ShareSummary } from '@/server/shares/service'
 import type { FilecoinFileStatus } from '@/server/foc/proofs'
+import type { FamilyView } from '@/server/family/service'
 
-export type { FilecoinFileStatus, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
+export type { FamilyView, FilecoinFileStatus, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
 /** Weiterleitung zu Stripe (Checkout, Kundenportal) */
 export interface Redirect {
@@ -161,6 +162,12 @@ export const api = {
   keepVersion: (id: string) => call<{ purgeAfter: string }>('POST', `/objects/${encodeURIComponent(id)}/version`),
   promoteVersion: (id: string, currentId: string) => call<{ ok: true }>('POST', `/objects/${encodeURIComponent(id)}/promote`, { currentId }),
   listVersions: () => call<{ items: Array<{ objectId: string; purgeAfter: string }> }>('GET', '/objects/versions'),
+  family: () => call<FamilyView>('GET', '/family'),
+  familyInvite: () => call<{ token: string; expiresAt: string }>('POST', '/family/invites'),
+  familyRevokeInvite: (id: string) => call<{ ok: true }>('DELETE', `/family/invites/${encodeURIComponent(id)}`),
+  familyInviteInfo: (token: string) => call<{ ownerLabel: string; expiresAt: string }>('GET', `/family/join?token=${encodeURIComponent(token)}`),
+  familyJoin: (token: string) => call<AccountView>('POST', '/family/join', { token }),
+  familyRemove: (accountId: string) => call<{ ok: true }>('DELETE', `/family/members/${encodeURIComponent(accountId)}`),
   filecoinStatus: () => call<FilecoinFileStatus>('GET', '/objects/filecoin'),
   createShare: (input: { objectId: string; meta: string; expiresInHours: number | null; maxDownloads: number | null }) =>
     call<ShareSummary>('POST', '/shares', input),

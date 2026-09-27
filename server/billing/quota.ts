@@ -1,6 +1,7 @@
 import { GB, type PricingConfig } from '../../lib/pricing'
 import type { Plan } from '../../lib/api-types'
 import type { Db } from '../db'
+import { quotaAccountId } from '../family/service'
 
 /** Business: individuell – bis zur Vertragsanbindung eine großzügige Sicherheitsgrenze. */
 const BUSINESS_QUOTA_BYTES = 100 * 1e12
@@ -31,9 +32,11 @@ export async function quotaFor(
     return { quotaBytes: baseBytes + paygBytes, baseBytes, addonBytes: 0, paygBytes }
   }
   const baseBytes = (account.plan === 'pro' ? pricing.plans.pro.quotaGb : pricing.plans.family.quotaGb) * GB
+  // Family-Mitglieder teilen die Quota (inkl. Zusatzspeicher) des Inhabers
+  const quotaId = account.plan === 'family' ? await quotaAccountId(db, account.id) : account.id
   const rows = await db.query<{ bytes: number }>(
     `SELECT COALESCE(SUM(bytes), 0)::float8 AS bytes FROM account_addons WHERE account_id = $1 AND status = 'active'`,
-    [account.id]
+    [quotaId]
   )
   const addonBytes = Number(rows[0]?.bytes ?? 0)
   return { quotaBytes: baseBytes + addonBytes, baseBytes, addonBytes, paygBytes: 0 }

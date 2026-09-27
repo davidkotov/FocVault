@@ -20,6 +20,7 @@ import TrashView from '@/components/account/TrashView'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import PreviewModal from '@/components/account/PreviewModal'
 import VersionsDialog from '@/components/account/VersionsDialog'
+import FamilyPanel from '@/components/account/FamilyPanel'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
 import { ApiClientError, api } from '@/features/api/client'
@@ -165,7 +166,23 @@ export default function AppPage() {
   const [versionsId, setVersionsId] = useState<string | null>(null)
   const [versionRules, setVersionRules] = useState({ days: 30, max: 10 })
   const [versionPurge, setVersionPurge] = useState<Record<string, string>>({})
+  const [joinInvite, setJoinInvite] = useState<{ token: string; owner: string } | null>(null)
+
+  useEffect(() => {
+    if (status !== 'ready') return
+    const token = sessionStorage.getItem('fv_join')
+    if (!token) return
+    api
+      .familyInviteInfo(token)
+      .then(i => setJoinInvite({ token, owner: i.ownerLabel }))
+      .catch(e => {
+        sessionStorage.removeItem('fv_join')
+        setError(errText(e))
+      })
+    if (window.location.search.includes('join=')) window.history.replaceState(null, '', window.location.pathname)
+  }, [status, errText])
   const [trashDays, setTrashDays] = useState(30)
+  const [freeGb, setFreeGb] = useState(5)
   const [purgeAt, setPurgeAt] = useState<Record<string, string>>({})
   const [sharing, setSharing] = useState<VaultEntry | null>(null)
   const [onFilecoin, setOnFilecoin] = useState<Record<string, { copies: number }>>({})
@@ -182,7 +199,10 @@ export default function AppPage() {
   const [devPro, setDevPro] = useState(false)
 
   useEffect(() => {
-    if (status === 'signedOut') router.replace(path('/anmelden'))
+    // Family-Einladung überlebt Anmeldung/Registrierung (nur in diesem Tab)
+    const join = new URLSearchParams(window.location.search).get('join')
+    if (join && /^[A-Za-z0-9_-]{20,64}$/.test(join)) sessionStorage.setItem('fv_join', join)
+    if (status === 'signedOut') router.replace(path(sessionStorage.getItem('fv_join') ? '/registrieren' : '/anmelden'))
   }, [status, router, path])
 
   useEffect(() => {
@@ -194,6 +214,7 @@ export default function AppPage() {
       .offer()
       .then(o => {
         setTrashDays(o.trashDays)
+        setFreeGb(o.free.quotaGb)
         setVersionRules(o.versions)
       })
       .catch(() => undefined)
@@ -638,8 +659,34 @@ export default function AppPage() {
               <TotpPanel entries={vault.secrets.filter(s => s.kind === 'totp')} onSave={upsertSecret} onDelete={deleteSecret} />
             ))}
 
+          {joinInvite && (
+            <ConfirmDialog
+              title={t.family.joinTitle}
+              body={fmt(t.family.joinBody, { owner: joinInvite.owner })}
+              confirmLabel={t.family.join}
+              cancelLabel={t.family.decline}
+              danger={false}
+              onCancel={() => {
+                sessionStorage.removeItem('fv_join')
+                setJoinInvite(null)
+              }}
+              onConfirm={async () => {
+                const inv = joinInvite
+                setJoinInvite(null)
+                sessionStorage.removeItem('fv_join')
+                try {
+                  await api.familyJoin(inv.token)
+                  await refreshAccount()
+                  setNotice(fmt(t.family.joined, { owner: inv.owner }))
+                } catch (e) {
+                  setError(errText(e))
+                }
+              }}
+            />
+          )}
           {view === 'account' && (
             <>
+              <FamilyPanel freeGb={freeGb} />
               <div className="grid2">
                 <div className="card">
                   <h3>{t.account.title}</h3>

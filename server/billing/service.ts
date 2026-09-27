@@ -24,6 +24,7 @@ import type { SessionInfo } from '../auth/sessions'
 import { usedBytes } from '../accounts/plans'
 import { getPricing, getTreasury } from './settings'
 import { quotaFor } from './quota'
+import { isFamilyMember, pooledUsedBytes, syncFamilyAfterPlanChange } from '../family/service'
 import { stripeGateway } from '../stripe/gateway'
 import {
   stripeBuyAddon,
@@ -104,9 +105,13 @@ export async function changePlan(
   input: { plan: 'free' | 'pro' | 'family'; interval: Interval; currency: Currency },
   ctx: StripeContext = DEV_CONTEXT
 ): Promise<BillingResult> {
+  if (await isFamilyMember(deps.db, session.accountId)) {
+    throw new ApiError('BAD_REQUEST', 'Du bist Mitglied einer Family – für ein eigenes Abo bitte zuerst austreten.')
+  }
   const gw = stripeGateway()
   if (gw) {
     const url = await stripeChangePlan(deps, gw, session, input, ctx)
+    await syncFamilyAfterPlanChange(deps.db, session.accountId)
     return url ? { redirectUrl: url } : {}
   }
   assertPurchasesAllowed()
@@ -155,6 +160,7 @@ export async function changePlan(
       }
     })
   }
+  await syncFamilyAfterPlanChange(deps.db, account.id)
   await audit(deps.db, account.id, 'user', 'billing.plan_changed', { ...input })
   return {}
 }
@@ -163,6 +169,9 @@ export async function buyAddon(deps: Deps, session: SessionInfo, packId: string)
   const account = await loadAccount(deps, session.accountId)
   if (account.plan !== 'pro' && account.plan !== 'family') {
     throw new ApiError('PLAN_REQUIRED', 'Zusatzspeicher gibt es für Pro- und Family-Abos.')
+  }
+  if (await isFamilyMember(deps.db, account.id)) {
+    throw new ApiError('PLAN_REQUIRED', 'Zusatzspeicher für die Familie bucht der Family-Inhaber.')
   }
   const pricing = await getPricing(deps.db)
   const pack = pricing.addons.find(a => a.id === packId)
@@ -198,7 +207,7 @@ export async function cancelAddon(deps: Deps, session: SessionInfo, addonId: str
   const account = await loadAccount(deps, addon.account_id)
   const pricing = await getPricing(deps.db)
   const { quotaBytes } = await quotaFor(deps.db, account, pricing)
-  const used = await usedBytes(deps.db, account.id)
+  const used = await pooledUsedBytes(deps.db, account.id)
   if (actor === 'user' && used > quotaBytes - Number(addon.bytes)) {
     throw new ApiError(
       'BAD_REQUEST',
@@ -291,6 +300,7 @@ export async function adminUpdateAccount(
       input.status ?? null
     ]
   )
+  await syncFamilyAfterPlanChange(deps.db, accountId)
   await audit(deps.db, accountId, 'admin', 'account.updated', { ...input, by: admin.accountId })
 }
 

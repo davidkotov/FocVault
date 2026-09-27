@@ -308,6 +308,33 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       DROP INDEX objects_purge;
       CREATE INDEX objects_purge ON objects (purge_after) WHERE state IN ('trashed', 'version');
     `
+  },
+  {
+    version: 10,
+    name: 'family',
+    sql: `
+      -- Family: ein Abo, gemeinsamer Speicher, jedes Mitglied mit eigenem Konto und eigenem Tresor.
+      CREATE TABLE families (
+        owner_account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE family_members (
+        account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        owner_account_id uuid NOT NULL REFERENCES families(owner_account_id) ON DELETE CASCADE,
+        joined_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX family_members_owner ON family_members (owner_account_id);
+      CREATE TABLE family_invites (
+        id uuid PRIMARY KEY,
+        owner_account_id uuid NOT NULL REFERENCES families(owner_account_id) ON DELETE CASCADE,
+        token_hash bytea NOT NULL UNIQUE,
+        expires_at timestamptz NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        used_at timestamptz,
+        used_by uuid,
+        revoked_at timestamptz
+      );
+    `
   }
 ]
 

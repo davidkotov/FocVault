@@ -1,3 +1,4 @@
+import { syncFamilyAfterPlanChange } from '../family/service'
 import type { AdminStats, Plan } from '../../lib/api-types'
 import { audit, type Deps } from '../deps'
 import { ApiError } from '../shared/errors'
@@ -88,5 +89,6 @@ export async function setPlan(deps: Deps, admin: SessionInfo, accountId: string,
   if (!isUuid(accountId)) throw new ApiError('NOT_FOUND', 'Konto nicht gefunden.')
   const rows = await deps.db.query('UPDATE accounts SET plan = $2 WHERE id = $1 RETURNING id', [accountId, plan])
   if (!rows.length) throw new ApiError('NOT_FOUND', 'Konto nicht gefunden.')
+  await syncFamilyAfterPlanChange(deps.db, accountId)
   await audit(deps.db, accountId, 'admin', 'account.plan_changed', { plan, by: admin.accountId })
 }
