@@ -30,6 +30,10 @@ export const pricingSchema = z.object({
     .min(1)
     .max(12)
     .refine(list => new Set(list.map(a => a.id)).size === list.length, { message: 'Paket-IDs müssen eindeutig sein' }),
+  businessAddons: z
+    .array(z.object({ id: z.string().regex(/^[a-z0-9-]{1,40}$/), gb, ...priced }))
+    .max(12)
+    .refine(list => new Set(list.map(a => a.id)).size === list.length, { message: 'Paket-IDs müssen eindeutig sein' }),
   freeTier: z.object({
     monthlyBudgetChf: amount,
     inactiveWarnDays: z.number().int().min(30).max(3650),

@@ -21,13 +21,13 @@ export const GET = route(async (req, ctx) => {
   const session = await requireSession(req, d.db)
   const prefix = param(ctx, 'prefix').toUpperCase()
   if (!/^[0-9A-F]{5}$/.test(prefix)) throw new ApiError('BAD_REQUEST', 'Ungültiges Präfix.')
-  rateLimit(`pwned:${session.accountId}`, 600, 60 * 60_000)
-  rateLimit(`pwned:ip:${requestMeta(req).ip}`, ipLimit(1200), 60 * 60_000)
+  rateLimit(`pwned:${session.accountId}`, 5000, 60 * 60_000)
+  rateLimit(`pwned:ip:${requestMeta(req).ip}`, ipLimit(10000), 60 * 60_000)
   const hit = cache.get(prefix)
   let body = hit && Date.now() - hit.at < TTL ? hit.body : null
   if (!body) {
-    const r = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, { headers: { 'Add-Padding': 'true', 'User-Agent': 'FocVault-Passwort-Check' } })
-    if (!r.ok) throw new ApiError('STORAGE_UNAVAILABLE', 'Der Leak-Abgleich ist gerade nicht erreichbar.')
+    const r = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, { headers: { 'Add-Padding': 'true', 'User-Agent': 'FocVault-Passwort-Check' }, signal: AbortSignal.timeout(8000) }).catch(() => null)
+    if (!r?.ok) throw new ApiError('STORAGE_UNAVAILABLE', 'Der Leak-Abgleich ist gerade nicht erreichbar.')
     body = await r.text()
     if (cache.size > 5000) cache.clear()
     cache.set(prefix, { at: Date.now(), body })

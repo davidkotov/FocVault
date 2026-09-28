@@ -22,9 +22,19 @@ import type { FamilyView } from '@/server/family/service'
 import type { SpaceState } from '@/server/family/space'
 import type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview } from '@/server/vaults/service'
 import type { EmergencyOverview } from '@/server/emergency/service'
+import type { ComplianceData, TeamAdminView, TeamAuditEvent } from '@/server/team/service'
+import type { SsoConfigView } from '@/server/team/sso'
+import type { StatusOverview } from '@/server/status/service'
+import type { PublicStats } from '@/server/status/public-stats'
+import type { SupportTicket } from '@/server/support/service'
+import type { CreditsView } from '@/server/credits/service'
+import type { SessionListItem } from '@/server/auth/sessions'
+import type { CardLite, InvoiceLite } from '@/server/stripe/gateway'
+import type { TeamPolicy } from '@/lib/api-types'
 import type { RetentionRule, S3Overview } from '@/server/s3/service'
 
-export type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview, EmergencyOverview }
+export type { StatusOverview, SupportTicket, PublicStats, CreditsView }
+export type { SharedVaultState, VaultAuditEvent, VaultRole, VaultsOverview, EmergencyOverview, ComplianceData, TeamAdminView, TeamAuditEvent, SsoConfigView }
 export type { RetentionRule, S3Overview, SpaceState, FamilyView, FilecoinFileStatus, ProofCertificate, FocAdminStatus, FocSettings, FocSyncResult, PublicShare, ShareSummary }
 
 /** Weiterleitung zu Stripe (Checkout, Kundenportal) */
@@ -127,6 +137,8 @@ export const api = {
 
   setPassphrase: (input: { authKey: string; kdf: KdfParams; envelope: KeyEnvelope }) =>
     call<AccountView>('PUT', '/account/passphrase', input),
+  /** Session mit der Passphrase erneut bestätigen (z. B. nach SSO) */
+  reauth: (authKey: string) => call<{ ok: true }>('POST', '/account/reauth', { authKey }),
 
   async getIndex(): Promise<{ version: number; body: Uint8Array<ArrayBuffer> } | null> {
     const res = await send('/vault/index', { method: 'GET' })
@@ -137,6 +149,45 @@ export const api = {
 
   setPublicKey: (publicKey: JsonWebKey) => call<{ ok: true }>('PUT', '/account/pubkey', { publicKey }),
   familySpace: () => call<SpaceState>('GET', '/family/space'),
+  status: () => call<StatusOverview>('GET', '/status'),
+  credits: () => call<CreditsView>('GET', '/credits'),
+  sessions: () => call<{ sessions: SessionListItem[] }>('GET', '/account/sessions'),
+  revokeSession: (id: string) => call<{ ok: true }>('DELETE', `/account/sessions/${encodeURIComponent(id)}`),
+  revokeOtherSessions: () => call<{ ok: true }>('DELETE', '/account/sessions'),
+  deleteAccount: (input: { kind: 'passphrase' | 'recovery'; authKey: string; confirm: 'DELETE' }) => call<{ ok: true; deletedObjects: number }>('DELETE', '/account', input),
+  checkRecovery: (recoveryAuthKey: string) => call<{ checkedAt: string }>('POST', '/account/recovery/check', { recoveryAuthKey }),
+  deposit: (amount: number) => call<{ ok?: true; redirectUrl?: string }>('POST', '/credits/deposit', { amount }),
+  addPaymentMethod: () => call<{ redirectUrl: string }>('POST', '/credits/payment-method'),
+  publicStats: () => call<PublicStats>('GET', '/public/stats'),
+  supportTicket: (t: { firstName: string; lastName: string; email: string; company?: string; categories: string[]; topic?: string; message: string; website?: string }) =>
+    call<{ id: string }>('POST', '/support', t),
+  adminTickets: (status?: string) => call<{ tickets: SupportTicket[] }>('GET', `/admin/support${status ? `?status=${status}` : ''}`),
+  adminUpdateTicket: (id: string, status: 'open' | 'answered' | 'closed', note?: string) => call<{ ok: true }>('PATCH', `/admin/support/${encodeURIComponent(id)}`, { status, note }),
+  adminIncident: (i: { title: string; kind: 'incident' | 'maintenance'; impact: 'degraded' | 'outage' | 'maintenance'; components: string[]; status: string; message: string }) =>
+    call<{ id: string }>('POST', '/admin/status/incidents', i),
+  adminIncidentUpdate: (id: string, status: string, message: string) => call<{ ok: true }>('POST', `/admin/status/incidents/${encodeURIComponent(id)}/updates`, { status, message }),
+  adminStatusCheck: () => call<{ checks: number }>('POST', '/admin/status/check'),
+  team: () => call<TeamAdminView>('GET', '/team'),
+  setTeamPolicy: (p: TeamPolicy) => call<TeamPolicy>('PUT', '/team/policy', p),
+  setTeamRole: (id: string, role: 'admin' | 'member') => call<{ ok: true }>('PATCH', `/team/members/${encodeURIComponent(id)}`, { role }),
+  teamAudit: (q: { from?: string; to?: string; member?: string; kind?: string; limit?: number }) =>
+    call<{ events: TeamAuditEvent[] }>('GET', `/team/audit?${new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)]))}`),
+  teamReport: (days: number) => call<ComplianceData>('GET', `/team/report?days=${days}`),
+  attestPassphrase: (passphraseChars: number) => call<{ ok: true }>('POST', '/account/attest', { passphraseChars }),
+  setRecoveryKey: (publicKey: JsonWebKey, wrapped: unknown) => call<{ generation: number }>('POST', '/team/recovery/key', { publicKey, wrapped }),
+  grantRecoveryKey: (generation: number, grants: Array<{ accountId: string; wrapped: unknown }>) => call<{ ok: true }>('POST', '/team/recovery/grants', { generation, grants }),
+  escrow: (generation: number, wrapped: unknown) => call<{ ok: true }>('POST', '/team/escrow', { generation, wrapped }),
+  recoveryRequest: (target: string, reason: string) => call<{ id: string }>('POST', '/team/recovery/requests', { target, reason }),
+  recoveryDecide: (id: string, approve: boolean) => call<{ ok: true }>('POST', `/team/recovery/requests/${encodeURIComponent(id)}/${approve ? 'approve' : 'reject'}`),
+  recoveryVault: (id: string) =>
+    call<{ targetId: string; generation: number; escrow: unknown; teamKey: unknown; teamPublicKey: JsonWebKey; body: string | null }>('GET', `/team/recovery/requests/${encodeURIComponent(id)}/vault`),
+  recoveryDownload: (id: string, objectId: string) =>
+    call<DownloadResult>('GET', `/team/recovery/requests/${encodeURIComponent(id)}/objects/${encodeURIComponent(objectId)}/download`),
+  sso: () => call<{ config: SsoConfigView | null }>('GET', '/team/sso'),
+  setSso: (c: { issuer: string; clientId: string; clientSecret?: string; domains: string[]; enforce: boolean; autoJoin: boolean }) =>
+    call<{ config: SsoConfigView }>('PUT', '/team/sso', c),
+  deleteSso: () => call<{ ok: true }>('DELETE', '/team/sso'),
+  verifySsoDomain: (domain: string) => call<{ config: SsoConfigView }>('POST', '/team/sso/verify', { domain }),
   emergency: () => call<EmergencyOverview>('GET', '/emergency'),
   createEmergency: (waitHours: number) => call<{ id: string; token: string }>('POST', '/emergency', { waitHours }),
   emergencyInvite: (token: string) => call<{ grantorLabel: string | null; waitHours: number }>('GET', `/emergency/invite/${encodeURIComponent(token)}`),
@@ -151,8 +202,8 @@ export const api = {
   vaults: () => call<VaultsOverview>('GET', '/vaults'),
   createVault: (input: { id: string; wrapped: unknown; body: string }) => call<{ ok: true }>('POST', '/vaults', input),
   deleteVault: (id: string) => call<{ ok: true }>('DELETE', `/vaults/${encodeURIComponent(id)}`),
-  grantVaultKeys: (id: string, generation: number, grants: Array<{ accountId: string; wrapped: unknown }>) =>
-    call<{ ok: true }>('POST', `/vaults/${encodeURIComponent(id)}/keys`, { generation, grants }),
+  grantVaultKeys: (id: string, generation: number, grants: Array<{ accountId: string; wrapped: unknown }>, rotate = false) =>
+    call<{ ok: true }>('POST', `/vaults/${encodeURIComponent(id)}/keys`, { generation, grants, ...(rotate ? { rotate: true } : {}) }),
   putVaultIndex: (id: string, baseVersion: number, body: string) =>
     call<{ version: number }>('PUT', `/vaults/${encodeURIComponent(id)}/index`, { baseVersion, body }),
   addVaultMember: (id: string, accountId: string, role: VaultRole) =>
@@ -266,6 +317,7 @@ export const api = {
     business?: { tier: 'starter' | 'business'; extraSeats: number }
   ) => call<AccountView | Redirect>('PUT', '/billing/plan', { plan, interval, currency, ...(business ?? {}) }),
   billingPortal: () => call<Redirect>('POST', '/billing/portal'),
+  invoices: () => call<{ stripe: boolean; invoices: InvoiceLite[]; card: CardLite | null }>('GET', '/billing/invoices'),
   resumeSubscription: () => call<AccountView>('POST', '/billing/resume'),
   setCurrency: (currency: BillingCurrency) => call<AccountView>('PUT', '/billing/currency', { currency })
 }
@@ -310,6 +362,7 @@ export interface PublicOffer {
   payg: PricingConfig['payg']
   plans: PricingConfig['plans']
   addons: PricingConfig['addons']
+  businessAddons: PricingConfig['businessAddons']
   trashDays: number
   versions: PricingConfig['versions']
   business: PricingConfig['business']

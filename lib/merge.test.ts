@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { merge3, mergeContainers } from './merge'
+import { merge3, mergeContainers, mergeSet } from './merge'
 import type { SecretEntry, VaultEntry } from './vault'
 
 type Item = { id: string; t: number }
@@ -59,5 +59,10 @@ describe('Papierkorb im Index', () => {
     const restored = mergeContainers(moved, { v: 3, files: [file], secrets: [], trash: [] }, moved)
     expect(restored.files.map(f => f.id)).toEqual(['f1'])
     expect(restored.trash).toEqual([])
+  })
+
+  it('Ordner: neu angelegte bleiben, auf einer Seite gelöschte verschwinden', () => {
+    expect(mergeSet(['a', 'b'], ['a', 'b', 'c'], ['a'])).toEqual(['a', 'c'])
+    expect(mergeSet([], ['x'], ['y'])).toEqual(['x', 'y'])
   })
 })

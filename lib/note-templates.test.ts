@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daysUntilExpiry, noteSearchText, parseTags } from './note-templates'
+import { daysUntilExpiry, expiresAtMonthEnd, noteSearchText, parseTags } from './note-templates'
 import type { SecretEntry } from './vault'
 
 const note = (fields: SecretEntry['fields'], extra: Partial<SecretEntry> = {}): SecretEntry => ({
@@ -19,6 +19,8 @@ describe('Notiz-Vorlagen', () => {
     expect(daysUntilExpiry(note([{ key: 'expires', value: '2026-02' }]), now)).toBe(59)
     expect(daysUntilExpiry(note([{ key: 'expires', value: '2025-12-01' }]), now)).toBeLessThan(0)
     expect(daysUntilExpiry(note([{ key: 'expires', value: '' }]), now)).toBeNull()
+    expect(expiresAtMonthEnd(note([{ key: 'expires', value: '2026-10' }]))).toBe(true)
+    expect(expiresAtMonthEnd(note([{ key: 'expires', value: '2026-10-05' }]))).toBe(false)
   })
   it('Suche ohne geheime Felder, Tags bereinigt', () => {
     const n = note([{ key: 'holder', value: 'Anna' }, { key: 'number', value: '4111' }], { template: 'card', tags: ['Bank'] })

@@ -1,4 +1,8 @@
 const de = {
+  peopleTitle: 'Personen & Rechte',
+  peopleCount: '{n} Personen',
+  generation: 'Schlüssel-Generation {n}',
+  newVault: 'Neuer Tresor',
   nav: 'Geteilte Tresore',
   lockTip: 'Upgrade nötig – ab Business Starter',
   upgradeLead: 'Passwörter, Notizen und 2FA-Codes im Team teilen – mit Rechten pro Person, sofortigem Entzug und Protokoll. Ende-zu-Ende-verschlüsselt.',
@@ -62,6 +66,10 @@ const de = {
 }
 
 const en: typeof de = {
+  peopleTitle: 'People & permissions',
+  peopleCount: '{n} people',
+  generation: 'Key generation {n}',
+  newVault: 'New vault',
   nav: 'Shared vaults',
   lockTip: 'Upgrade required – from Business Starter',
   upgradeLead: 'Share passwords, notes and 2FA codes with your team – with per-person permissions, instant revocation and an audit log. End-to-end encrypted.',

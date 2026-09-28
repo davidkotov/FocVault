@@ -41,6 +41,232 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Neon (Postgres, EU Frankfurt) angebunden, Produktions-Fixes
+
+Neon-Projekt „FocVault“ (`aws-eu-central-1`, Postgres 18): Branch `production` für Vercel, Branch `development` für
+lokale Tests. Alle 24 Migrationen laufen auf Neon (49 Tabellen); gesamte Browser-Testsuite gegen Neon grün.
+**Migrationen** mit `pg_advisory_xact_lock` und erneuter Prüfung – mehrere Vercel-Instanzen starten gleichzeitig.
+**Fix (nur mit echter Netzlatenz sichtbar)**: Eine späte Antwort der Konto-Abfrage beim Start sperrte einen gerade
+entsperrten Tresor wieder; ebenso öffneten späte Antworten den Einladungsdialog (Family/Team/Notfallkontakt) nach dem
+Annehmen erneut. Beide ignorieren nun veraltete Antworten.
+**`vercel.json`**: Funktionen in Frankfurt (`fra1`, neben Neon, Verarbeitung in der EU), täglicher Cron
+`/api/v1/cron/maintenance` (PAYG-Abrechnung, Papierkorb, Filecoin-Sync, Statusprüfung; `CRON_SECRET`).
+
+**Demo-Konto** per `BASE_URL=… DEMO_PASS=… npm run seed:demo` (Skript `scripts/seed-demo.mjs`; nur lokal/Preview, sonst `ALLOW_SEED_REMOTE=1`; Zugangsdaten landen in `.demo-credentials.txt`): legt `anna.demo@example.com`
+über die echte Oberfläche an (Verschlüsselung im Browser), setzt den Plan, lädt Dateien und einen Ordner hoch,
+erstellt Passwörter, 2FA-Konten und Notizen (Checkliste, WLAN, Reisepass und Kreditkarte mit Ablauf). Wiederholbar
+ohne Duplikate. Im Neon-Branch `development` angelegt.
+
+**Tests:** Vitest 126/126, Playwright 14/14 (lokal gegen Neon-Branch `development`).
+
+
+### Konto löschen, Landing: Hero wie Anmelden, Live-Karten, Funktionsvergleich bei den Preisen
+
+**Konto löschen** (Reiter in Konto & Sicherheit): Bestätigung mit Passphrase oder Recovery-Wörtern plus getipptem
+„LÖSCHEN“; Server (`DELETE /api/v1/account`) prüft den abgeleiteten Schlüssel, blockiert bei laufendem Abo oder
+Family/Team mit Mitgliedern, löscht alle verschlüsselten Datenstücke und Tresor-Indizes im Speicher und dann das
+Konto (alle Verknüpfungen per Cascade), meldet ab; Hinweis auf der Startseite.
+**Landing**: Hero wie die Anmeldeseite (Matterhorn klar sichtbar, blauer Ton, weisse Schrift, füllt den ganzen
+Abschnitt, 1920/3840-px-Bild für 4K); Sicherheitsabschnitt mit **Live-Karten** (echte AES-256-GCM-Verschlüsselung
+im Browser, Replikation auf drei Speicherorte, Beweis-Zyklus); Modulübersicht oben entfernt – stattdessen
+aufklappbarer **„Alle Funktionen vergleichen“** unter den Preisen (Module × Free/Pro/Family/Business);
+Preiskarten an die neue Aufteilung angepasst.
+**Icons** auch in geteilten Tresoren und bei bekannten Diensten ohne Webseite (z. B. LinkedIn).
+**Logo**: gemeinsamer Schriftzug `Wordmark` („Foc“ dunkel + „Vault“ blau, ohne Lücke) auf Website, Sidebar, Anmeldung, Ladebildschirm und Statusseite.
+
+**Tests:** Vitest 126/126 (neu: Konto löschen), Playwright 14/14.
+
+
+### Ordner, Website-Icons, Favoriten, Geräte & Sitzungen, Konto mit Reitern, Passwörter/Notizen ab Free (Migration v24)
+
+**Meine Cloud**: „Neuer Ordner“, Brotkrumen-Pfad, Ordner aus Dateipfaden plus leere Ordner (verschlüsselt im
+Tresor, `dirs`), Dateien per Ziehen in Ordner verschieben, Hochladen in den offenen Ordner; **Dateien überall auf
+die Seite ziehen** lädt hoch (Overlay). Ablauf-Hinweis für Dokumente auch hier.
+**Passwörter**: Website-Icons (einmalig über `POST /api/v1/icon`, SSRF-geschützt: nur öffentliche Hosts, jede
+DNS-Auflösung inkl. Weiterleitungen geprüft, Grössen-/Zeitlimits; Icon wird auf 64 px verkleinert und
+verschlüsselt im Tresor gespeichert), **Favoriten**, „Kopiert ✓“-Feedback, **2FA direkt im Passwort-Formular**
+(Schlüssel/otpauth oder QR-Scan, Live-Code, verknüpfter 2FA-Eintrag, ab Pro). **2FA**: Icons (vom Passwort oder
+per Name erkannt), Kopier-Animation. **Notizen**: „läuft Ende Oktober ab“ für Karten mit Monat/Jahr.
+**Pläne**: Passwörter und Notizen ab Free; 2FA, Notizen teilen (Server: `PLAN_REQUIRED`) und 2FA im Passwort ab
+Pro. **Pakete**: alte PAYG-Erklärkarte entfernt, Obergrenze direkt änderbar, Aktivieren nur mit Guthaben oder
+Zahlungsmethode (sonst Hinweis mit Weg zu Konto & Sicherheit; Server lehnt ohne Online-Zahlung und Guthaben ab).
+Business-Vergleich: 5/10/20/50/100 oder eigene Anzahl Personen.
+**Konto & Sicherheit**: Reiter öffnen jeweils einen Bereich; Übersicht mit „Anmeldung“ (E-Mail, Paket,
+Speicher, Inhalte, Passphrase, Passkeys, **Auto-Sperre einstellbar** 5 Min.–8 Std. oder eigene Zeit bis 24 Std.,
+pro Gerät, Team-Richtlinie als Obergrenze), Karten Notfallzugang und **Recovery-Kit prüfen** (Wörter bleiben
+lokal, Server prüft nur den abgeleiteten Schlüssel, `recovery_checked_at`), **Geräte & Sitzungen** (einzeln oder
+alle anderen abmelden). Alte Konto-Karte entfernt.
+**Einladungen** (Family, Team, Notfallkontakt) als eigene Ansicht mit Absender und Erklärung; Notfallzugang mit
+Avatar und Fortschritt (Einladung → Angenommen → Bestätigt → Anfrage → Lesezugriff). **Geteilte Tresore**:
+Personen & Rechte mit Avataren, Rollen-Menü, Schlüsselstatus, Avatar-Stapel in der Liste.
+**Secure Send** neu gestaltet: Gültigkeit 1 Std./24 Std./7/30 Tage/**eigenes Datum**/unbegrenzt, Downloads
+1/3/10/**eigene Anzahl**/unbegrenzt, Passwort anzeigen/erzeugen, Zusammenfassung, Erfolgsansicht mit Kopieren und
+„Per E-Mail senden“. **Link-Verlauf** in Secure Send mit Filter und „Link kopieren“ – die vollständigen Links
+(mit Schlüssel) liegen nur verschlüsselt im Tresor (`links`), nie auf dem Server. **Nachweis auf Filecoin** als
+Zertifikatsansicht (Siegel, Kennzahlen, Kopien mit Status, Piece-CID kopieren).
+Fix: Tresor-Parser und Geräte-Merge übernehmen jetzt `dirs` und `links` (3-Wege-Merge für Ordner).
+**Landingpage**: Matterhorn im Hero (leichter Schleier, Berg erkennbar); Abschnitt „Sicherheit“ ohne Bild als
+heller Übergang mit drei Karten und echten Kennzahlen (Verfügbarkeit, Dateien auf Filecoin, Link zur Statusseite);
+die schwebende Live-Box darunter entfällt. Live-Verschlüsselungs-Animation als
+`components/site/marketing/LiveFlow.tsx` für Marketingseiten archiviert.
+
+**Tests:** Vitest 125/125, Playwright 14/14 (account-Test einmal unter Last instabil, einzeln grün).
+
+
+### Business-Seiten 1:1 nach Mockups: Speicher-API, Admin-Konsole, Geteilte Tresore
+
+**Speicher-API**: Abschnittskopf mit „+ Bucket“ und „Zugangsschlüssel erstellen“, Endpoint-Karte mit
+Schnellstart-Reitern (restic, pgBackRest, WAL-G, rclone, Proxmox/Veeam/Synology) im dunklen Codeblock,
+Nutzung pro Bucket, Buckets und Schlüssel als Tabellen (Schutz, Filecoin-Anteil, zuletzt genutzt), Bucket-
+Einstellungen unter der Tabelle. **Admin-Konsole**: „Compliance-Bericht (PDF)“ und „Person einladen“ im
+Seitenkopf, KPIs mit Icons und Teamspeicher, Reiter als Pillen, rechts Richtlinien-Übersicht und letzte
+Ereignisse. **Geteilte Tresore**: erster Tresor öffnet sich direkt (Split-Ansicht), „Neuer Tresor“ im Kopf,
+Anlegen in der Seitenleiste; Passwörter im Tresor ohne leere Ordnerspalte.
+
+
+### Dashboard 1:1 nach Mockups: Kopfzeile, Suche, Pakete, Passwörter, Notizen, 2FA, Konto
+
+**Kopfzeile**: nur Suche, „Tresor entsperrt“, Sperren und Avatar; Avatar-Menü mit Konto, Pakete, Admin,
+Sprache und Abmelden. **Globale Suche** (⌘K oder `/`) über Dateien, Passwörter, Notizen und 2FA mit
+Pfeiltasten; Treffer springen in die passende Ansicht. **Pakete & Speicher**: Privat/Business im Seitenkopf,
+aktuelles Paket mit Aktionen (wechseln, Zahlungsrhythmus, kündigen), Pay-as-you-go-Karte, Zusatzspeicher als
+Kacheln inkl. „Individuell“, Paketvergleich als Tabelle (Business mit Nutzerzahl), **Rechnungen** und
+hinterlegte Karte aus Stripe (`GET /api/v1/billing/invoices`). **Passwörter**: Aktionen im Seitenkopf, eigener
+Passwort-Check, Ordnerleiste mit Zählern, Liste mit Kürzel und Stärke-Badge, Detail mit Kopieren, Öffnen und
+verknüpftem 2FA-Code (live). **Notizen**: Ablauf-Hinweis, Seitenleiste (Angeheftet, Vorlagen, Tags), Liste und
+Detailansicht, „Aus Vorlage“-Menü. **2FA**: Filter, Karten mit Code und Ring. **Konto**: Sicherheitsstatus
+oben, neue Karte „Anmeldung“. **Meine Cloud**: Sortierung, Zeilenaktionen bei Hover.
+Fix: Statusseite gruppierte Tage in lokaler statt UTC-Zeit (um Mitternacht falsch).
+
+**Tests:** Vitest 122/122, Playwright 14/14 (Tests an neue Menüs angepasst).
+
+### Dashboard näher an den Mockups: Listen-Tabelle, Konto-Untermenü, Pakete-Übersicht
+
+**Meine Cloud**: Listenansicht als Tabelle mit Spaltenköpfen (Name, Grösse, Geändert, Sicherung), Badge
+„Filecoin ✓ · n Kopien“ bzw. „EU ✓“, Versions-Knopf neben dem Namen. **Konto & Sicherheit**: Untermenü links
+(Übersicht, Guthaben, Konto, Passphrase, Passkeys, Notfallzugang, Familie & Team) mit Scroll-Markierung.
+**Pakete & Speicher**: Kopf mit aktuellem Paket, Verbrauch aufgeteilt nach Dateien/Versionen/Papierkorb und
+Monatssumme mit Pay-as-you-go- und Zusatzspeicher-Status; ruhigere Paketkarten und Umschalter.
+
+**Tests:** Vitest 122/122, Playwright 14/14.
+
+### Guthaben (Prepaid), neue Anmelde-/Sperr-/Lade-Ansichten (Migration v23)
+
+**Guthaben** unter Konto & Sicherheit: Aufladen per Karte (Stripe-Checkout, Einmalzahlung in Kontowährung,
+Webhook `checkout.session.completed` mit `purpose=credit` bucht idempotent) oder Krypto (Knopf „bald“);
+Zahlungsmethode hinterlegen (Stripe-Setup, `purpose=card`). `credit_ledger` mit Einzahlung/Verbrauch;
+Pay-as-you-go-Monatsabschluss verrechnet zuerst das Guthaben, nur der Rest geht auf die Karte.
+**Pay-as-you-go manuell starten**: mit Guthaben auch ohne Karte; sonst Karte über Stripe.
+Stripe-Sandbox lokal geprüft (echter Checkout mit Testkarte, Webhook über `stripe listen`, Guthaben +10);
+Schlüssel danach wieder auskommentiert – Aktivierung zusammen mit Neon.
+**Anmelden, Registrieren, Wiederherstellen, Secure-Send-Empfang, Tresor entsperren**: geteilte Ansicht mit
+Matterhorn links (Titel, drei Aussagen je Seite) und Formular rechts; Entsperren mit Kontokarte und
+Anzeigen/Verbergen der Passphrase. **Ladebildschirm** mit Marke, Ring und Fortschrittsbalken.
+Suchfeld per `/` fokussieren.
+
+**Tests:** Vitest 122/122 (neu `server/credits`), Playwright 14/14.
+
+### Dashboard im Stil der Mockups
+
+Gemeinsames Gerüst: Seitenleiste mit Gruppen Tresor / Business / API-Module, aktiver Eintrag dunkel,
+Speicher-Widget mit „Verwalten“; Kopfzeile mit Suche (Kürzel-Hinweis), „Tresor entsperrt“, ruhigere
+Konto-Knöpfe; Seitentitel mit Beschreibung und Hauptaktion; Karten-Titel linksbündig ohne Punkt.
+**Meine Cloud:** Kennzahlen (Belegt mit Aufteilung, auf Filecoin gesichert, aktive Links, Papierkorb),
+schmale Ablagezone, Listenansicht (Standard) oder Kacheln – gleiche Elemente, Drag & Drop unverändert.
+**Konto & Sicherheit:** Sicherheitsstatus mit Ring und nächster Empfehlung. **Passwörter:** Ordner | Liste |
+Details (Kopieren, Anzeigen, Stärke, Webseite). **Notizen:** Suche und Tags links. **2FA:** Kacheln mit
+grossem Code (Klick kopiert) und Countdown-Ring. **Geteilte Tresore:** Liste links, Tresor rechts.
+**Admin-Konsole:** Kennzahlen oben. **Speicher-API:** Modul-Katalog (S3, Backup-Programm, Webhooks, SSO).
+Mockups liegen unter `public/mockups/dash/` (nicht im Repo).
+
+**Tests:** Vitest 121/121, Playwright 14/14 (1 Worker).
+
+### Neue Landingpage (/v2), /sicherheit, Rechtsseiten, Team, Icons statt Emojis
+
+**/v2** (Entwurf zum Vergleich, die alte Landing bleibt unter /): Hero mit Dashboard-Vorschau, Alpen-Sektion
+(Matterhorn 4K, `public/matterhorn*.jpg`, Unsplash-Lizenz) mit Live-Ablauf im Dashboard, Live-Leiste mit
+**echten** Kennzahlen (`/api/v1/public/stats`: Verfügbarkeit 90 Tage, gespeicherte Datenmenge, Dateien auf
+Filecoin), alle 17 Dashboard-Module mit Filter Privat/Family/Business, Architektur, „Warum Schweiz & EU“,
+sachlicher Vergleich (Dropbox, Google Drive, 1Password; mit Stand und Fussnote), Nachweise (Status,
+PDP-Explorer, Sicherheit, security.txt), Preise (gemeinsame `PricingSection`), Apps (Web jetzt; App Store,
+Google Play, macOS, Windows, Linux „bald“), neue FAQ, Team-Teaser, Abschluss-CTA.
+**/sicherheit**: Live-Verschlüsselung im Browser (echtes AES-256-GCM mit Tab-Schlüssel), animierte
+Schlüsselhierarchie, Weg einer Datei, Secure-Send-Fragment, Verfahren, „was wir sehen“, Meldestelle;
+`public/.well-known/security.txt`.
+**Rechtliches**: /impressum, /datenschutz, /agb, /avv (DE/EN, `lib/legal/content.ts`), Firmenangaben zentral in
+`lib/legal/company.ts` (Platzhalter markiert, Entwurfs-Hinweis bis `final: true`), AVV als PDF.
+**/team** mit Platzhaltern für Personen und Fotos, Werte, Standort, Kontakte.
+Kopf-/Fusszeile verlinken Sicherheit, Team, Kontakt, alle Rechtsseiten; englische Pfade /en/security, /privacy,
+/terms, /dpa, /imprint. **Dashboard**: Emojis durch einheitliche Linien-Icons ersetzt (Dateikacheln, Ordner,
+Notiz-Vorlagen, Tresore, Passkeys, Speicher-API, Speichernachweis, Secure-Send-Seite, Anmelden, Upgrade).
+
+**Tests:** Vitest 121/121, Playwright 14/14 (neu `e2e/landing-v2.spec.ts`).
+
+### Review-Follow-ups (Sicherheit) + Business-Zusatzspeicher ab 3 TB (Migration v22)
+
+- **Geteilte Tresore, Rotations-Race:** neue Generation nur mit `rotate: true`, geprüft unter
+  `SELECT … FOR UPDATE` auf den Tresor; existiert die Generation schon → `VERSION_CONFLICT` (Client lädt neu),
+  ohne Kennzeichen entsteht nie eine neue Generation.
+- **Geteilte Tresore, Schreiben während `rotate_needed`:** abgelehnt (`VERSION_CONFLICT`), bis ein Verwalter
+  den Schlüssel gewechselt hat.
+- **Notfallzugang:** alle Statuswechsel mit Ausgangsstatus im `UPDATE … RETURNING` (accept: `invited` und
+  nicht abgelaufen, confirm: `accepted`, request: `confirmed`, approve/reject: `requested`). Der geöffnete
+  Tresor wird ohne `familyKey` angezeigt (auch beim Firmen-Notfallzugriff); Warnhinweis vor dem Bestätigen
+  und nach dem Entziehen eines genutzten Zugriffs. Grenze: Wer den Master-Key hatte, behält, was er sah.
+- **Secure Send:** Notizinhalt wird beim Widerruf, nach dem letzten erlaubten Abruf und (Wartung) nach Ablauf
+  gelöscht; `shares.has_note` hält die Anzeige „Notiz“ stabil.
+- **Passwort-Check:** HIBP-Abruf mit 8-s-Zeitlimit, höhere Grenzen, 6 parallele Abfragen, Teilfehler brechen
+  nicht ab („n Passwörter konnten nicht geprüft werden“), Fortschritt bei vielen Einträgen.
+- **Zusatzspeicher Business** beginnt bei 3 TB (1-TB-Paket entfernt).
+
+**Tests:** Vitest 121/121 (neu: Rotations-Race, Schreibsperre, Payload-Löschung), Playwright 13/13 (1 Worker).
+
+### Support, Dokumentation, Statusseite, Business-Zusatzspeicher (Migration v21)
+
+**/support** (nach Vorbild fil.one/support): Karten Dokumentation + Status (mit Live-Punkt), häufige Fragen
+(Akkordeon), Formular mit Vorname, Nachname, E-Mail, Firma, Beschreibung, Kategorien, Datenschutzhinweis,
+Antwortzeit. Honeypot + Rate-Limit; `?topic=storage&plan=…` füllt eine Speicher-Anfrage vor. Anfragen im
+Admin unter „Support“ (Status offen/beantwortet/erledigt, interne Notiz, Antwort per Mail-Link).
+**/docs**: 16 Artikel DE/EN (Erste Schritte, Sicherheit, Funktionen, Teams & Business, Entwickler,
+Abrechnung) mit Suche und Seitennavigation (`lib/docs/content.ts`).
+**/status** (nach Vorbild status.fil.one): Gesamtzustand, je Komponente (Web-App & API, Speicher Fil One,
+Filecoin, Speicher-API) 90-Tage-Balken aus echten Messungen (alle 5 Minuten in der Hintergrund-Wartung:
+DB-Abfrage, Schreib-/Lesetest im Speicher, letzter FOC-Lauf, S3-Endpunkt) plus Meldungen mit Verlauf.
+Störungen/Wartungen im Admin unter „Status“ melden und fortschreiben; RSS-Feed `/api/v1/status/rss`.
+**Zusatzspeicher Business:** 1, 3, 5, 50, 100, 1000 TB (`businessAddons` im Preisbuch); überall Kachel
+„Individuelle Menge → Anfrage senden“ (führt zum vorausgefüllten Support-Formular).
+**Kopf-/Fußzeile** als gemeinsame Komponente (`components/site/SiteChrome.tsx`), Links ohne Unterstreichung,
+neue Spalte „Ressourcen“ (Dokumentation, Support, Status); „Dokumentation“ zeigte vorher auf docs.fil.one.
+
+**Tests:** Vitest 121/121 (neu `server/status`), Playwright 13/13 (neu `e2e/site.spec.ts`; `emergency.spec`
+unter Parallel-Last gelegentlich zu langsam, einzeln grün).
+
+### Business: Admin-Konsole, Richtlinien, Protokoll & PDF-Bericht, Firmen-Notfallzugriff, SSO (Migration v20)
+
+Neuer Seitenleisten-Abschnitt **Business** (Geteilte Tresore, Admin-Konsole; ohne Business Schloss).
+**Rollen:** Inhaber, Admin, Mitglied (`family_members.role`); Admin vergibt nur der Inhaber; Mitglieder sehen
+die Konsole nicht. **Richtlinien** (`team_policies`): Passkey-Pflicht, Mindestlänge der Passphrase, Auto-Sperre
+(Minuten, auf allen Geräten), Secure-Send-Links erlauben / höchstens N Tage (serverseitig in `createShare`
+durchgesetzt), Firmen-Notfallzugriff verlangen. Passphrase-Länge meldet das Gerät beim Entsperren/Ändern
+(`/account/attest`) – Zero-Knowledge, der Server kann sie nicht selbst prüfen. Mitglieder sehen Hinweise im
+Dashboard; die Mitgliederübersicht zeigt je Person Passkeys, Passphrase-Länge, Hinterlegung, zuletzt aktiv
+und Richtlinien-Status. **Protokoll:** alle Ereignisse des Teams mit Filtern (Person, Bereich, Zeitraum),
+CSV-Export, **Compliance-Bericht als PDF** (eigener kleiner PDF-Erzeuger `lib/pdf.ts`, ohne Abhängigkeit):
+Team, Richtlinien, Personen-Status, Speicher und Filecoin-Beweise, Notfallzugriffe, Ereignisse.
+**Firmen-Notfallzugriff (Vier-Augen):** Inhaber erzeugt im Browser einen Team-Schlüssel (ECDH), der private
+Teil liegt nur je Admin verpackt vor (Admins geben ihn automatisch weiter). Mitglieder hinterlegen ihren
+Master-Key mit der Passphrase. Admin stellt Antrag mit Begründung → ein **anderer** Admin gibt frei (DB-Check
+`approved_by <> requested_by`) → 24 h Lesezugriff nur für die beiden Beteiligten. Die Person sieht jeden
+Zugriff mit Begründung. Neuer Team-Schlüssel → alle hinterlegen neu.
+**SSO (Enterprise):** OpenID Connect mit PKCE, Nonce, State; ID-Token-Prüfung (RS256/ES256 über JWKS mit
+`node:crypto`), Domains, Client-Secret mit SERVER_SECRET verschlüsselt. „SSO erzwingen“ sperrt die
+Passphrase-Anmeldung für die Domains (Inhaber ausgenommen); „automatisch beitreten“ erzeugt beim ersten
+SSO-Login eine Team-Einladung. SSO ersetzt nur die Anmeldung, entschlüsselt wird weiter mit Passphrase/Passkey.
+Redirect-URI: `<APP_ORIGIN>/api/v1/auth/sso/callback`.
+
+**Tests:** Vitest 119/119 (neu `server/team/*`, `lib/pdf`), Playwright 12/12 (neu `e2e/team-admin.spec.ts`
+mit drei Konten: Rollen, Richtlinien, Vier-Augen-Zugriff mit Datei-Download, Protokoll, PDF, SSO-Fehlerfall).
+
 ### Passwort-Check
 
 Leiste über der Passwortliste: **schwach** (Entropie-Schätzung mit Abzügen für Wörterbuch-, Wiederholungs-,

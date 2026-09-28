@@ -1,5 +1,6 @@
 'use client'
 
+import { Icon } from '@/components/site/Icons'
 import { useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 
@@ -16,7 +17,9 @@ export default function UpgradeWall({ title, description, onUpgrade, body, cta }
   const m = useMessages(appMessages).upgradeWall
   return (
     <div className="card upgradewall">
-      <div className="upgradeicon">🔐</div>
+      <div className="upgradeicon">
+        <Icon name="lock" size={30} />
+      </div>
       <h3>{title}</h3>
       <p className="dim">{description}</p>
       <p className="dim">{body ?? m.body}</p>

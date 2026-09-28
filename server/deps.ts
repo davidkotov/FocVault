@@ -1,11 +1,17 @@
 import { getDb, type Db } from './db'
 import { getStorage } from './storage'
 import type { StorageProvider } from './storage/provider'
+import type { SafeFetchInit, SafeResponse } from './net/safe-fetch'
 
 /** Abhängigkeiten der Services – in Routen aus Singletons, in Tests aus In-Memory-Varianten. */
 export interface Deps {
   db: Db
   storage: StorageProvider
+  /** Netzwerk nach außen (SSO-Anbieter, DNS) – in Tests ersetzbar; Standard: SSRF-geschützter Abruf bzw. node:dns */
+  net?: {
+    fetch?: (url: string, init?: SafeFetchInit) => Promise<SafeResponse>
+    resolveTxt?: (name: string) => Promise<string[][]>
+  }
 }
 
 export async function deps(): Promise<Deps> {

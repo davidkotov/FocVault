@@ -1,11 +1,12 @@
 'use client'
 
+import Wordmark from '@/components/Wordmark'
 import { useState } from 'react'
 import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 import { formatBytes, type TierName } from '@/lib/vault'
 
-export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder' | 'storageApi' | 'sharedVaults' | 'emergency'
+export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder' | 'storageApi' | 'sharedVaults' | 'emergency' | 'teamAdmin'
 
 interface Props {
   view: ViewId
@@ -27,6 +28,8 @@ interface Props {
   apiLockTip?: string
   /** Geteilte Tresore (Business) */
   sharedVaultsLabel?: string
+  businessSection?: string
+  teamAdminLabel?: string
 }
 
 const ICONS: Record<ViewId, JSX.Element> = {
@@ -95,6 +98,13 @@ const ICONS: Record<ViewId, JSX.Element> = {
       <circle cx="15" cy="13" r="1.6" />
     </>
   ),
+  teamAdmin: (
+    <>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+      <path d="M17 11l1.5 1.5L21 10" />
+    </>
+  ),
   emergency: (
     <>
       <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
@@ -110,7 +120,7 @@ const ICONS: Record<ViewId, JSX.Element> = {
 }
 
 /** Seitenleiste; auf dem Handy als ausklappbares Menü (Burger-Button in der Topbar-Zeile). */
-export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, storageApi = false, storageApiLabel = 'Speicher-API', apiSection = 'API-Module', apiLockTip = 'Upgrade nötig – ab Business Starter', sharedVaultsLabel = 'Geteilte Tresore' }: Props) {
+export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, storageApi = false, storageApiLabel = 'Speicher-API', apiSection = 'API-Module', apiLockTip = 'Upgrade nötig – ab Business Starter', sharedVaultsLabel = 'Geteilte Tresore', businessSection = 'Business', teamAdminLabel = 'Admin-Konsole' }: Props) {
   const m = useMessages(appMessages).nav
   const [open, setOpen] = useState(false)
   const pct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0
@@ -145,7 +155,7 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
           <rect x="15" y="17" width="10" height="9" rx="2" fill="#fff" />
           <path d="M17 17v-2a3 3 0 0 1 6 0v2" stroke="#fff" strokeWidth="2.4" fill="none" />
         </svg>
-        Foc<span style={{ color: 'var(--accent)' }}>Vault</span>
+        <Wordmark />
         <button className="navtoggle" aria-label={m.menu} aria-expanded={open} onClick={() => setOpen(o => !o)}>
           <svg viewBox="0 0 24 24" width="22" height="22">
             {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
@@ -159,10 +169,13 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
         <Item id="account" label={m.account} />
 
         <div className="navsection">{m.more}</div>
-        <Item id="passwords" label={m.passwords} locked={!pro} />
-        <Item id="notes" label={m.notes} locked={!pro} />
+        <Item id="passwords" label={m.passwords} />
+        <Item id="notes" label={m.notes} />
         <Item id="2fa" label={m.totp} locked={!pro} />
+
+        <div className="navsection">{businessSection}</div>
         <Item id="sharedVaults" label={sharedVaultsLabel} locked={!storageApi} tip={apiLockTip} />
+        <Item id="teamAdmin" label={teamAdminLabel} locked={!storageApi} tip={apiLockTip} />
 
         <div className="navsection">{apiSection}</div>
         <Item id="storageApi" label={storageApiLabel} locked={!storageApi} tip={apiLockTip} />
@@ -179,13 +192,12 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
           <div className="quotabar">
             <div className={pct >= 100 ? 'full' : ''} style={{ width: `${pct}%` }} />
           </div>
-          {tier === 'FREE' ? (
-            <button className="primary small" style={{ width: '100%' }} onClick={() => go(showPlans ? 'plans' : 'account')}>
-              {m.upgrade}
+          <div className="lbl" style={{ marginTop: 8, marginBottom: 0 }}>
+            <span>{tier === 'FREE' ? 'Free' : fmt(m.active, { plan: tierLabel })}</span>
+            <button className="linkish quotalink" onClick={() => go(showPlans ? 'plans' : 'account')}>
+              {tier === 'FREE' ? m.upgrade : m.manage}
             </button>
-          ) : (
-            <span className="badge pro">{fmt(m.active, { plan: tierLabel })}</span>
-          )}
+          </div>
         </div>
       </nav>
     </aside>

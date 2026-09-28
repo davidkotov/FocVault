@@ -23,12 +23,12 @@ const de = {
   free: {
     name: 'Free',
     tagline: 'Zum Ausprobieren und für das Wichtigste.',
-    features: ['{gb} GB Speicher', 'Zero-Knowledge-Verschlüsselung', 'Secure Send', 'Mehr Platz per Pay-as-you-go']
+    features: ['{gb} GB Speicher', 'Zero-Knowledge-Verschlüsselung', 'Passwort-Manager & Notizen', 'Secure Send für Dateien', 'Mehr Platz per Pay-as-you-go']
   },
   pro: {
     name: 'Pro',
     tagline: 'Deine komplette private Cloud.',
-    features: ['{tb} TB Speicher', 'Passwort-Manager, Notizen, 2FA', 'Zusatzspeicher jederzeit buchbar', 'Priorisierter Support']
+    features: ['{tb} TB Speicher', '2FA-Authenticator & Passkeys', 'Notizen teilen, Notfallzugang', 'Zusatzspeicher jederzeit buchbar', 'Priorisierter Support']
   },
   family: {
     name: 'Family',
@@ -94,6 +94,11 @@ const de = {
     disabled: 'Pay-as-you-go ist deaktiviert.',
     capSaved: 'Obergrenze gespeichert.'
   },
+  paygSide: { lead: 'Nur bei Free relevant: über {gb} GB hinaus {price} pro GB und Monat, mit Obergrenze.', cap: 'Obergrenze', capValue: '{gb} GB · max. {max}', thisMonth: 'Diesen Monat', inactivePlan: 'Im Paket {plan} inaktiv.', needPay: 'Zum Aktivieren brauchst du eine hinterlegte Zahlungsmethode – Guthaben wird trotzdem zuerst verwendet.', toCredits: 'Zu Konto & Sicherheit', howBilled: 'Abgerechnet wird der Monatsdurchschnitt über 5 GB – zuerst aus deinem Guthaben, der Rest über die Zahlungsmethode. Die Obergrenze kannst du jederzeit ändern.' },
+  grid: { rhythm: 'im gleichen Rhythmus wie dein Abo · monatlich kündbar', perYear: 'pro Jahr', perMonth: 'pro Monat', booked: 'Gebucht', customTitle: 'Individuell', customQ: 'Mehr Speicher?', customLead: 'Angebot auf Anfrage', customBtn: 'Anfragen', locked: 'Zusatzspeicher gibt es ab Pro' },
+  compare: { title: 'Pakete im Vergleich', hintYear: 'Preise pro Monat bei jährlicher Zahlung', hintMonth: 'Preise pro Monat bei monatlicher Zahlung', plan: 'Paket', storage: 'Speicher', people: 'Personen', price: 'Preis', current: 'aktuell', from: 'ab', view: 'Ansehen', customSeats: 'Andere Anzahl …', customSeatsLabel: 'Anzahl Personen' },
+  inv: { title: 'Rechnungen', via: 'Zahlung über Stripe', none: 'Noch keine Rechnungen.', off: 'Online-Zahlung ist noch nicht aktiviert – es gibt noch keine Rechnungen.', paid: 'Bezahlt', open: 'Offen', expires: 'läuft ab {date}', change: 'Zahlungsmittel ändern', noCard: 'Keine Karte hinterlegt', add: 'Karte hinterlegen' },
+  hero: { toPlan: 'Zu {plan} wechseln', payMonthly: 'Monatlich zahlen', payYearly: 'Jährlich zahlen', cancel: 'Kündigen', perMonthTotal: '{amount} pro Monat', current: 'Aktuell', extra: 'Zusatz', files: 'Dateien', versions: 'Versionen', trash: 'Papierkorb', paygOn: 'aktiv · bis {gb} GB', paygOff: 'aus', addons: 'Zusatzspeicher' },
   addons: {
     title: 'Zusatzspeicher',
     intro: 'Mehr Platz für dein Abo – im gleichen Rhythmus wie dein Abo, jederzeit kündbar.',
@@ -102,7 +107,10 @@ const de = {
     cancel: 'Kündigen',
     cancelled: 'Zusatzspeicher gekündigt.',
     grant: 'Gutschrift',
-    yours: 'Deine Zusatzpakete'
+    yours: 'Deine Zusatzpakete',
+    custom: 'Individuelle Menge',
+    customLead: 'Mehr oder eine andere Grösse? Wir machen dir ein Angebot.',
+    customButton: 'Anfrage senden'
   },
   planChanged: 'Plan geändert: {plan}.',
   devNote: 'Entwicklungsmodus: Änderungen werden ohne Zahlung aktiviert.',
@@ -153,12 +161,12 @@ const en: typeof de = {
   free: {
     name: 'Free',
     tagline: 'To try things out and keep what matters.',
-    features: ['{gb} GB storage', 'Zero-knowledge encryption', 'Secure Send', 'More space with pay-as-you-go']
+    features: ['{gb} GB storage', 'Zero-knowledge encryption', 'Password manager & notes', 'Secure Send for files', 'More space with pay-as-you-go']
   },
   pro: {
     name: 'Pro',
     tagline: 'Your complete private cloud.',
-    features: ['{tb} TB storage', 'Password manager, notes, 2FA', 'Add storage any time', 'Priority support']
+    features: ['{tb} TB storage', '2FA authenticator & passkeys', 'Share notes, emergency access', 'Add storage any time', 'Priority support']
   },
   family: {
     name: 'Family',
@@ -224,6 +232,11 @@ const en: typeof de = {
     disabled: 'Pay-as-you-go is off.',
     capSaved: 'Limit saved.'
   },
+  paygSide: { lead: 'Only relevant on Free: beyond {gb} GB, {price} per GB and month, with a cap.', cap: 'Cap', capValue: '{gb} GB · max. {max}', thisMonth: 'This month', inactivePlan: 'Inactive on the {plan} plan.', needPay: 'To activate, add a payment method – your credit is still used first.', toCredits: 'Go to Account & security', howBilled: 'You pay for the monthly average above 5 GB – from your credit first, the rest via your payment method. You can change the cap at any time.' },
+  grid: { rhythm: 'billed with your subscription · cancel monthly', perYear: 'per year', perMonth: 'per month', booked: 'Booked', customTitle: 'Custom', customQ: 'Need more?', customLead: 'Quote on request', customBtn: 'Request', locked: 'Extra storage is available from Pro' },
+  compare: { title: 'Plans compared', hintYear: 'Monthly prices when paid yearly', hintMonth: 'Monthly prices when paid monthly', plan: 'Plan', storage: 'Storage', people: 'People', price: 'Price', current: 'current', from: 'from', view: 'View', customSeats: 'Other number …', customSeatsLabel: 'Number of people' },
+  inv: { title: 'Invoices', via: 'Payments via Stripe', none: 'No invoices yet.', off: 'Online payment is not enabled yet – no invoices so far.', paid: 'Paid', open: 'Open', expires: 'expires {date}', change: 'Change payment method', noCard: 'No card on file', add: 'Add card' },
+  hero: { toPlan: 'Switch to {plan}', payMonthly: 'Pay monthly', payYearly: 'Pay yearly', cancel: 'Cancel', perMonthTotal: '{amount} per month', current: 'Current', extra: 'extra', files: 'Files', versions: 'Versions', trash: 'Trash', paygOn: 'on · up to {gb} GB', paygOff: 'off', addons: 'Extra storage' },
   addons: {
     title: 'Extra storage',
     intro: 'More space for your plan – billed with your subscription, cancel any time.',
@@ -232,7 +245,10 @@ const en: typeof de = {
     cancel: 'Cancel',
     cancelled: 'Extra storage cancelled.',
     grant: 'Credit',
-    yours: 'Your add-ons'
+    yours: 'Your add-ons',
+    custom: 'Custom amount',
+    customLead: 'Need more or a different size? We will send you an offer.',
+    customButton: 'Send request'
   },
   planChanged: 'Plan changed: {plan}.',
   devNote: 'Development mode: changes are activated without payment.',

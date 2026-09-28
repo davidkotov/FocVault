@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { resetRateLimits } from '../auth/ratelimit'
 import { completeObject, createObject, deleteObject } from '../objects/service'
 import { objectPieceKey } from '../storage/provider'
-import { newAccount, testDeps } from '../testing'
-import { createShare, listShares, publicShare, revokeShare, startShareDownload } from './service'
+import { afterQuery, newAccount, testDeps } from '../testing'
+import { createShare, listShares, publicShare, purgeSharePayloads, revokeShare, startShareDownload } from './service'
 
 const meta = Buffer.from('verschluesselte-metadaten-0123456789').toString('base64')
 
@@ -77,19 +77,54 @@ describe('Secure Send (Konto-Modus)', () => {
     const deps = await testDeps()
     const { session, objectId: a } = await storedFile(deps, 'note@example.com')
     const payload = Buffer.from('verschlüsselte Notiz, mindestens zwanzig Zeichen').toString('base64')
-    const note = await createShare(deps, session, { objectIds: [], meta, payload, expiresInHours: 1, maxDownloads: 1 })
+    // Free: Notizen teilen erst ab Pro
+    await expect(createShare(deps, { ...session, plan: 'free' }, { objectIds: [], meta, payload, expiresInHours: 1, maxDownloads: 1 })).rejects.toMatchObject({ code: 'PLAN_REQUIRED' })
+    const pro = { ...session, plan: 'pro' as const }
+    const note = await createShare(deps, pro, { objectIds: [], meta, payload, expiresInHours: 1, maxDownloads: 1 })
     expect(note).toMatchObject({ objectId: null, objectIds: [], hasPayload: true, active: true })
     const pub = await publicShare(deps, note.id)
     expect(pub).toMatchObject({ hasPayload: true, objectIds: [] })
     expect(JSON.stringify(pub)).not.toContain(payload)
     expect((await startShareDownload(deps, note.id)).payload).toBe(payload)
     await expect(startShareDownload(deps, note.id)).rejects.toMatchObject({ code: 'GONE' })
+    // Inhalt nach dem letzten Abruf gelöscht
+    expect((await deps.db.query<{ payload: unknown }>('SELECT payload FROM shares WHERE id = $1', [note.id]))[0].payload).toBeNull()
+    // Widerruf und Ablauf löschen den Inhalt ebenfalls
+    const n2 = await createShare(deps, pro, { objectIds: [], meta, payload, expiresInHours: 1, maxDownloads: null })
+    await revokeShare(deps, session, n2.id)
+    const n3 = await createShare(deps, pro, { objectIds: [], meta, payload, expiresInHours: 1, maxDownloads: null })
+    await deps.db.query(`UPDATE shares SET expires_at = now() - interval '1 minute' WHERE id = $1`, [n3.id])
+    expect(await purgeSharePayloads(deps)).toBe(1)
+    const left = await deps.db.query<{ n: number }>('SELECT count(*)::float8 AS n FROM shares WHERE payload IS NOT NULL AND id = ANY($1)', [[n2.id, n3.id]])
+    expect(Number(left[0].n)).toBe(0)
     // Notiz mit Anhang: Anhang wird hart gelöscht → Link bleibt (nur Inhalt)
-    const withFile = await createShare(deps, session, { objectIds: [a], meta, payload, expiresInHours: null, maxDownloads: null })
+    const withFile = await createShare(deps, pro, { objectIds: [a], meta, payload, expiresInHours: null, maxDownloads: null })
     await deps.db.query('DELETE FROM objects WHERE id = $1', [a])
     const dl = await startShareDownload(deps, withFile.id)
     expect(dl.items).toEqual([])
     expect(dl.payload).toBe(payload)
-    await expect(createShare(deps, session, { objectIds: [], meta, expiresInHours: 1, maxDownloads: 1 })).rejects.toThrow()
+    await expect(createShare(deps, pro, { objectIds: [], meta, expiresInHours: 1, maxDownloads: 1 })).rejects.toThrow()
+  })
+
+  it('gleichzeitige Abrufe: jeder gezählte Abruf erhält den Inhalt, auch wenn der letzte ihn löscht', async () => {
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'race@example.com')
+    const pro = { ...session, plan: 'pro' as const }
+    const payload = Buffer.from('verschlüsselte Notiz für zwei Abrufe, lang genug').toString('base64')
+    const note = await createShare(deps, pro, { objectIds: [], meta, payload, expiresInHours: 1, maxDownloads: 2 })
+    // zweiter (letzter) Abruf läuft komplett, nachdem der erste gezählt hat, aber bevor er weiterliest
+    let second: Promise<{ payload?: string }> | null = null
+    const racy = {
+      ...deps,
+      db: afterQuery(deps.db, async sql => {
+        if (second || !sql.includes('SET downloads = downloads + 1')) return
+        second = startShareDownload(deps, note.id)
+        await second
+      })
+    }
+    const first = await startShareDownload(racy, note.id)
+    expect([first.payload, (await second!)?.payload]).toEqual([payload, payload])
+    await expect(startShareDownload(deps, note.id)).rejects.toMatchObject({ code: 'GONE' })
+    expect((await deps.db.query<{ payload: unknown }>('SELECT payload FROM shares WHERE id = $1', [note.id]))[0].payload).toBeNull()
   })
 })

@@ -98,6 +98,13 @@ export interface SecretEntry {
   period?: number
   /** TOTP: standard SHA1 */
   algorithm?: 'SHA1' | 'SHA256' | 'SHA512'
+  /** Website-Icon (PNG-Data-URL, 64 px; „“ = keins gefunden) und der Host, für den es gilt */
+  icon?: string
+  iconHost?: string
+  /** Passwort: verknüpfter 2FA-Eintrag */
+  totpId?: string
+  /** Passwort: als Favorit markiert */
+  favorite?: boolean
   /** Notiz: oben angeheftet */
   pinned?: boolean
   /** Notiz: freie Schlagwörter */
@@ -130,6 +137,10 @@ export interface VaultContainer {
   files: VaultEntry[]
   secrets: SecretEntry[]
   trash?: TrashEntry[]
+  /** eigene Secure-Send-Links inkl. Schlüssel (nur hier, verschlüsselt) – zum erneuten Kopieren */
+  links?: Array<{ id: string; url: string; label: string; createdAt: number }>
+  /** selbst angelegte (auch leere) Ordner in „Meine Cloud“, vollständige Pfade ohne „/“ am Ende */
+  dirs?: string[]
   /** Schlüsselpaar für den Familienordner (privater Teil nur hier, im verschlüsselten Tresor) */
   familyKey?: { publicJwk: JsonWebKey; privateJwk: JsonWebKey }
 }
@@ -196,6 +207,30 @@ function isSecret(s: any): s is SecretEntry {
   )
 }
 
+/** Obergrenze für ein Website-Icon als Data-URL (64-px-PNG ≈ 5–20 KB). */
+export const MAX_ICON_DATA_URL_LENGTH = 100_000
+const ICON_DATA_URL_RE = /^data:image\/(?:png|jpeg|gif|webp|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/]+={0,2}$/
+
+/**
+ * Nur eingebettete Raster-Bilder als Icon: keine http(s)-URLs (in geteilten Tresoren könnte ein Mitglied
+ * sonst über eine eigene Bild-URL die IP-Adressen der anderen Mitglieder abgreifen), kein SVG.
+ */
+export function isSafeIconDataUrl(v: unknown): v is string {
+  return typeof v === 'string' && v.length <= MAX_ICON_DATA_URL_LENGTH && ICON_DATA_URL_RE.test(v)
+}
+
+/** Eintrag übernehmen, ein ungültiges Icon (samt Host, damit es neu geladen wird) verwerfen. „“ = keins gefunden bleibt. */
+function sanitizeSecret(s: SecretEntry): SecretEntry {
+  if (s.icon === undefined || s.icon === '' || isSafeIconDataUrl(s.icon)) return s
+  const { icon: _icon, iconHost: _iconHost, ...rest } = s
+  return rest
+}
+
+/** Geheimnisse aus einem entschlüsselten Index (eigener oder geteilter Tresor) prüfen und bereinigen. */
+export function parseSecrets(list: unknown): SecretEntry[] {
+  return Array.isArray(list) ? list.filter(isSecret).map(sanitizeSecret) : []
+}
+
 /** Versteht das alte v2-Format (reines VaultEntry[]-Array) und v3 (Container). */
 export function parseVaultContainer(json: string): VaultContainer {
   const parsed = JSON.parse(json)
@@ -206,7 +241,7 @@ export function parseVaultContainer(json: string): VaultContainer {
   }
   if (parsed && typeof parsed === 'object' && Array.isArray(parsed.files)) {
     const files = parsed.files.map(normalize).filter((e: VaultEntry | null): e is VaultEntry => e !== null)
-    const secrets = Array.isArray(parsed.secrets) ? parsed.secrets.filter(isSecret) : []
+    const secrets = parseSecrets(parsed.secrets)
     const trash = Array.isArray(parsed.trash)
       ? parsed.trash
           .map((t: any) => {
@@ -217,7 +252,23 @@ export function parseVaultContainer(json: string): VaultContainer {
       : []
     const familyKey =
       parsed.familyKey && typeof parsed.familyKey === 'object' && parsed.familyKey.privateJwk && parsed.familyKey.publicJwk ? parsed.familyKey : undefined
-    return { v: 3, files, secrets, ...(trash.length ? { trash } : {}), ...(familyKey ? { familyKey } : {}) }
+    const dirs = Array.isArray(parsed.dirs)
+      ? [...new Set<string>(parsed.dirs.filter((d: unknown): d is string => typeof d === 'string' && d.length > 0 && d.length <= 500 && !d.startsWith('/') && !d.endsWith('/')))]
+      : []
+    const links = Array.isArray(parsed.links)
+      ? parsed.links.filter(
+          (l: any) => l && typeof l.id === 'string' && typeof l.url === 'string' && /^https?:\/\//.test(l.url) && typeof l.label === 'string' && typeof l.createdAt === 'number'
+        )
+      : []
+    return {
+      v: 3,
+      files,
+      secrets,
+      ...(trash.length ? { trash } : {}),
+      ...(familyKey ? { familyKey } : {}),
+      ...(dirs.length ? { dirs } : {}),
+      ...(links.length ? { links } : {})
+    }
   }
   return { v: 3, files: [], secrets: [] }
 }

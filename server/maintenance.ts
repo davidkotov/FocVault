@@ -4,6 +4,8 @@ import { purgeExpiredTrash } from './objects/service'
 import { stripeGateway } from './stripe/gateway'
 import { closePaygMonth, snapshotPaygUsage } from './stripe/service'
 import { applyS3Retention } from './s3/service'
+import { runStatusChecks } from './status/service'
+import { purgeSharePayloads } from './shares/service'
 
 /**
  * Regelmäßige Aufgaben: Pay-as-you-go-Tagesstand und Monatsabschluss (beides idempotent),
@@ -15,5 +17,7 @@ export async function runMaintenance(d: Deps): Promise<{ purged: number; payg: {
   const purged = await purgeExpiredTrash(d)
   const s3 = await applyS3Retention(d)
   const foc = await runFocSync(d.db, d.storage)
+  await runStatusChecks(d).catch(() => 0)
+  await purgeSharePayloads(d).catch(() => 0)
   return { purged, payg: { snapshots, ...close }, s3, foc }
 }

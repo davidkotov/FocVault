@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import LocaleSwitch from '@/components/LocaleSwitch'
+import { SiteFooter, SiteHeader } from '@/components/site/SiteChrome'
+import PricingSection from '@/components/site/PricingSection'
 import { api } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { landingMessages } from '@/lib/i18n/messages/landing'
@@ -34,48 +36,7 @@ export default function Landing() {
 
   return (
     <div className="landing">
-      <div className="utilbar">
-        <div className="wrap">
-          <div className="utillinks">
-            <a href="https://docs.fil.one" target="_blank" rel="noreferrer">
-              {t.util.docs}
-            </a>
-            <a href="#sicherheit">{t.util.security}</a>
-            <a href="#faq">{t.util.support}</a>
-          </div>
-          <div className="utilright">
-            <LocaleSwitch showCurrency />
-          </div>
-        </div>
-      </div>
-
-      <nav className="mainnav">
-        <div className="wrap">
-          <div className="brand">
-            <svg className="mark" viewBox="0 0 40 40">
-              <circle cx="20" cy="20" r="20" fill="#0090ff" />
-              <path d="M20 8a12 12 0 1 0 8.49 3.51" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" />
-              <rect x="15" y="17" width="10" height="9" rx="2" fill="#fff" />
-              <path d="M17 17v-2a3 3 0 0 1 6 0v2" stroke="#fff" strokeWidth="2.4" fill="none" />
-            </svg>
-            Foc<span style={{ color: '#0090ff' }}>Vault</span>
-          </div>
-          <div className="navlinks">
-            <a href="#produkt">{t.nav.product}</a>
-            <a href="#sicherheit">{t.nav.security}</a>
-            <a href="#preise">{t.nav.pricing}</a>
-            <a href="#faq">{t.nav.faq}</a>
-          </div>
-          <div className="navcta">
-            <button onClick={goLogin}>
-              {t.login}
-            </button>
-            <button className="primary" onClick={goRegister}>
-              {t.register}
-            </button>
-          </div>
-        </div>
-      </nav>
+      <SiteHeader />
 
       <header className="hero">
         <div className="wrap">
@@ -231,109 +192,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="msection" id="preise" style={{ background: 'var(--card-soft)' }}>
-        <div className="wrap">
-          <div className="eyebrow">{t.pricing.eyebrow}</div>
-          <h2 className="sectitle">{t.pricing.title}</h2>
-          <p className="subtitle">{fmt(t.pricing.subtitle, { gb })}</p>
-          <div className="plancontrols center">
-            <div className="segmented" role="group">
-              {(['month', 'year'] as const).map(i => (
-                <button key={i} className={interval === i ? 'active' : ''} aria-pressed={interval === i} onClick={() => setIntervalState(i)}>
-                  {i === 'month' ? t.pricing.monthly : t.pricing.yearly}
-                  {i === 'year' && <span className="savechip">{t.pricing.yearlySave}</span>}
-                </button>
-              ))}
-            </div>
-            <LocaleSwitch showCurrency />
-          </div>
-          <div className="pricing">
-            <div className="plan">
-              <h3>Free</h3>
-              <div className="price">
-                {fmtMoney(0, currency, 0)}
-                <span>{t.pricing.perMonth}</span>
-              </div>
-              <div className="desc">{fmt(t.pricing.freeDesc, { gb, price: payg })}</div>
-              <ul>
-                {t.pricing.freeFeatures.map(f => (
-                  <li key={f}>
-                    <CheckIcon />
-                    {fmt(f, { gb })}
-                  </li>
-                ))}
-              </ul>
-              <button onClick={goRegister}>{t.pricing.freeCta}</button>
-            </div>
-            <div className="plan highlight">
-              <span className="tag">{t.pricing.popular}</span>
-              <h3>{offer.plans.pro.label}</h3>
-              <div className="price">
-                {fmtMoney(perMonth(offer.plans.pro), currency)}
-                <span>{t.pricing.perMonth}</span>
-              </div>
-              <div className="billednote">
-                {interval === 'year' ? fmt(t.pricing.billedYearly, { amount: fmtMoney(offer.plans.pro.yearly[currency], currency) }) : '\u00a0'}
-              </div>
-              <div className="desc">{t.pricing.proDesc}</div>
-              <ul>
-                {t.pricing.proFeatures.map(f => (
-                  <li key={f}>
-                    <CheckIcon />
-                    {fmt(f, { tb: tb(offer.plans.pro.quotaGb), addon: fmtMoney(cheapestAddon, currency) })}
-                  </li>
-                ))}
-              </ul>
-              <button className="primary" onClick={goRegister}>
-                {t.pricing.proCta}
-              </button>
-            </div>
-            <div className="plan">
-              <h3>{offer.plans.family.label}</h3>
-              <div className="price">
-                {fmtMoney(perMonth(offer.plans.family), currency)}
-                <span>{t.pricing.perMonth}</span>
-              </div>
-              <div className="billednote">
-                {interval === 'year' ? fmt(t.pricing.billedYearly, { amount: fmtMoney(offer.plans.family.yearly[currency], currency) }) : '\u00a0'}
-              </div>
-              <div className="desc">{fmt(t.pricing.familyDesc, { seats: offer.plans.family.seats })}</div>
-              <ul>
-                {t.pricing.familyFeatures.map(f => (
-                  <li key={f}>
-                    <CheckIcon />
-                    {fmt(f, { tb: tb(offer.plans.family.quotaGb), seats: offer.plans.family.seats })}
-                  </li>
-                ))}
-              </ul>
-              <button onClick={goRegister}>{t.pricing.familyCta}</button>
-            </div>
-            <div className="plan">
-              <h3>{t.pricing.business}</h3>
-              <div className="price">
-                <span className="pricefrom">{t.pricing.from}</span> {fmtMoney(perMonth(offer.business.starter), currency, 0)}
-                <span>{t.pricing.perMonth}</span>
-              </div>
-              <div className="billednote">{fmt(t.pricing.businessSeats, { seats: offer.business.starter.seats, price: fmtMoney(offer.business.seat.monthly[currency], currency, 0) })}</div>
-              <div className="desc">{t.pricing.businessDesc}</div>
-              <ul>
-                {t.pricing.businessFeatures.map(f => (
-                  <li key={f}>
-                    <CheckIcon />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <a href="mailto:hello@focvault.app">
-                <button className="full">{t.pricing.businessCta}</button>
-              </a>
-            </div>
-          </div>
-          <p className="hint" style={{ textAlign: 'center', marginTop: 14 }}>
-            {t.pricing.vat}
-          </p>
-        </div>
-      </section>
+      <PricingSection />
 
       <section className="msection" id="faq">
         <div className="wrap">
@@ -367,45 +226,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="sitefooter">
-        <div className="wrap">
-          <div className="footgrid">
-            <div>
-              <div className="footbrand">
-                <svg className="mark" viewBox="0 0 40 40">
-                  <circle cx="20" cy="20" r="20" fill="#0090ff" />
-                </svg>
-                FocVault
-              </div>
-              <div className="foottag">{t.footer.tag}</div>
-            </div>
-            <div className="footcol">
-              <h5>{t.footer.product}</h5>
-              <a href="#produkt">{t.footer.cloud}</a>
-              <a href="#produkt">Secure Send</a>
-              <a href="#preise">{t.nav.pricing}</a>
-            </div>
-            <div className="footcol">
-              <h5>{t.footer.company}</h5>
-              <a href="#sicherheit">{t.nav.security}</a>
-              <a href="#faq">FAQ</a>
-            </div>
-            <div className="footcol">
-              <h5>{t.footer.legal}</h5>
-              <a href="#">{t.footer.privacy}</a>
-              <a href="#">{t.footer.terms}</a>
-              <a href="#">{t.footer.imprint}</a>
-            </div>
-          </div>
-          <div className="footbottom">
-            <span>{t.footer.copy}</span>
-            <a className="builton" href="https://www.filecoin.cloud" target="_blank" rel="noreferrer">
-              ⛓ {t.footer.builtOn}
-            </a>
-            <LocaleSwitch />
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

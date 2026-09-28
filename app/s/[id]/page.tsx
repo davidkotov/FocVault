@@ -9,6 +9,7 @@ import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { useErrorText } from '@/features/i18n/errors'
 import { SharePasswordError, downloadSharedFile, fragmentNeedsPassword, openShareLink, startSharedDownload, type OpenedShare, type SharedFile, type SharedNote } from '@/features/shares/share'
 import NoteBody from '@/components/NoteBody'
+import { Icon } from '@/components/site/Icons'
 import NoteFields from '@/components/NoteFields'
 import type { PresignedPiece } from '@/lib/api-types'
 import { shareMessages } from '@/lib/i18n/messages/share'
@@ -104,7 +105,7 @@ export default function SharePage() {
   }
 
   return (
-    <AuthShell foot={m.zk}>
+    <AuthShell kind="share" foot={m.zk}>
       <h2>{m.title}</h2>
       {phase === 'loading' && <Working label={m.loading} />}
 
@@ -137,7 +138,9 @@ export default function SharePage() {
             </>
           ) : (
             <>
-              <strong>🗒 {m.noteTitle}</strong>
+              <strong>
+                <Icon name="note" size={16} className="inlineicon" /> {m.noteTitle}
+              </strong>
               <p className="dim">{m.noteLead}</p>
               {phase === 'ready' && (
                 <button className="primary full" onClick={() => void showNote()}>
@@ -161,7 +164,7 @@ export default function SharePage() {
           {share.files.map(f => (
             <div className="sharefile" key={f.objectId}>
               <div className="sharefile-icon" aria-hidden="true">
-                {doneIds.has(f.objectId) ? '✅' : '📄'}
+                <Icon name={doneIds.has(f.objectId) ? 'check' : 'file'} size={20} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <strong className="sharefile-name">{f.name}</strong>

@@ -1,10 +1,11 @@
 import Stripe from 'stripe'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { resetRateLimits } from '../auth/ratelimit'
-import { buyAddon, cancelAddon, changePlan, setPayg } from '../billing/service'
+import { buyAddon, cancelAddon, changePlan, setCurrency, setPayg } from '../billing/service'
 import { newAccount, testDeps } from '../testing'
 import { LiveStripeGateway, setStripeGatewayForTests, type PriceData, type StripeGateway, type SubscriptionLite } from './gateway'
-import { closePaygMonth, handleStripeEvent } from './service'
+import { closePaygMonth, handleStripeEvent, stripeDepositUrl } from './service'
+import { addCredit, consumeCredit, creditBalance, depositSchema } from '../credits/service'
 
 const CTX = { origin: 'https://focvault.test', locale: 'de' as const }
 
@@ -13,6 +14,8 @@ function fakeStripe() {
   const subs = new Map<string, SubscriptionLite>()
   const calls: string[] = []
   const charges: Array<{ amount: number; currency: string }> = []
+  /** Checkout-Sessions je PaymentIntent (für Erstattungen/Anfechtungen) */
+  const sessions = new Map<string, Record<string, any>>()
   let n = 0
   let hasPm = false
   const item = (p: PriceData, quantity = 1) => ({ id: `si_${++n}`, product: p.product, currency: p.currency, unitAmount: p.unitAmount, interval: p.interval, periodEnd: 1_900_000_000, quantity })
@@ -34,6 +37,10 @@ function fakeStripe() {
     async checkoutSetup(input) {
       calls.push('setup')
       return `https://checkout.stripe.test/setup/${input.customer}`
+    },
+    async checkoutPayment(input) {
+      calls.push('payment')
+      return `https://checkout.stripe.test/pay/${input.customer}/${input.amount}`
     },
     async portal() {
       return 'https://billing.stripe.test/portal'
@@ -74,6 +81,15 @@ function fakeStripe() {
     async hasDefaultPaymentMethod() {
       return hasPm
     },
+    async checkoutSessionForPaymentIntent(pi) {
+      return sessions.get(pi) ?? null
+    },
+    async listInvoices() {
+      return charges.map((c, i) => ({ id: `in_${i}`, date: new Date(0).toISOString(), amount: c.amount, currency: c.currency, status: 'paid', description: '', pdf: null }))
+    },
+    async defaultCard() {
+      return hasPm ? { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2028 } : null
+    },
     async chargeOnce(input) {
       charges.push({ amount: input.amount, currency: input.currency })
       return { invoiceId: `in_${++n}`, paid: true }
@@ -82,7 +98,10 @@ function fakeStripe() {
       throw new Error('not used')
     }
   }
-  return { gw, subs, calls, charges }
+  const removePm = () => {
+    hasPm = false
+  }
+  return { gw, subs, calls, charges, sessions, removePm }
 }
 
 let evt = 0
@@ -214,6 +233,142 @@ describe('Stripe-Abrechnung', () => {
     await changePlan(deps, session, { plan: 'business', tier: 'starter', extraSeats: 0, interval: 'month', currency: 'CHF' }, CTX)
     expect(s.subs.get(subId)!.items.map(i => i.product)).toEqual(['prod_business_starter'])
     expect((await deps.db.query(`SELECT business_tier, seats FROM accounts WHERE id = $1`, [session.accountId]))[0]).toMatchObject({ business_tier: 'starter', seats: 5 })
+  })
+
+  it('Pay-as-you-go nur mit Zahlungsmethode: Guthaben allein reicht nicht; Karte im Portal entfernt → PAYG aus', async () => {
+    const deps = await testDeps()
+    const s = fakeStripe()
+    setStripeGatewayForTests(s.gw)
+    const { session } = await newAccount(deps, 'nurguthaben@example.com')
+    await addCredit(deps.db, { accountId: session.accountId, amount: 50, currency: 'CHF', kind: 'deposit', source: 'stripe', ref: 'stripe:cs_vorher' })
+
+    // Guthaben vorhanden, aber keine Karte → zuerst zu Stripe, PAYG bleibt aus
+    const r = await setPayg(deps, session, true, 100, CTX)
+    expect(r.redirectUrl).toMatch(/setup/)
+    const payg = async () => (await deps.db.query(`SELECT payg_enabled FROM accounts WHERE id = $1`, [session.accountId]))[0].payg_enabled
+    expect(await payg()).toBe(false)
+
+    // Karte hinterlegt → sofort aktiv
+    const cus = (await deps.db.query(`SELECT stripe_customer_id FROM accounts WHERE id = $1`, [session.accountId]))[0].stripe_customer_id
+    await handleStripeEvent(deps, s.gw, event('checkout.session.completed', { id: 'cs_card', mode: 'setup', setup_intent: 'seti_2', customer: cus, metadata: { accountId: session.accountId, purpose: 'card' } }))
+    expect(await setPayg(deps, session, true, 100, CTX)).toEqual({})
+    expect(await payg()).toBe(true)
+
+    // Kunde ändert etwas, Karte bleibt → nichts passiert
+    await handleStripeEvent(deps, s.gw, event('customer.updated', { id: cus, invoice_settings: { default_payment_method: 'pm_card' } }))
+    expect(await payg()).toBe(true)
+    // Karte im Kundenportal entfernt → PAYG aus
+    s.removePm()
+    await handleStripeEvent(deps, s.gw, { ...event('payment_method.detached', { id: 'pm_card', customer: null }), previous: { customer: cus } })
+    expect(await payg()).toBe(false)
+  })
+
+  it('Aufladung: Betrag aus amount_total; SEPA (erst unpaid, dann async_payment_succeeded) genau einmal gutgeschrieben', async () => {
+    const deps = await testDeps()
+    const s = fakeStripe()
+    setStripeGatewayForTests(s.gw)
+    const { session } = await newAccount(deps, 'sepa@example.com')
+    const id = session.accountId
+    await expect(stripeDepositUrl(deps, s.gw, session, 3, CTX)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    await expect(stripeDepositUrl(deps, s.gw, session, 10.555, CTX)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    expect(await stripeDepositUrl(deps, s.gw, session, 25, CTX)).toMatch(/pay\/cus_\d+\/2500$/)
+    const cus = (await deps.db.query(`SELECT stripe_customer_id FROM accounts WHERE id = $1`, [id]))[0].stripe_customer_id
+
+    // Metadaten behaupten 999 – gutgeschrieben wird, was Stripe kassiert hat
+    const cs = { id: 'cs_sepa_1', mode: 'payment', customer: cus, amount_total: 2500, currency: 'chf', metadata: { accountId: id, purpose: 'credit', amount: '999.00', currency: 'CHF' } }
+    expect(await handleStripeEvent(deps, s.gw, event('checkout.session.completed', { ...cs, payment_status: 'unpaid' }))).toBe('ignored')
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(0)
+
+    expect(await handleStripeEvent(deps, s.gw, event('checkout.session.async_payment_succeeded', { ...cs, payment_status: 'paid' }))).toBe('processed')
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(25)
+    // erneute Zustellung (neue Event-ID) bzw. „completed/paid“ hinterher → nichts doppelt
+    await handleStripeEvent(deps, s.gw, event('checkout.session.async_payment_succeeded', { ...cs, payment_status: 'paid' }))
+    await handleStripeEvent(deps, s.gw, event('checkout.session.completed', { ...cs, payment_status: 'paid' }))
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(25)
+
+    // Fehlgeschlagene SEPA-Zahlung: keine Gutschrift
+    const failed = { ...cs, id: 'cs_sepa_2', payment_status: 'unpaid' }
+    expect(await handleStripeEvent(deps, s.gw, event('checkout.session.async_payment_failed', failed))).toBe('processed')
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(25)
+
+    // Sofortzahlung mit Rappenbetrag
+    await handleStripeEvent(deps, s.gw, event('checkout.session.completed', { ...cs, id: 'cs_card_1', amount_total: 1050, payment_status: 'paid', metadata: { ...cs.metadata, amount: '1.00' } }))
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(35.5)
+  })
+
+  it('Erstattung und Chargeback einer Aufladung: Guthaben zurückgebucht (auch ins Minus), PAYG gesperrt; gewonnene Anfechtung zurück', async () => {
+    const deps = await testDeps()
+    const s = fakeStripe()
+    setStripeGatewayForTests(s.gw)
+    const { session } = await newAccount(deps, 'refund@example.com')
+    const id = session.accountId
+    await stripeDepositUrl(deps, s.gw, session, 25, CTX)
+    const cus = (await deps.db.query(`SELECT stripe_customer_id FROM accounts WHERE id = $1`, [id]))[0].stripe_customer_id
+    const cs = { id: 'cs_top_1', mode: 'payment', customer: cus, amount_total: 2500, currency: 'chf', payment_status: 'paid', payment_intent: 'pi_1', metadata: { accountId: id, purpose: 'credit' } }
+    s.sessions.set('pi_1', cs)
+    await handleStripeEvent(deps, s.gw, event('checkout.session.completed', cs))
+    // PAYG mit Karte an, 10 CHF verbraucht
+    await handleStripeEvent(deps, s.gw, event('checkout.session.completed', { id: 'cs_pg', mode: 'setup', setup_intent: 'seti_3', customer: cus, metadata: { accountId: id, purpose: 'payg', capGb: '100' } }))
+    expect(await consumeCredit(deps.db, id, 10, 'CHF', 'payg:test', 'PAYG')).toBe(10)
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(15)
+
+    // Teilerstattung 5 CHF, dann gesamt 25 CHF (kumuliert) – doppelte Zustellung ändert nichts
+    const charge = { id: 'ch_1', object: 'charge', customer: cus, payment_intent: 'pi_1', currency: 'chf', amount: 2500 }
+    expect(await handleStripeEvent(deps, s.gw, event('charge.refunded', { ...charge, amount_refunded: 500 }))).toBe('processed')
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(10)
+    await handleStripeEvent(deps, s.gw, event('charge.refunded', { ...charge, amount_refunded: 2500 }))
+    await handleStripeEvent(deps, s.gw, event('charge.refunded', { ...charge, amount_refunded: 2500 }))
+    await handleStripeEvent(deps, s.gw, event('charge.refunded', { ...charge, amount_refunded: 500 }))
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(-10)
+    // Minus → PAYG aus und nicht wieder einschaltbar; Verbrauch holt nichts aus dem Minus
+    expect((await deps.db.query(`SELECT payg_enabled FROM accounts WHERE id = $1`, [id]))[0].payg_enabled).toBe(false)
+    await expect(setPayg(deps, session, true, 100, CTX)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    expect(await consumeCredit(deps.db, id, 5, 'CHF', 'payg:test2', 'PAYG')).toBe(0)
+    // Anfechtung nach voller Erstattung: nichts mehr abzuziehen
+    await handleStripeEvent(deps, s.gw, event('charge.dispute.created', { id: 'dp_0', charge: 'ch_1', payment_intent: 'pi_1', amount: 2500, currency: 'chf', status: 'needs_response' }))
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(-10)
+
+    // Zweite Aufladung wird angefochten, dann gewonnen
+    const cs2 = { ...cs, id: 'cs_top_2', amount_total: 4000, payment_intent: 'pi_2' }
+    s.sessions.set('pi_2', cs2)
+    await handleStripeEvent(deps, s.gw, event('checkout.session.completed', cs2))
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(30)
+    const dispute = { id: 'dp_1', object: 'dispute', charge: 'ch_2', payment_intent: 'pi_2', amount: 4000, currency: 'chf', status: 'needs_response' }
+    await handleStripeEvent(deps, s.gw, event('charge.dispute.created', dispute))
+    await handleStripeEvent(deps, s.gw, event('charge.dispute.created', dispute))
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(-10)
+    await handleStripeEvent(deps, s.gw, event('charge.dispute.closed', { ...dispute, status: 'won' }))
+    await handleStripeEvent(deps, s.gw, event('charge.dispute.closed', { ...dispute, status: 'won' }))
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(30)
+
+    // Erstattung einer Nicht-Aufladung (z. B. Abo-Rechnung) → ignoriert
+    expect(await handleStripeEvent(deps, s.gw, event('charge.refunded', { ...charge, id: 'ch_x', payment_intent: 'pi_abo', amount_refunded: 1390 }))).toBe('ignored')
+    // Währung bleibt gesperrt, solange Guthaben besteht
+    await expect(setCurrency(deps, session, 'EUR')).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  })
+
+  it('Erstattung trifft vor der Gutschrift ein → erst gutschreiben, dann zurückbuchen (Saldo 0)', async () => {
+    const deps = await testDeps()
+    const s = fakeStripe()
+    setStripeGatewayForTests(s.gw)
+    const { session } = await newAccount(deps, 'reihenfolge@example.com')
+    const id = session.accountId
+    await stripeDepositUrl(deps, s.gw, session, 20, CTX)
+    const cus = (await deps.db.query(`SELECT stripe_customer_id FROM accounts WHERE id = $1`, [id]))[0].stripe_customer_id
+    const cs = { id: 'cs_late', mode: 'payment', customer: cus, amount_total: 2000, currency: 'chf', payment_status: 'paid', payment_intent: 'pi_late', metadata: { accountId: id, purpose: 'credit' } }
+    s.sessions.set('pi_late', cs)
+    await handleStripeEvent(deps, s.gw, event('charge.refunded', { id: 'ch_late', payment_intent: 'pi_late', amount_refunded: 2000, currency: 'chf' }))
+    await handleStripeEvent(deps, s.gw, event('checkout.session.completed', cs))
+    expect(await creditBalance(deps.db, id, 'CHF')).toBe(0)
+  })
+
+  it('Einzahlungsbetrag: ganze Rappen, Minimum/Maximum', () => {
+    expect(depositSchema.safeParse({ amount: 10.5 }).success).toBe(true)
+    expect(depositSchema.safeParse({ amount: 19.99 }).success).toBe(true)
+    expect(depositSchema.safeParse({ amount: 10.005 }).success).toBe(false)
+    expect(depositSchema.safeParse({ amount: 4.99 }).success).toBe(false)
+    expect(depositSchema.safeParse({ amount: 5000.01 }).success).toBe(false)
+    expect(depositSchema.safeParse({ amount: Number.NaN }).success).toBe(false)
   })
 
   it('Webhook-Signatur: gültig wird akzeptiert, manipuliert oder falsches Secret abgelehnt', () => {

@@ -17,17 +17,23 @@ export interface SessionInfo {
   strongAuthAt: number
 }
 
+/**
+ * Neue Session. strongAuth = false (z. B. SSO): gilt nicht als frische starke Anmeldung – sensible Aktionen
+ * verlangen dann erst eine Bestätigung mit Passphrase, Recovery-Kit oder Wallet-Signatur.
+ */
 export async function createSession(
   db: Db,
   accountId: string,
-  userAgent: string | null
+  userAgent: string | null,
+  opts: { strongAuth?: boolean } = {}
 ): Promise<{ token: string; expiresAt: Date; sessionId: string }> {
   const token = randomBytes(32).toString('base64url')
   const sessionId = uuidv7()
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000)
   await db.query(
-    'INSERT INTO sessions (id, account_id, token_hash, expires_at, user_agent) VALUES ($1, $2, $3, $4, $5)',
-    [sessionId, accountId, sha256(token), expiresAt, userAgent ? userAgent.slice(0, 200) : null]
+    `INSERT INTO sessions (id, account_id, token_hash, expires_at, user_agent, strong_auth_at)
+     VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() ELSE to_timestamp(0) END)`,
+    [sessionId, accountId, sha256(token), expiresAt, userAgent ? userAgent.slice(0, 200) : null, opts.strongAuth !== false]
   )
   // Grundlage der Inaktivitätsregel für Free-Konten (Preisbuch: inactiveWarnDays/DeleteDays)
   await db.query('UPDATE accounts SET last_login_at = now() WHERE id = $1', [accountId])
@@ -82,4 +88,38 @@ export function setSessionCookie(res: NextResponse, token: string, expiresAt: Da
 
 export function clearSessionCookie(res: NextResponse): void {
   res.cookies.set(SESSION_COOKIE, '', { httpOnly: true, sameSite: 'lax', secure: isProd, path: '/', maxAge: 0 })
+}
+
+export interface SessionListItem {
+  id: string
+  createdAt: string
+  lastSeenAt: string
+  userAgent: string | null
+  current: boolean
+}
+
+/** Aktive Sitzungen (Geräte) eines Kontos, neueste Aktivität zuerst. */
+export async function listSessions(db: Db, accountId: string, currentId: string): Promise<SessionListItem[]> {
+  const rows = await db.query<{ id: string; created_at: Date; last_seen_at: Date; user_agent: string | null }>(
+    `SELECT id, created_at, last_seen_at, user_agent FROM sessions
+      WHERE account_id = $1 AND revoked_at IS NULL AND expires_at > now()
+      ORDER BY last_seen_at DESC LIMIT 50`,
+    [accountId]
+  )
+  return rows.map(r => ({
+    id: r.id,
+    createdAt: new Date(r.created_at).toISOString(),
+    lastSeenAt: new Date(r.last_seen_at).toISOString(),
+    userAgent: r.user_agent,
+    current: r.id === currentId
+  }))
+}
+
+/** Einzelne Sitzung abmelden (nur eigene). */
+export async function revokeSession(db: Db, accountId: string, id: string): Promise<boolean> {
+  const r = await db.query<{ id: string }>(
+    'UPDATE sessions SET revoked_at = now() WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL RETURNING id',
+    [id, accountId]
+  )
+  return r.length > 0
 }

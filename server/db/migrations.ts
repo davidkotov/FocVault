@@ -548,6 +548,183 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       CREATE UNIQUE INDEX emergency_pair ON emergency_contacts (grantor, grantee) WHERE grantee IS NOT NULL;
       CREATE INDEX emergency_grantee ON emergency_contacts (grantee);
     `
+  },
+  {
+    version: 20,
+    name: 'team_admin',
+    sql: `
+      -- Business-Admin-Konsole: Rollen, Richtlinien, Firmen-Notfallzugriff (Vier-Augen), SSO
+      ALTER TABLE family_members ADD COLUMN role text NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member'));
+      -- vom Gerät gemeldete Passphrase-Länge (der Server kann sie nicht prüfen – Zero-Knowledge)
+      ALTER TABLE accounts ADD COLUMN passphrase_chars integer;
+      CREATE TABLE team_policies (
+        owner_account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        policy jsonb NOT NULL DEFAULT '{}'::jsonb,
+        updated_by uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      -- Team-Wiederherstellungsschlüssel (ECDH): öffentlicher Teil + je Admin verpackter privater Teil
+      CREATE TABLE team_recovery_keys (
+        owner_account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        generation integer NOT NULL DEFAULT 1,
+        public_key jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE team_recovery_grants (
+        owner_account_id uuid NOT NULL REFERENCES team_recovery_keys(owner_account_id) ON DELETE CASCADE,
+        generation integer NOT NULL,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        wrapped jsonb NOT NULL,
+        PRIMARY KEY (owner_account_id, generation, account_id)
+      );
+      -- Master-Key jedes Mitglieds, verpackt für den Team-Wiederherstellungsschlüssel
+      CREATE TABLE team_escrow (
+        account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        owner_account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        generation integer NOT NULL,
+        wrapped jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE team_recovery_requests (
+        id uuid PRIMARY KEY,
+        owner_account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        target uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        requested_by uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        reason text NOT NULL,
+        approved_by uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        approved_at timestamptz,
+        rejected_at timestamptz,
+        expires_at timestamptz NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CHECK (approved_by IS NULL OR approved_by <> requested_by)
+      );
+      CREATE INDEX team_recovery_requests_owner ON team_recovery_requests (owner_account_id, created_at DESC);
+      CREATE TABLE team_sso (
+        owner_account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        issuer text NOT NULL,
+        client_id text NOT NULL,
+        client_secret bytea,
+        domains text[] NOT NULL,
+        enforce boolean NOT NULL DEFAULT false,
+        auto_join boolean NOT NULL DEFAULT true,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE sso_states (
+        state text PRIMARY KEY,
+        owner_account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        verifier text NOT NULL,
+        nonce text NOT NULL,
+        redirect_uri text NOT NULL,
+        expires_at timestamptz NOT NULL
+      );
+      CREATE INDEX audit_events_at ON audit_events (at);
+    `
+  },
+  {
+    version: 21,
+    name: 'support_status',
+    sql: `
+      CREATE TABLE support_tickets (
+        id uuid PRIMARY KEY,
+        account_id uuid REFERENCES accounts(id) ON DELETE SET NULL,
+        first_name text NOT NULL,
+        last_name text NOT NULL,
+        email text NOT NULL,
+        company text,
+        categories text[] NOT NULL,
+        topic text,
+        message text NOT NULL,
+        status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'answered', 'closed')),
+        note text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX support_tickets_status ON support_tickets (status, created_at DESC);
+      -- Statusseite: automatische Messungen je Komponente und manuelle Meldungen (Störung/Wartung)
+      CREATE TABLE status_checks (
+        component text NOT NULL,
+        at timestamptz NOT NULL DEFAULT now(),
+        ok boolean NOT NULL,
+        degraded boolean NOT NULL DEFAULT false,
+        latency_ms integer,
+        PRIMARY KEY (component, at)
+      );
+      CREATE TABLE status_incidents (
+        id uuid PRIMARY KEY,
+        title text NOT NULL,
+        kind text NOT NULL CHECK (kind IN ('incident', 'maintenance')),
+        impact text NOT NULL CHECK (impact IN ('degraded', 'outage', 'maintenance')),
+        components text[] NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        resolved_at timestamptz
+      );
+      CREATE TABLE status_updates (
+        id uuid PRIMARY KEY,
+        incident_id uuid NOT NULL REFERENCES status_incidents(id) ON DELETE CASCADE,
+        status text NOT NULL CHECK (status IN ('investigating', 'identified', 'monitoring', 'resolved', 'scheduled', 'in_progress', 'completed')),
+        message text NOT NULL,
+        at timestamptz NOT NULL DEFAULT now()
+      );
+    `
+  },
+  {
+    version: 22,
+    name: 'share_note_flag',
+    sql: `
+      -- Notiz-Link bleibt als solcher erkennbar, auch nachdem der Inhalt gelöscht wurde
+      ALTER TABLE shares ADD COLUMN has_note boolean NOT NULL DEFAULT false;
+      UPDATE shares SET has_note = true WHERE payload IS NOT NULL;
+    `
+  },
+  {
+    version: 23,
+    name: 'credits',
+    sql: `
+      -- Guthaben: Buchungen (positiv = Einzahlung/Gutschrift, negativ = Verbrauch). ref verhindert Doppelbuchungen.
+      CREATE TABLE credit_ledger (
+        id uuid PRIMARY KEY,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        amount numeric(12, 2) NOT NULL CHECK (amount <> 0),
+        currency text NOT NULL CHECK (currency IN ('CHF', 'EUR', 'USD')),
+        kind text NOT NULL CHECK (kind IN ('deposit', 'charge', 'refund', 'grant')),
+        source text NOT NULL CHECK (source IN ('stripe', 'crypto', 'admin', 'dev', 'system')),
+        ref text UNIQUE,
+        note text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX credit_ledger_account ON credit_ledger (account_id, created_at DESC);
+    `
+  },
+  {
+    version: 24,
+    name: 'recovery_check',
+    sql: `
+      -- Recovery-Kit geprüft (Nutzer hat die 24 Wörter erfolgreich eingegeben)
+      ALTER TABLE accounts ADD COLUMN recovery_checked_at timestamptz;
+    `
+  },
+  {
+    version: 25,
+    name: 'sso_domain_verification',
+    sql: `
+      -- SSO-Domains erst nach DNS-TXT-Nachweis wirksam; eine verifizierte Domain gehört genau einem Team
+      CREATE TABLE team_sso_domains (
+        owner_account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        domain text NOT NULL,
+        token text NOT NULL,
+        verified_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (owner_account_id, domain)
+      );
+      CREATE UNIQUE INDEX team_sso_domains_verified ON team_sso_domains (domain) WHERE verified_at IS NOT NULL;
+      -- bisher eingetragene Domains: übernommen, aber unverifiziert
+      INSERT INTO team_sso_domains (owner_account_id, domain, token)
+        SELECT s.owner_account_id, d, replace(gen_random_uuid()::text, '-', '')
+          FROM team_sso s, unnest(s.domains) AS d
+        ON CONFLICT DO NOTHING;
+      -- Login-CSRF: State ist an den Browser gebunden (Hash des Cookie-Werts)
+      ALTER TABLE sso_states ADD COLUMN browser_hash bytea;
+    `
   }
 ]
 
@@ -564,6 +741,12 @@ export async function migrate(db: Db): Promise<void> {
   for (const m of MIGRATIONS) {
     if (applied.has(m.version)) continue
     await db.tx(async tx => {
+      // Mehrere Server-Instanzen (Vercel) starten gleichzeitig: Sperre je Transaktion, danach erneut prüfen
+      if (db.driver === 'postgres') {
+        await tx.query('SELECT pg_advisory_xact_lock(815274001)')
+        const done = await tx.query('SELECT 1 FROM schema_migrations WHERE version = $1', [m.version])
+        if (done.length) return
+      }
       await tx.exec(m.sql)
       await tx.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2)', [m.version, m.name])
     })

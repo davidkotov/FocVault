@@ -4,13 +4,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Sidebar, { type ViewId } from '@/components/Sidebar'
-import Topbar from '@/components/Topbar'
+import Topbar, { type SearchHit } from '@/components/Topbar'
 import FileList, { DRAG_MIME } from '@/components/FileList'
 import UpgradeWall from '@/components/UpgradeWall'
 import PasswordsPanel from '@/components/PasswordsPanel'
 import NotesPanel from '@/components/NotesPanel'
 import TotpPanel from '@/components/TotpPanel'
-import AuthShell, { Working } from '@/components/account/AuthShell'
+import AuthShell, { LoadingScreen, Working } from '@/components/account/AuthShell'
 import AccountMenu from '@/components/account/AccountMenu'
 import AccountUpload from '@/components/account/AccountUpload'
 import PlansView from '@/components/account/PlansView'
@@ -21,9 +21,19 @@ import EmergencyVaultView from '@/components/account/EmergencyVaultView'
 import { emergencyMessages } from '@/lib/i18n/messages/emergency'
 import { ensureKeypair } from '@/features/emergency/client'
 import { vaultsMessages } from '@/lib/i18n/messages/vaults'
+import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
+import TeamAdminView from '@/components/account/TeamAdminView'
+import SecurityStatus from '@/components/account/SecurityStatus'
+import SignInCard from '@/components/account/SignInCard'
+import DeleteAccountCard from '@/components/account/DeleteAccountCard'
+import { SafetyCards, SessionsCard } from '@/components/account/AccountSummary'
+import CreditsCard from '@/components/account/CreditsCard'
+import { Icon } from '@/components/site/Icons'
+import TeamNotices, { TeamEscrowCard } from '@/components/account/TeamNotices'
 import SendView from '@/components/account/SendView'
 import TrashView from '@/components/account/TrashView'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import InviteDialog from '@/components/InviteDialog'
 import PreviewModal from '@/components/account/PreviewModal'
 import VersionsDialog from '@/components/account/VersionsDialog'
 import FamilyPanel from '@/components/account/FamilyPanel'
@@ -37,6 +47,8 @@ import PassphraseFields, { passphraseReady } from '@/components/account/Passphra
 import { useAccount } from '@/features/account/AccountProvider'
 import { ApiClientError, api } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
+import { secretsMessages } from '@/lib/i18n/messages/secrets'
+import { EXPIRY_WARN_DAYS, daysUntilExpiry, expiresAtMonthEnd, expiryDate } from '@/lib/note-templates'
 import { useErrorText } from '@/features/i18n/errors'
 import { buildPassphraseChange, deriveFromPassphrase, unwrapMasterKeyRaw } from '@/features/keys/kdf'
 import { downloadFile } from '@/features/objects/transfer'
@@ -47,6 +59,22 @@ import { formatBytes, type FileVersion, type SecretEntry, type TierName, type Tr
 
 const TIER: Record<string, TierName> = { free: 'FREE', pro: 'PRO', family: 'FAMILY', business: 'BUSINESS' }
 const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Business' }
+
+type AccTab = 'overview' | 'credits' | 'passphrase' | 'passkeys' | 'emergency' | 'sessions' | 'team' | 'delete'
+
+/** Untermenü für Konto & Sicherheit: jeder Reiter zeigt seinen eigenen Bereich. */
+function AccountNav({ items, active, onPick }: { items: Array<[AccTab, string, number?]>; active: AccTab; onPick: (t: AccTab) => void }) {
+  return (
+    <nav className="accnav card pwfolders" aria-label="Konto">
+      {items.map(([id, label, n]) => (
+        <button key={id} className={`pwnav${active === id ? ' active' : ''}${id === 'delete' ? ' dangernav' : ''}`} aria-current={active === id ? 'page' : undefined} onClick={() => onPick(id)}>
+          <span>{label}</span>
+          {!!n && <em>{n}</em>}
+        </button>
+      ))}
+    </nav>
+  )
+}
 
 function UnlockScreen() {
   const { account, unlock, unlockWithPasskey, logout } = useAccount()
@@ -59,9 +87,30 @@ function UnlockScreen() {
   const [pass, setPass] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [show, setShow] = useState(false)
+  const initials = (account?.label ?? '?').replace(/@.*/, '').slice(0, 2).toUpperCase()
   return (
-    <AuthShell>
-      <form
+    <AuthShell
+      aside={
+        <div className="unlockaside">
+          <div className="unlockaside-top">
+            <span className="unlockbadge">
+              <Icon name="lock" size={22} />
+            </span>
+            <h2>{m.asideTitle}</h2>
+            <p>{m.asideLead}</p>
+          </div>
+          <ul>
+            {m.asidePoints.map(x => (
+              <li key={x}>
+                <Icon name="check" size={15} /> {x}
+              </li>
+            ))}
+          </ul>
+        </div>
+      }
+    >
+      <form className="unlockform"
         onSubmit={async e => {
           e.preventDefault()
           if (!pass || busy) return
@@ -75,8 +124,17 @@ function UnlockScreen() {
           }
         }}
       >
+        <div className="unlockwho">
+          <span className="unlockavatar">{initials}</span>
+          <div>
+            <div className="dim" style={{ fontSize: 12 }}>
+              {m.signedInAs}
+            </div>
+            <b>{account?.label}</b>
+          </div>
+        </div>
         <h2>{m.title}</h2>
-        <p className="lead">{fmt(m.lead, { name: account?.label ?? '' })}</p>
+        <p className="lead">{m.leadShort}</p>
         {error && <div className="errorbox">{error}</div>}
         {canPasskey && (
           <>
@@ -95,14 +153,19 @@ function UnlockScreen() {
                 }
               }}
             >
-              🔑 {pkBusy ? pk.unlocking : pk.unlock}
+              <Icon name="passkey" size={16} className="inlineicon" /> {pkBusy ? pk.unlocking : pk.unlock}
             </button>
             <div className="ordivider">{pk.or}</div>
           </>
         )}
         <div className="field">
           <label htmlFor="unlock">{m.passphrase}</label>
-          <input id="unlock" type="password" autoFocus={!canPasskey} autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} />
+          <div className="pwinput">
+            <input id="unlock" type={show ? 'text' : 'password'} autoFocus={!canPasskey} autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} />
+            <button type="button" className="pwtoggle" aria-label={show ? m.hide : m.show} onClick={() => setShow(v => !v)}>
+              <Icon name={show ? 'eyeOff' : 'eye'} size={16} />
+            </button>
+          </div>
         </div>
         {busy ? (
           <Working label={m.working} />
@@ -137,20 +200,34 @@ function ChangePassphraseCard() {
   const [next2, setNext2] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const ta = useMessages(teamAdminMessages)
   if (!account) return null
+  // Team-Richtlinie: Mindestlänge
+  const minChars = account.team?.policy.minPassphraseChars ?? 0
+  const longEnough = [...next.normalize('NFKC')].length >= minChars
+  const ready = !!current && passphraseReady(next, next2) && longEnough
   const submit = async () => {
     setBusy(true)
     setMsg(null)
     try {
       const env = account.envelopes.find(e => e.kekType === 'passphrase')
       if (!env) throw new Error('passphrase envelope missing')
-      const { kek } = await deriveFromPassphrase(current, account.kdf)
+      const { kek, authKey } = await deriveFromPassphrase(current, account.kdf)
       const raw = await unwrapMasterKeyRaw(env, kek)
       try {
-        await api.setPassphrase(await buildPassphraseChange(raw, next))
+        const change = await buildPassphraseChange(raw, next)
+        try {
+          await api.setPassphrase(change)
+        } catch (e) {
+          // z. B. nach SSO-Anmeldung: Session zuerst mit der aktuellen Passphrase bestätigen
+          if (!(e instanceof ApiClientError && e.code === 'REAUTH_REQUIRED')) throw e
+          await api.reauth(authKey)
+          await api.setPassphrase(change)
+        }
       } finally {
         raw.fill(0)
       }
+      if (account.team) await api.attestPassphrase([...next.normalize('NFKC')].length).catch(() => undefined)
       await refreshAccount()
       setCurrent('')
       setNext('')
@@ -169,7 +246,7 @@ function ChangePassphraseCard() {
       <form
         onSubmit={e => {
           e.preventDefault()
-          if (current && passphraseReady(next, next2) && !busy) void submit()
+          if (ready && !busy) void submit()
         }}
       >
         <div className="field">
@@ -177,10 +254,11 @@ function ChangePassphraseCard() {
           <input id="cur" type="password" autoComplete="current-password" value={current} onChange={e => setCurrent(e.target.value)} />
         </div>
         <PassphraseFields value={next} confirm={next2} onChange={setNext} onConfirmChange={setNext2} label={m.newLabel} />
+        {minChars > 0 && next && !longEnough && <p className="hint" style={{ color: 'var(--red)' }}>{fmt(ta.notices.passphrase, { n: minChars })}</p>}
         {busy ? (
           <Working label={m.working} />
         ) : (
-          <button className="primary" type="submit" disabled={!current || !passphraseReady(next, next2)}>
+          <button className="primary" type="submit" disabled={!ready}>
             {m.submit}
           </button>
         )}
@@ -191,14 +269,23 @@ function ChangePassphraseCard() {
 
 export default function AppPage() {
   const router = useRouter()
-  const { path, fmtDate, fmtNumber } = useI18n()
+  const { path, fmtDate, fmtNumber, locale } = useI18n()
   const t = useMessages(appMessages)
   const errText = useErrorText()
   const { status, account, masterKey, vault, mutate, refreshAccount, syncError, bootError } = useAccount()
   const sApi = useMessages(storageApiMessages)
   const vm = useMessages(vaultsMessages)
+  const ta = useMessages(teamAdminMessages)
   const [view, setView] = useState<ViewId>('cloud')
   const [search, setSearch] = useState('')
+  const [accTab, setAccTab] = useState<AccTab>('overview')
+  const [cwd, setCwd] = useState('')
+  const [notesExpiring, setNotesExpiring] = useState(0)
+  const sm = useMessages(secretsMessages).notes
+  const [newDir, setNewDir] = useState<string | null>(null)
+  const [pageDrag, setPageDrag] = useState(false)
+  const [sessionCount, setSessionCount] = useState(0)
+  const [jump, setJump] = useState<{ id: string; q: string; n: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [undo, setUndo] = useState<TrashEntry | null>(null)
@@ -214,14 +301,20 @@ export default function AppPage() {
     if (status !== 'ready') return
     const token = sessionStorage.getItem('fv_join')
     if (!token) return
+    let stale = false
     api
       .familyInviteInfo(token)
-      .then(i => setJoinInvite({ token, owner: i.ownerLabel, team: i.kind === 'business' }))
+      // späte Antwort nach Annehmen/Ablehnen (Token schon entfernt) öffnet den Dialog nicht erneut
+      .then(i => !stale && sessionStorage.getItem('fv_join') === token && setJoinInvite({ token, owner: i.ownerLabel, team: i.kind === 'business' }))
       .catch(e => {
+        if (stale) return
         sessionStorage.removeItem('fv_join')
         setError(errText(e))
       })
     if (window.location.search.includes('join=')) window.history.replaceState(null, '', window.location.pathname)
+    return () => {
+      stale = true
+    }
   }, [status, errText])
   const em = useMessages(emergencyMessages)
   const [emInvite, setEmInvite] = useState<{ token: string; name: string; wait: number } | null>(null)
@@ -233,7 +326,7 @@ export default function AppPage() {
     if (token) {
       api
         .emergencyInvite(token)
-        .then(i => setEmInvite({ token, name: i.grantorLabel ?? '—', wait: i.waitHours }))
+        .then(i => sessionStorage.getItem('fv_emergency') === token && setEmInvite({ token, name: i.grantorLabel ?? '—', wait: i.waitHours }))
         .catch(e => {
           sessionStorage.removeItem('fv_emergency')
           setError(errText(e))
@@ -260,6 +353,14 @@ export default function AppPage() {
   const [planSegment, setPlanSegment] = useState<'private' | 'business' | undefined>(undefined)
   const space = useFamilySpace(false)
   const [onFilecoin, setOnFilecoin] = useState<Record<string, { copies: number }>>({})
+  const [activeLinks, setActiveLinks] = useState<number | null>(null)
+  useEffect(() => {
+    if (status !== 'ready' || view !== 'cloud') return
+    api
+      .listShares()
+      .then(r => setActiveLinks(r.shares.filter(x => x.active).length))
+      .catch(() => undefined)
+  }, [status, view])
   useEffect(() => {
     if (status !== 'ready') return
     const load = () => api.filecoinStatus().then(r => setOnFilecoin(r.objects)).catch(() => undefined)
@@ -286,6 +387,8 @@ export default function AppPage() {
     setDevPro(process.env.NODE_ENV !== 'production' && q.get('pro') === '1')
     const v = q.get('view')
     if (v === 'plans' || v === 'account' || v === 'send' || v === 'trash') setView(v)
+    const tb = q.get('tab')
+    if (tb && ['overview', 'credits', 'passphrase', 'passkeys', 'emergency', 'sessions', 'team', 'delete'].includes(tb)) setAccTab(tb as AccTab)
     api
       .offer()
       .then(o => {
@@ -636,6 +739,18 @@ export default function AppPage() {
     (s: SecretEntry) => mutate(c => ({ ...c, secrets: [s, ...c.secrets.filter(x => x.id !== s.id)] })),
     [mutate]
   )
+  const rememberLink = useCallback(
+    (l: { id: string; url: string; label: string; createdAt: number }) => mutate(c => ({ ...c, links: [l, ...(c.links ?? []).filter(x => x.id !== l.id)].slice(0, 300) })),
+    [mutate]
+  )
+  const patchSecrets = useCallback(
+    (list: SecretEntry[]) =>
+      mutate(c => {
+        const map = new Map(list.map(x => [x.id, x]))
+        return { ...c, secrets: c.secrets.map(x => map.get(x.id) ?? x) }
+      }),
+    [mutate]
+  )
   const upsertSecrets = useCallback(
     (list: SecretEntry[]) =>
       mutate(c => {
@@ -647,7 +762,7 @@ export default function AppPage() {
   const deleteSecret = useCallback((id: string) => mutate(c => ({ ...c, secrets: c.secrets.filter(x => x.id !== id) })), [mutate])
 
   if (status === 'loading' || status === 'signedOut') {
-    return <AuthShell>{bootError ? <div className="errorbox">{bootError}</div> : <Working label={t.loadingAccount} />}</AuthShell>
+    return <LoadingScreen label={t.loadingAccount} error={bootError} />
   }
   if (status === 'locked' || !account || !masterKey) return <UnlockScreen />
 
@@ -667,8 +782,44 @@ export default function AppPage() {
     familyFolder: account?.plan === 'business' ? t.team.folder : t.nav.familyFolder,
     storageApi: sApi.nav,
     sharedVaults: vm.nav,
-    emergency: em.title
+    emergency: em.title,
+    teamAdmin: ta.nav
   }
+  const q = search.trim().toLowerCase()
+  const searchHits: SearchHit[] = !q
+    ? []
+    : [
+        ...(view === 'cloud'
+          ? []
+          : vault.files
+              .filter(f => f.name.toLowerCase().includes(q))
+              .slice(0, 4)
+              .map(f => ({
+                id: 'f' + f.id,
+                icon: 'file' as const,
+                title: f.name,
+                sub: `${t.nav.cloud} · ${formatBytes(f.size)}`,
+                onSelect: () => {
+                  setView('cloud')
+                  setSearch(f.name)
+                }
+              }))),
+        ...vault.secrets
+          .filter(s => [s.title, s.username, s.url, s.issuer, ...(s.tags ?? [])].some(x => x?.toLowerCase().includes(q)))
+          .slice(0, 6)
+          .map(s => ({
+            id: 's' + s.id,
+            icon: (s.kind === 'password' ? 'key' : s.kind === 'note' ? 'note' : 'otp') as SearchHit['icon'],
+            title: s.title || s.issuer || '—',
+            sub: s.kind === 'password' ? `${t.nav.passwords}${s.username ? ' · ' + s.username : ''}` : s.kind === 'note' ? t.nav.notes : `${t.nav.totp}${s.issuer ? ' · ' + s.issuer : ''}`,
+            onSelect: () => {
+              setJump(j => ({ id: s.id, q: s.title, n: (j?.n ?? 0) + 1 }))
+              setView(s.kind === 'password' ? 'passwords' : s.kind === 'note' ? 'notes' : '2fa')
+              setSearch('')
+            }
+          }))
+      ]
+
 
   return (
     <div className="shell">
@@ -689,10 +840,60 @@ export default function AppPage() {
         apiSection={sApi.section}
         apiLockTip={sApi.lockTip}
         sharedVaultsLabel={vm.nav}
+        businessSection={ta.section}
+        teamAdminLabel={ta.nav}
       />
       <div className="main">
-        <Topbar title={titles[view]} search={search} onSearchChange={setSearch} showSearch={view === 'cloud'} right={<AccountMenu />} />
-        <div className="content">
+        <Topbar title={titles[view]} search={search} onSearchChange={setSearch} hits={searchHits} right={<AccountMenu onNavigate={setView} />} />
+        <div
+          className={`content${pageDrag ? ' pagedrag' : ''}`}
+          onDragOver={e => {
+            if (view !== 'cloud' || !e.dataTransfer.types.includes('Files')) return
+            e.preventDefault()
+            if (!pageDrag) setPageDrag(true)
+          }}
+          onDragLeave={e => {
+            if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setPageDrag(false)
+          }}
+          onDrop={e => {
+            if (view !== 'cloud' || !e.dataTransfer.files?.length) return
+            e.preventDefault()
+            setPageDrag(false)
+            window.dispatchEvent(new CustomEvent('fv:upload', { detail: Array.from(e.dataTransfer.files) }))
+          }}
+        >
+          {pageDrag && (
+            <div className="pagedrop" aria-hidden="true">
+              <div>
+                <Icon name="cloud" size={30} />
+                <b>{t.files.dropHere}</b>
+                {cwd && <span>{fmt(t.files.dropInto, { dir: cwd.slice(0, -1) })}</span>}
+              </div>
+            </div>
+          )}
+          <div className="pagehead">
+            <div>
+              <h1>{titles[view]}</h1>
+              {(t.pages as Record<string, string>)[view] && (
+                <p>
+                  {(view === 'passwords' || view === 'notes' || (isPro && view === '2fa')) &&
+                    `${fmt(t.pageCount[view], { n: vault.secrets.filter(x => x.kind === (view === 'passwords' ? 'password' : view === 'notes' ? 'note' : 'totp')).length })} · `}
+                  {(t.pages as Record<string, string>)[view]}
+                </p>
+              )}
+            </div>
+            {view !== 'cloud' && <div className="pageactions" id="pageactions-slot" />}
+            {view === 'cloud' && (
+              <div className="pageactions">
+                <button className="small" onClick={() => setNewDir('')}>
+                  <Icon name="folder" size={16} className="inlineicon" /> {t.files.newFolder}
+                </button>
+                <button className="primary" onClick={() => (document.querySelector('[data-testid="upload-input"]') as HTMLInputElement | null)?.click()}>
+                  <Icon name="cloud" size={16} className="inlineicon" /> {t.upload.button}
+                </button>
+              </div>
+            )}
+          </div>
           {error && (
             <div className="errorbox" onClick={() => setError(null)}>
               {error}
@@ -715,7 +916,103 @@ export default function AppPage() {
 
           {view === 'cloud' && (
             <>
-              <AccountUpload masterKey={masterKey} freeBytes={freeBytes} onStored={e => void onStored(e)} onError={msg => setError(msg)} />
+              {(() => {
+                const exp = vault.secrets
+                  .filter(x => x.kind === 'note')
+                  .map(x => ({ x, d: daysUntilExpiry(x) }))
+                  .filter((y): y is { x: SecretEntry; d: number } => y.d !== null && y.d <= EXPIRY_WARN_DAYS)
+                  .sort((a, b) => a.d - b.d)
+                if (!exp.length) return null
+                const txt = ({ x, d }: { x: SecretEntry; d: number }) => {
+                  const e = expiryDate(x)
+                  if (d >= 0 && e && expiresAtMonthEnd(x)) return fmt(sm.expiresEndOf, { title: x.title, month: e.toLocaleDateString(locale, e.getFullYear() === new Date().getFullYear() ? { month: 'long' } : { month: 'long', year: 'numeric' }) })
+                  return d < 0 ? fmt(sm.expiredNamed, { title: x.title }) : d === 0 ? fmt(sm.expiresTodayNamed, { title: x.title }) : fmt(sm.expiresInNamed, { title: x.title, n: d })
+                }
+                return (
+                  <div className="card expirybanner">
+                    <Icon name="activity" size={18} />
+                    <span>
+                      <b>{txt(exp[0])}</b>
+                      {exp.slice(1, 3).map(y => (
+                        <span key={y.x.id}> · {txt(y)}</span>
+                      ))}
+                    </span>
+                    <button className="small" onClick={() => { setNotesExpiring(n => n + 1); setView('notes') }}>
+                      {sm.showExpiring}
+                    </button>
+                  </div>
+                )
+              })()}
+              {(() => {
+                const trashBytes = (vault.trash ?? []).reduce((n, f) => n + f.size, 0)
+                const verBytes = vault.files.reduce((n, f) => n + (f.versions ?? []).reduce((m, v) => m + (v.size ?? 0), 0), 0)
+                const pct = (b: number) => (account.quotaBytes > 0 ? Math.min(100, (b / account.quotaBytes) * 100) : 0)
+                const withObj = vault.files.filter(f => f.objectId)
+                const secured = withObj.filter(f => (onFilecoin[f.objectId!]?.copies ?? 0) > 0).length
+                return (
+                  <div className="kpis">
+                    <div className="kpi">
+                      <div className="k">
+                        <Icon name="cloud" size={14} /> {t.kpi.used}
+                      </div>
+                      <div className="v">{formatBytes(account.usedBytes)}</div>
+                      <div className="kbar">
+                        <b style={{ width: `${pct(Math.max(0, account.usedBytes - trashBytes - verBytes))}%`, background: '#0b1220' }} />
+                        <b style={{ width: `${pct(verBytes)}%`, background: '#8a93a3' }} />
+                        <b style={{ width: `${pct(trashBytes)}%`, background: '#cfd6e0' }} />
+                      </div>
+                      <div className="s">{fmt(t.kpi.usedOf, { quota: formatBytes(account.quotaBytes) })}</div>
+                    </div>
+                    <div className="kpi">
+                      <div className="k">
+                        <Icon name="proof" size={14} /> {t.kpi.filecoin}
+                      </div>
+                      <div className="v">
+                        {fmtNumber(secured)} / {fmtNumber(withObj.length)}
+                      </div>
+                      <div className="s">{withObj.length - secured > 0 ? fmt(t.kpi.securing, { n: withObj.length - secured }) : t.kpi.allSecured}</div>
+                    </div>
+                    <button className="kpi" onClick={() => setView('send')}>
+                      <div className="k">
+                        <Icon name="send" size={14} /> {t.kpi.links}
+                      </div>
+                      <div className="v">{activeLinks ?? '–'}</div>
+                      <div className="s">{t.kpi.linksSub}</div>
+                    </button>
+                    <button className="kpi" onClick={() => setView(paidPlan ? 'trash' : 'plans')}>
+                      <div className="k">
+                        <Icon name="trash" size={14} /> {t.kpi.trash}
+                      </div>
+                      <div className="v">{fmtNumber((vault.trash ?? []).length)}</div>
+                      <div className="s">{formatBytes(trashBytes)}</div>
+                    </button>
+                  </div>
+                )
+              })()}
+              <AccountUpload masterKey={masterKey} freeBytes={freeBytes} prefix={cwd} onStored={e => void onStored(e)} onError={msg => setError(msg)} />
+              {newDir !== null && (
+                <form
+                  className="card row newdirform"
+                  onSubmit={e => {
+                    e.preventDefault()
+                    const n = newDir.trim()
+                    if (!n || n.includes('/')) return setError(t.files.badName)
+                    const full = cwd + n
+                    mutate(c => ({ ...c, dirs: [...new Set([...(c.dirs ?? []), full])] }))
+                    setNewDir(null)
+                    setCwd(full + '/')
+                  }}
+                >
+                  <Icon name="folder" size={18} />
+                  <input autoFocus aria-label={t.files.newFolderName} placeholder={t.files.newFolderName} value={newDir} onChange={e => setNewDir(e.target.value)} maxLength={80} />
+                  <button className="primary small" type="submit" disabled={!newDir.trim()}>
+                    {t.files.create}
+                  </button>
+                  <button className="small" type="button" onClick={() => setNewDir(null)}>
+                    {t.passkeys.cancel}
+                  </button>
+                </form>
+              )}
               {dl && (
                 <div className="dlbar">
                   <span className="dlbar-name" title={dl.name}>
@@ -776,6 +1073,19 @@ export default function AppPage() {
                 onVersions={e => setVersionsId(e.id)}
                 onProof={e => setProofId(e.id)}
                 onFilecoin={onFilecoin}
+                cwd={cwd}
+                onCwd={p => {
+                  setCwd(p)
+                  setSelected(new Set())
+                }}
+                dirs={vault.dirs}
+                onMoveTo={(ids, dir) => {
+                  const set = new Set(ids)
+                  mutate(c => ({ ...c, files: c.files.map(f => (set.has(f.id) ? { ...f, name: dir + f.name.slice(f.name.lastIndexOf('/') + 1) } : f)) }))
+                  setSelected(new Set())
+                  setNotice(fmt(t.files.moved, { n: ids.length, dir: dir ? dir.slice(0, -1) : t.files.root }))
+                }}
+                onDeleteDir={d => mutate(c => ({ ...c, dirs: (c.dirs ?? []).filter(x => x !== d && !x.startsWith(d + '/')) }))}
                 headerAction={
                   <>
                   <button className="small trashbtn droptarget" onClick={() => setView('send')} {...dropProps('send', ids => setSharing(entriesOf(ids)))}>
@@ -850,7 +1160,7 @@ export default function AppPage() {
               <button className="small backbtn" onClick={() => setView('cloud')}>
                 ← {t.trash.back}
               </button>
-              <SendView files={vault.files} notes={vault.secrets.filter(s => s.kind === 'note')} />
+              <SendView files={vault.files} notes={vault.secrets.filter(s => s.kind === 'note')} links={vault.links ?? []} onForget={id => mutate(c => ({ ...c, links: (c.links ?? []).filter(l => l.id !== id) }))} />
             </>
           )}
           {view === 'trash' && (
@@ -881,12 +1191,13 @@ export default function AppPage() {
               }}
             />
           )}
-          {sharing && <ShareDialog entries={sharing} masterKey={masterKey} onClose={() => setSharing(null)} />}
+          {sharing && <ShareDialog entries={sharing} masterKey={masterKey} onClose={() => setSharing(null)} onLink={rememberLink} />}
           {sharingNote && (
             <ShareDialog
               note={sharingNote}
               masterKey={masterKey}
               onClose={() => setSharingNote(null)}
+              onLink={rememberLink}
               onCreated={id =>
                 mutate(c => ({
                   ...c,
@@ -912,8 +1223,34 @@ export default function AppPage() {
             />
           )}
 
-          {view === 'plans' && <PlansView key={planSegment ?? 'auto'} initialSegment={planSegment} />}
+          {view === 'plans' && <PlansView key={planSegment ?? 'auto'} initialSegment={planSegment} onCredits={() => { setView('account'); setAccTab('credits') }} />}
 
+          {view !== 'account' && <TeamNotices onOpenAccount={() => setView('account')} />}
+          {view === 'teamAdmin' &&
+            (account.plan !== 'business' ? (
+              <UpgradeWall
+                title={ta.title}
+                description={ta.upgradeLead}
+                body={ta.upgradeBody}
+                cta={ta.upgradeCta}
+                onUpgrade={() => {
+                  setPlanSegment('business')
+                  setView('plans')
+                }}
+              />
+            ) : account.team?.role === 'member' ? (
+              <div className="card">
+                <h3>{ta.title}</h3>
+                <p className="dim">{ta.adminsOnly}</p>
+              </div>
+            ) : (
+              <TeamAdminView
+                onInvite={() => {
+                  setView('account')
+                  setAccTab('team')
+                }}
+              />
+            ))}
           {view === 'sharedVaults' &&
             (account.plan === 'business' ? (
               <SharedVaultsView />
@@ -956,16 +1293,19 @@ export default function AppPage() {
           )}
 
           {(view === 'passwords' || view === 'notes' || view === '2fa') &&
-            (!isPro ? (
+            (!isPro && view === '2fa' ? (
               <UpgradeWall
                 title={titles[view]}
-                description={
-                  view === 'passwords' ? t.upgradeWall.passwordsDesc : view === 'notes' ? t.upgradeWall.notesDesc : t.upgradeWall.totpDesc
-                }
+                description={t.upgradeWall.totpDesc}
                 onUpgrade={() => setView('plans')}
               />
             ) : view === 'passwords' ? (
               <PasswordsPanel
+                key={jump ? `j${jump.n}` : 'pw'}
+                initialSelect={jump?.id}
+                totps={isPro ? vault.secrets.filter(s => s.kind === 'totp') : []}
+                canTotp={isPro}
+                onPatch={patchSecrets}
                 entries={vault.secrets.filter(s => s.kind === 'password')}
                 onSave={upsertSecret}
                 onSaveMany={upsertSecrets}
@@ -973,32 +1313,39 @@ export default function AppPage() {
               />
             ) : view === 'notes' ? (
               <NotesPanel
+                key={jump ? `j${jump.n}` : `notes${notesExpiring}`}
+                initialExpiring={notesExpiring > 0 && !jump}
+                initialQuery={vault.secrets.some(x => x.id === jump?.id && x.kind === 'note') ? jump?.q : undefined}
                 entries={vault.secrets.filter(s => s.kind === 'note')}
                 onSave={upsertSecret}
                 onDelete={deleteSecret}
                 masterKey={masterKey}
-                onShare={setSharingNote}
+                onShare={isPro ? setSharingNote : undefined}
+                onShareLocked={isPro ? undefined : () => setView('plans')}
                 onStorageChanged={() => void refreshAccount()}
               />
             ) : (
-              <TotpPanel entries={vault.secrets.filter(s => s.kind === 'totp')} onSave={upsertSecret} onDelete={deleteSecret} />
+              <TotpPanel entries={vault.secrets.filter(s => s.kind === 'totp')} onSave={upsertSecret} onDelete={deleteSecret} onPatch={patchSecrets} passwords={vault.secrets.filter(s => s.kind === 'password')} />
             ))}
 
           {emAlert && view !== 'account' && (
             <div className="notice warn row" style={{ justifyContent: 'space-between' }}>
               <span>{fmt(em.banner, { name: emAlert.name, at: fmtDate(emAlert.at) })}</span>
-              <button className="small" onClick={() => setView('account')}>
+              <button className="small" onClick={() => { setView('account'); setAccTab('emergency') }}>
                 {em.bannerButton}
               </button>
             </div>
           )}
           {emInvite && (
-            <ConfirmDialog
+            <InviteDialog
+              icon="lifebuoy"
+              eyebrow={em.inviteEyebrow}
               title={em.joinTitle}
+              from={emInvite.name}
               body={fmt(em.joinBody, { name: emInvite.name, wait: em.waits[emInvite.wait] ?? `${emInvite.wait} h` })}
+              points={em.invitePoints.map(x => fmt(x, { name: emInvite.name, wait: em.waits[emInvite.wait] ?? `${emInvite.wait} h` }))}
               confirmLabel={em.join}
               cancelLabel={em.decline}
-              danger={false}
               onCancel={() => {
                 sessionStorage.removeItem('fv_emergency')
                 setEmInvite(null)
@@ -1018,14 +1365,17 @@ export default function AppPage() {
               }}
             />
           )}
-          {view === 'emergency' && emOpen && <EmergencyVaultView contactId={emOpen.id} name={emOpen.name} onBack={() => setView('account')} />}
+          {view === 'emergency' && emOpen && <EmergencyVaultView contactId={emOpen.id} name={emOpen.name} onBack={() => { setView('account'); setAccTab('emergency') }} />}
           {joinInvite && (
-            <ConfirmDialog
+            <InviteDialog
+              icon={joinInvite.team ? 'building' : 'family'}
+              eyebrow={joinInvite.team ? t.team.inviteEyebrow : t.family.inviteEyebrow}
               title={joinInvite.team ? t.team.joinTitle : t.family.joinTitle}
+              from={joinInvite.owner}
               body={fmt(joinInvite.team ? t.team.joinBody : t.family.joinBody, { owner: joinInvite.owner })}
+              points={(joinInvite.team ? t.team.invitePoints : t.family.invitePoints).map(x => fmt(x, { owner: joinInvite.owner }))}
               confirmLabel={t.family.join}
               cancelLabel={t.family.decline}
-              danger={false}
               onCancel={() => {
                 sessionStorage.removeItem('fv_join')
                 setJoinInvite(null)
@@ -1046,75 +1396,39 @@ export default function AppPage() {
           )}
           {view === 'account' && (
             <>
-              <FamilyPanel freeGb={freeGb} />
-              <div className="grid2">
-                <div className="card">
-                  <h3>{t.account.title}</h3>
-                  <div className="stat">
-                    <span className="k">{account.email ? t.account.email : t.account.account}</span>
-                    <span className="v">{account.email ?? account.label}</span>
-                  </div>
-                  {account.wallets.map(w => (
-                    <div className="stat" key={w}>
-                      <span className="k">{t.account.login}</span>
-                      <span className="v mono">
-                        {w.slice(0, 10)}…{w.slice(-6)}
-                      </span>
-                    </div>
-                  ))}
-                  <div className="stat">
-                    <span className="k">{t.account.plan}</span>
-                    <span className="v">{PLAN_LABEL[account.plan]}</span>
-                  </div>
-                  <div className="stat">
-                    <span className="k">{t.account.storage}</span>
-                    <span className="v">
-                      {formatBytes(account.usedBytes)} / {formatBytes(account.quotaBytes)}
-                    </span>
-                  </div>
-                  <div className="stat">
-                    <span className="k">{t.account.entries}</span>
-                    <span className="v">
-                      {fmtNumber(vault.files.length)} · {fmtNumber(vault.secrets.length)}
-                    </span>
-                  </div>
-                  <div className="stat">
-                    <span className="k">{t.account.since}</span>
-                    <span className="v">{fmtDate(account.createdAt)}</span>
-                  </div>
-                  <div className="row" style={{ marginTop: 14 }}>
-                    <button className="primary" onClick={() => setView('plans')}>
-                      {t.account.managePlan}
-                    </button>
-                  </div>
-                </div>
-                <div className="card">
-                  <h3>{t.security.title}</h3>
-                  <p className="dim">{t.security.body}</p>
-                  <div className="stat">
-                    <span className="k">{t.security.kdf}</span>
-                    <span className="v">
-                      Argon2id · {Math.round(account.kdf.m / 1024)} MiB · t={account.kdf.t}
-                    </span>
-                  </div>
-                  <div className="stat">
-                    <span className="k">{t.security.autolock}</span>
-                    <span className="v">{t.security.autolockValue}</span>
-                  </div>
-                  <div className="stat">
-                    <span className="k">{t.security.kit}</span>
-                    <span className="v">{t.security.kitValue}</span>
-                  </div>
-                </div>
-              </div>
-              <ChangePassphraseCard />
-              <EmergencyPanel
-                onOpen={(id, name) => {
-                  setEmOpen({ id, name })
-                  setView('emergency')
-                }}
-                onUpgrade={() => setView('plans')}
+            <SecurityStatus
+              onAction={target => {
+                if (target === 'plans') return setView('plans')
+                setAccTab(target === 'passkeys' ? 'passkeys' : 'emergency')
+              }}
+            />
+            <div className="acclayout">
+              <AccountNav
+                active={accTab}
+                onPick={setAccTab}
+                items={[
+                  ['overview', t.accnav.overview],
+                  ['credits', t.accnav.credits],
+                  ['passphrase', t.accnav.passphrase],
+                  ['passkeys', t.accnav.passkeys, account.passkeys.length],
+                  ['emergency', t.accnav.emergency],
+                  ['sessions', t.accnav.sessions, sessionCount],
+                  ['team', t.accnav.team],
+                  ['delete', t.accnav.delete]
+                ]}
               />
+              <div className="accmain">
+              {accTab === 'overview' && (
+                <>
+                  <SignInCard isPro={isPro} onTab={setAccTab} onPlans={() => setView('plans')} />
+                  <SafetyCards isPro={isPro} onEmergency={() => (isPro ? setAccTab('emergency') : setView('plans'))} />
+                  <SessionsCard onCount={setSessionCount} limit={4} onMore={() => setAccTab('sessions')} />
+                </>
+              )}
+              {accTab === 'credits' && <CreditsCard onChanged={() => void refreshAccount()} />}
+              {accTab === 'passphrase' && <ChangePassphraseCard />}
+              {accTab === 'passkeys' && (
+                <>
               {isPro ? (
                 <PasskeysPanel />
               ) : (
@@ -1132,6 +1446,25 @@ export default function AppPage() {
                   </button>
                 </div>
               )}
+                </>
+              )}
+              {accTab === 'emergency' && (
+                <>
+              <TeamEscrowCard />
+              <EmergencyPanel
+                onOpen={(id, name) => {
+                  setEmOpen({ id, name })
+                  setView('emergency')
+                }}
+                onUpgrade={() => setView('plans')}
+              />
+                </>
+              )}
+              {accTab === 'sessions' && <SessionsCard onCount={setSessionCount} />}
+              {accTab === 'team' && <FamilyPanel freeGb={freeGb} />}
+              {accTab === 'delete' && <DeleteAccountCard onPlans={() => setView('plans')} onTeam={() => setAccTab('team')} />}
+              </div>
+            </div>
             </>
           )}
         </div>

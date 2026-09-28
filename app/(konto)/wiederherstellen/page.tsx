@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import AuthShell, { Working } from '@/components/account/AuthShell'
+import AuthShell, { LoadingScreen, Working } from '@/components/account/AuthShell'
 import PassphraseFields, { passphraseReady } from '@/components/account/PassphraseFields'
 import { useAccount } from '@/features/account/AccountProvider'
 import { api } from '@/features/api/client'
@@ -69,15 +69,11 @@ export default function RecoverPage() {
   }
 
   if (status === 'loading') {
-    return (
-      <AuthShell>
-        <Working label="…" />
-      </AuthShell>
-    )
+    return <LoadingScreen label="…" />
   }
 
   return (
-    <AuthShell wide>
+    <AuthShell kind="recover" wide>
       <form
         onSubmit={e => {
           e.preventDefault()

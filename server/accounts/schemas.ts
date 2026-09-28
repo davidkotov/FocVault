@@ -41,6 +41,8 @@ export const registerSchema = z
 
 export const preloginSchema = z.object({ email: emailSchema })
 export const loginSchema = z.object({ email: emailSchema, authKey: b64u(32) })
+/** Bestätigung mit Passphrase in einer bestehenden Session (z. B. nach SSO) */
+export const reauthSchema = z.object({ authKey: b64u(32) })
 /** Wiederherstellen: E-Mail (ältere Konten) oder nur die aus den 24 Wörtern abgeleitete Kennung. */
 export const recoverySchema = z
   .object({ email: emailSchema.optional(), recoveryLookup: b64u(32).optional(), recoveryAuthKey: b64u(32) })

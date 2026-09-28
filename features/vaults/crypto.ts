@@ -1,5 +1,5 @@
 import type { Bytes } from '@/lib/crypto'
-import type { SecretEntry } from '@/lib/vault'
+import { parseSecrets, type SecretEntry } from '@/lib/vault'
 
 /**
  * Index eines geteilten Tresors: Name und Einträge, AES-256-GCM mit dem Tresor-Schlüssel der
@@ -37,5 +37,5 @@ export function vaultIndexGeneration(body: Uint8Array): number {
 export async function decryptVaultIndex(body: Uint8Array, key: CryptoKey, vaultId: string): Promise<SharedVaultData> {
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: body.subarray(5, 17) as Bytes, additionalData: aad(vaultId) }, key, body.subarray(17) as Bytes)
   const parsed = JSON.parse(new TextDecoder().decode(plain))
-  return { name: typeof parsed.name === 'string' ? parsed.name : '', secrets: Array.isArray(parsed.secrets) ? parsed.secrets : [] }
+  return { name: typeof parsed.name === 'string' ? parsed.name : '', secrets: parseSecrets(parsed.secrets) }
 }

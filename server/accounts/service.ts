@@ -1,4 +1,6 @@
 import { passkeyEnvelopes } from './passkeys'
+import { teamInfo } from '../team/service'
+import { ssoEnforcedFor } from '../team/sso'
 import { pooledUsedBytes } from '../family/service'
 import type { z } from 'zod'
 import type { AccountView, KdfParams, KekType, KeyEnvelope, Plan } from '../../lib/api-types'
@@ -167,6 +169,10 @@ async function verifyAuth(
 
 export async function login(deps: Deps, input: z.output<typeof loginSchema>, meta: RequestMeta): Promise<AuthResult> {
   const accountId = await verifyAuth(deps, input.email, 'passphrase', input.authKey, meta)
+  if (await ssoEnforcedFor(deps.db, input.email, accountId)) {
+    await audit(deps.db, accountId, 'user', 'auth.login_blocked_sso')
+    throw new ApiError('SSO_REQUIRED', 'Dein Unternehmen verlangt die Anmeldung per SSO.')
+  }
   const session = await createSession(deps.db, accountId, meta.userAgent)
   await audit(deps.db, accountId, 'user', 'auth.login')
   return { view: await accountView(deps, accountId), ...session }
@@ -183,6 +189,30 @@ export async function recoveryLogin(
   const session = await createSession(deps.db, accountId, meta.userAgent)
   await audit(deps.db, accountId, 'user', 'auth.recovery_login', { via: input.email ? 'email' : 'words' })
   return { view: await accountView(deps, accountId, ['recovery']), ...session }
+}
+
+/**
+ * Starke Anmeldung in der laufenden Session nachholen (z. B. nach SSO): Passphrase prüfen und die
+ * Session als frisch bestätigt markieren. Nötig vor sensiblen Aktionen wie „Passphrase ändern“.
+ */
+export async function reauthWithPassphrase(deps: Deps, session: SessionInfo, authKey: string, meta: RequestMeta): Promise<void> {
+  rateLimit(`auth:reauth:account:${session.accountId}`, 10, AUTH_WINDOW_MS)
+  rateLimit(`auth:ip:${meta.ip}`, ipLimit(60), AUTH_WINDOW_MS)
+  const rows = await deps.db.query<{ hash: Uint8Array; salt: Uint8Array; params: SecretHashParams }>(
+    `SELECT hash, salt, params FROM auth_secrets WHERE account_id = $1 AND kind = 'passphrase'`,
+    [session.accountId]
+  )
+  const row = rows[0]
+  if (!row) {
+    await burnVerification()
+    throw new ApiError('INVALID_CREDENTIALS', 'Die Passphrase ist falsch.')
+  }
+  if (!(await verifySecret(b64uDecode(authKey), row.hash, row.salt, row.params))) {
+    await audit(deps.db, session.accountId, 'user', 'auth.passphrase_failed')
+    throw new ApiError('INVALID_CREDENTIALS', 'Die Passphrase ist falsch.')
+  }
+  await deps.db.query('UPDATE sessions SET strong_auth_at = now() WHERE id = $1', [session.sessionId])
+  await audit(deps.db, session.accountId, 'user', 'auth.reauth')
 }
 
 export async function changePassphrase(
@@ -228,7 +258,8 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
     email_verified_at: Date | null
     plan: Plan
     created_at: Date
-  }>('SELECT id, email, label, email_verified_at, plan, created_at FROM accounts WHERE id = $1', [accountId])
+    recovery_checked_at: Date | null
+  }>('SELECT id, email, label, email_verified_at, plan, created_at, recovery_checked_at FROM accounts WHERE id = $1', [accountId])
   const a = rows[0]
   if (!a) throw new ApiError('NOT_FOUND', 'Konto nicht gefunden.')
   const wallets = (
@@ -263,9 +294,11 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
     usedBytes: used,
     billing,
     createdAt: new Date(a.created_at).toISOString(),
+    recoveryCheckedAt: a.recovery_checked_at ? new Date(a.recovery_checked_at).toISOString() : null,
     kdf: pass.kdf_params,
     envelopes,
     passkeys: await passkeyEnvelopes(deps.db, a.id, a.plan),
-    isAdmin: isAdminIdentity(a.email, wallets)
+    isAdmin: isAdminIdentity(a.email, wallets),
+    team: await teamInfo(deps.db, a.id)
   }
 }

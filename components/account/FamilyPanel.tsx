@@ -89,8 +89,8 @@ export default function FamilyPanel({ freeGb }: { freeGb: number }) {
 
       {view.role === 'owner' && (
         <div style={{ marginTop: 16 }}>
-          {link ? (
-            <div className="sharelink">
+          {link && (
+            <div className="sharelink" style={{ marginBottom: 10 }}>
               <strong>{m.invite}</strong>
               <input readOnly value={link} onFocus={e => e.currentTarget.select()} aria-label={m.invite} />
               <span className="hint">{m.inviteLead}</span>
@@ -98,11 +98,10 @@ export default function FamilyPanel({ freeGb }: { freeGb: number }) {
                 {copied ? m.copied : m.copy}
               </button>
             </div>
-          ) : (
-            <button className="primary small" disabled={busy || used >= view.seats} onClick={() => void invite()}>
-              + {m.invite}
-            </button>
           )}
+          <button className={link ? 'small' : 'primary small'} disabled={busy || used >= view.seats} onClick={() => void invite()}>
+            + {m.invite}
+          </button>
           {view.invites.length > 0 && (
             <>
               <div className="navsection" style={{ padding: '14px 0 4px' }}>

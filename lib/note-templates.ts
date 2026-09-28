@@ -8,9 +8,9 @@ export interface TemplateField {
 }
 
 /** Vorlagen für strukturierte Notizen. Labels kommen aus den Übersetzungen (secrets.templates). */
-export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: TemplateField[] }> = {
+export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: 'idcard' | 'card' | 'shield' | 'wifi' | 'key'; fields: TemplateField[] }> = {
   id: {
-    icon: '🪪',
+    icon: 'idcard',
     fields: [
       { key: 'docType', type: 'text' },
       { key: 'name', type: 'text' },
@@ -21,7 +21,7 @@ export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: Temp
     ]
   },
   card: {
-    icon: '💳',
+    icon: 'card',
     fields: [
       { key: 'holder', type: 'text' },
       { key: 'number', type: 'secret' },
@@ -32,7 +32,7 @@ export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: Temp
     ]
   },
   insurance: {
-    icon: '🛡️',
+    icon: 'shield',
     fields: [
       { key: 'insurer', type: 'text' },
       { key: 'policy', type: 'text' },
@@ -41,7 +41,7 @@ export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: Temp
     ]
   },
   wifi: {
-    icon: '📶',
+    icon: 'wifi',
     fields: [
       { key: 'ssid', type: 'text' },
       { key: 'password', type: 'secret' },
@@ -49,7 +49,7 @@ export const NOTE_TEMPLATES: Record<NoteTemplateId, { icon: string; fields: Temp
     ]
   },
   license: {
-    icon: '🔑',
+    icon: 'key',
     fields: [
       { key: 'product', type: 'text' },
       { key: 'licenseKey', type: 'secret' },
@@ -75,6 +75,11 @@ export function expiryDate(note: Pick<SecretEntry, 'fields'>): Date | null {
   m = /^(\d{4})-(\d{2})$/.exec(v)
   if (m) return new Date(Number(m[1]), Number(m[2]), 0, 23, 59, 59)
   return null
+}
+
+/** Ablauf nur als Monat/Jahr angegeben (z. B. Kreditkarte „10/2026“)? */
+export function expiresAtMonthEnd(note: Pick<SecretEntry, 'fields'>): boolean {
+  return /^\d{4}-\d{2}$/.test(note.fields?.find(f => f.key === 'expires')?.value?.trim() ?? '')
 }
 
 /** Tage bis zum Ablauf (negativ = abgelaufen), null ohne Datum. */

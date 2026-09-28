@@ -1,8 +1,9 @@
 import { deps } from '@/server/deps'
 import { accountView } from '@/server/accounts/service'
 import { requireSession } from '@/server/auth/guard'
-import { SESSION_COOKIE, findSession } from '@/server/auth/sessions'
-import { json, route } from '@/server/shared/http'
+import { SESSION_COOKIE, clearSessionCookie, findSession } from '@/server/auth/sessions'
+import { deleteAccount, deleteAccountSchema } from '@/server/accounts/delete'
+import { json, readJson, route } from '@/server/shared/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,4 +18,15 @@ export const GET = route(async req => {
   }
   const session = await requireSession(req, d.db)
   return json(await accountView(d, session.accountId))
+})
+
+/** Konto endgültig löschen (Passphrase oder Recovery-Kit als Bestätigung). */
+export const DELETE = route(async req => {
+  const d = await deps()
+  const session = await requireSession(req, d.db)
+  const input = await readJson(req, deleteAccountSchema)
+  const r = await deleteAccount(d, session, input)
+  const res = json({ ok: true, ...r })
+  clearSessionCookie(res)
+  return res
 })

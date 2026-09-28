@@ -40,6 +40,25 @@ export interface StripeEventLite {
   id: string
   type: string
   object: Record<string, any>
+  /** data.previous_attributes (z. B. customer bei payment_method.detached) */
+  previous?: Record<string, any>
+}
+
+export interface InvoiceLite {
+  id: string
+  date: string
+  amount: number
+  currency: string
+  status: string
+  description: string
+  pdf: string | null
+}
+
+export interface CardLite {
+  brand: string
+  last4: string
+  expMonth: number
+  expYear: number
 }
 
 export interface StripeGateway {
@@ -65,6 +84,17 @@ export interface StripeGateway {
     locale: 'de' | 'en'
   }): Promise<string>
   portal(customer: string, returnUrl: string, locale: 'de' | 'en'): Promise<string>
+  /** Einmalzahlung (Guthaben aufladen) */
+  checkoutPayment(input: {
+    customer: string
+    currency: Cur
+    amount: number
+    description: string
+    successUrl: string
+    cancelUrl: string
+    metadata: Record<string, string>
+    locale: 'de' | 'en'
+  }): Promise<string>
   retrieveSubscription(id: string): Promise<SubscriptionLite>
   changeSubscriptionPlan(id: string, itemId: string, price: PriceData): Promise<SubscriptionLite>
   setCancelAtPeriodEnd(id: string, cancel: boolean): Promise<SubscriptionLite>
@@ -74,6 +104,10 @@ export interface StripeGateway {
   setupIntentPaymentMethod(setupIntentId: string): Promise<string | null>
   setDefaultPaymentMethod(customer: string, paymentMethod: string): Promise<void>
   hasDefaultPaymentMethod(customer: string): Promise<boolean>
+  /** Checkout-Session zu einer Zahlung (für Erstattungen/Anfechtungen von Aufladungen) */
+  checkoutSessionForPaymentIntent(paymentIntent: string): Promise<Record<string, any> | null>
+  listInvoices(customer: string, limit: number): Promise<InvoiceLite[]>
+  defaultCard(customer: string): Promise<CardLite | null>
   /** Einzelrechnung (Pay-as-you-go) sofort abbuchen */
   chargeOnce(input: {
     customer: string
@@ -180,6 +214,21 @@ export class LiveStripeGateway implements StripeGateway {
     return session.url
   }
 
+  async checkoutPayment(input: Parameters<StripeGateway['checkoutPayment']>[0]) {
+    const session = await this.s.checkout.sessions.create({
+      mode: 'payment',
+      customer: input.customer,
+      line_items: [{ price_data: { currency: input.currency, unit_amount: input.amount, product_data: { name: input.description } }, quantity: 1 }],
+      payment_intent_data: { metadata: input.metadata, setup_future_usage: 'off_session' },
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      metadata: input.metadata,
+      locale: input.locale
+    } as any)
+    if (!session.url) throw new Error('Stripe lieferte keine Checkout-URL.')
+    return session.url
+  }
+
   async portal(customer: string, returnUrl: string, locale: 'de' | 'en') {
     const p = await this.s.billingPortal.sessions.create({ customer, return_url: returnUrl, locale } as any)
     return p.url
@@ -236,6 +285,34 @@ export class LiveStripeGateway implements StripeGateway {
     return !('deleted' in c && c.deleted) && !!(c as any).invoice_settings?.default_payment_method
   }
 
+  async checkoutSessionForPaymentIntent(paymentIntent: string) {
+    const r = await this.s.checkout.sessions.list({ payment_intent: paymentIntent, limit: 1 })
+    return (r.data[0] as unknown as Record<string, any>) ?? null
+  }
+
+  async listInvoices(customer: string, limit: number) {
+    const r = await this.s.invoices.list({ customer, limit })
+    return r.data
+      .filter(i => i.status !== 'draft')
+      .map(i => ({
+        id: i.id!,
+        date: new Date((i.status_transitions?.paid_at ?? i.created) * 1000).toISOString(),
+        amount: (i.total ?? 0) / 100,
+        currency: i.currency,
+        status: i.status ?? 'open',
+        description: i.lines?.data?.[0]?.description ?? i.description ?? '',
+        pdf: i.invoice_pdf ?? null
+      }))
+  }
+
+  async defaultCard(customer: string) {
+    const c = await this.s.customers.retrieve(customer, { expand: ['invoice_settings.default_payment_method'] })
+    if ('deleted' in c && c.deleted) return null
+    const pm = (c as any).invoice_settings?.default_payment_method
+    if (!pm || typeof pm === 'string' || !pm.card) return null
+    return { brand: pm.card.brand, last4: pm.card.last4, expMonth: pm.card.exp_month, expYear: pm.card.exp_year }
+  }
+
   async chargeOnce(input: Parameters<StripeGateway['chargeOnce']>[0]) {
     const invoice = await this.s.invoices.create({
       customer: input.customer,
@@ -265,7 +342,7 @@ export class LiveStripeGateway implements StripeGateway {
 
   verifyWebhook(rawBody: string, signature: string): StripeEventLite {
     const e = this.s.webhooks.constructEvent(rawBody, signature, this.webhookSecret)
-    return { id: e.id, type: e.type, object: (e.data as any).object }
+    return { id: e.id, type: e.type, object: (e.data as any).object, previous: (e.data as any).previous_attributes ?? undefined }
   }
 }
 

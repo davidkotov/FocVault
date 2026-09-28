@@ -14,7 +14,7 @@ test('Geteilte Tresore (Business): anlegen, Person mit Rechten, Bearbeiten, Entf
   await page.getByPlaceholder(/Suchen/).fill(ceo)
   await page.getByLabel(`Paket für ${ceo}`).selectOption('business')
   await expect(page.locator('tr', { hasText: ceo })).toContainText('monatlich')
-  await page.goto('/app?view=account')
+  await page.goto('/app?view=account&tab=team')
   await unlockVault(page, PASS)
   await page.getByRole('button', { name: /Person einladen/ }).click()
   const link = await page.locator('.sharelink input').inputValue()

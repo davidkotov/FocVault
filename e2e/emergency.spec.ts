@@ -20,6 +20,7 @@ test('Notfallzugang: einladen, annehmen, bestätigen, anfordern, freigeben, Tres
 
   // Einladung mit 1 Tag Wartezeit
   await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await page.locator('.accnav').getByRole('button', { name: 'Notfallzugang' }).click()
   await page.getByLabel('Wartezeit').selectOption({ label: '1 Tag' })
   await page.getByRole('button', { name: '+ Vertrauensperson einladen' }).click()
   const link = await page.locator('.emergency .sharelink input').inputValue()
@@ -38,6 +39,7 @@ test('Notfallzugang: einladen, annehmen, bestätigen, anfordern, freigeben, Tres
   await page.reload()
   await unlockVault(page, PASS)
   await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await page.locator('.accnav').getByRole('button', { name: 'Notfallzugang' }).click()
   const row = page.locator('.emrow', { hasText: ben })
   await expect(row).toContainText('bitte mit deiner Passphrase bestätigen')
   await row.getByPlaceholder('Deine Passphrase').fill(PASS)
@@ -46,6 +48,7 @@ test('Notfallzugang: einladen, annehmen, bestätigen, anfordern, freigeben, Tres
 
   // Vertrauensperson fordert an → wartet
   await g.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await g.locator('.accnav').getByRole('button', { name: 'Notfallzugang' }).click()
   const gRow = g.locator('.emrow', { hasText: anna })
   await gRow.getByRole('button', { name: 'Zugriff anfordern' }).click()
   await g.getByRole('alertdialog').getByRole('button', { name: 'Zugriff anfordern' }).click()
@@ -64,6 +67,7 @@ test('Notfallzugang: einladen, annehmen, bestätigen, anfordern, freigeben, Tres
   await g.reload()
   await unlockVault(g, PASS)
   await g.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await g.locator('.accnav').getByRole('button', { name: 'Notfallzugang' }).click()
   await g.locator('.emrow', { hasText: anna }).getByRole('button', { name: 'Tresor öffnen' }).click()
   await expect(g.getByRole('heading', { name: `Notfallzugang: Tresor von ${anna}` })).toBeVisible()
   const fileRow = g.locator('.sharerow', { hasText: 'testament.txt' })

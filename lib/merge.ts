@@ -33,7 +33,17 @@ export function mergeContainers(base: VaultContainer, local: VaultContainer, rem
     files: merge3<VaultEntry>(base.files, local.files, remote.files, f => f.storedAt),
     secrets: merge3<SecretEntry>(base.secrets, local.secrets, remote.secrets, s => s.updatedAt),
     trash: merge3<TrashEntry>(base.trash ?? [], local.trash ?? [], remote.trash ?? [], t => t.trashedAt),
+    dirs: mergeSet(base.dirs ?? [], local.dirs ?? [], remote.dirs ?? []),
+    links: merge3(base.links ?? [], local.links ?? [], remote.links ?? [], l => l.createdAt),
     // Schlüsselpaar: einmal erzeugt; bei Gleichstand gewinnt der Server-Stand (den kennen die anderen schon)
     ...((remote.familyKey ?? local.familyKey) ? { familyKey: remote.familyKey ?? local.familyKey } : {})
   }
+}
+
+/** 3-Wege-Merge für Mengen (z. B. Ordner): bleibt, wenn beide Seiten es haben oder eine Seite es neu angelegt hat. */
+export function mergeSet(base: string[], local: string[], remote: string[]): string[] {
+  const B = new Set(base)
+  const L = new Set(local)
+  const R = new Set(remote)
+  return [...new Set([...local, ...remote])].filter(x => (L.has(x) && R.has(x)) || (L.has(x) && !B.has(x)) || (R.has(x) && !B.has(x))).sort()
 }

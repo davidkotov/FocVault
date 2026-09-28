@@ -22,6 +22,7 @@ import { isProd } from '../shared/env'
 import { isUuid, uuidv7 } from '../shared/ids'
 import type { SessionInfo } from '../auth/sessions'
 import { usedBytes } from '../accounts/plans'
+import { creditBalance } from '../credits/service'
 import { getPricing, getTreasury } from './settings'
 import { quotaFor } from './quota'
 import { isFamilyMember, pooledUsedBytes, syncFamilyAfterPlanChange } from '../family/service'
@@ -77,6 +78,7 @@ export interface PublicOffer {
   payg: PricingConfig['payg']
   plans: PricingConfig['plans']
   addons: PricingConfig['addons']
+  businessAddons: PricingConfig['businessAddons']
   trashDays: number
   versions: PricingConfig['versions']
   business: PricingConfig['business']
@@ -85,17 +87,60 @@ export interface PublicOffer {
 
 export async function offer(deps: Deps): Promise<PublicOffer> {
   const p = await getPricing(deps.db)
-  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, trashDays: p.trashDays, versions: p.versions, business: p.business, purchasesEnabled: purchasesEnabled() }
+  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, businessAddons: p.businessAddons, trashDays: p.trashDays, versions: p.versions, business: p.business, purchasesEnabled: purchasesEnabled() }
 }
 
 /** Währung wählen (nur solange kein Abo/Zusatzspeicher läuft – sonst Wechsel beim Planwechsel). */
 export async function setCurrency(deps: Deps, session: SessionInfo, currency: Currency): Promise<void> {
   const account = await loadAccount(deps, session.accountId)
+  if (account.currency === currency) return
   const addons = await deps.db.query(`SELECT 1 FROM account_addons WHERE account_id = $1 AND status = 'active' LIMIT 1`, [account.id])
   if (account.plan !== 'free' || addons.length) {
     throw new ApiError('BAD_REQUEST', 'Die Währung lässt sich bei einem laufenden Abo nur zusammen mit einem Planwechsel ändern.')
   }
+  await assertCurrencySwitchAllowed(deps, account, currency)
   await deps.db.query('UPDATE accounts SET currency = $2 WHERE id = $1', [account.id, currency])
+}
+
+/**
+ * Guthaben und Pay-as-you-go laufen in der Kontowährung. Ein Wechsel würde Guthaben „verstecken“
+ * (es gilt nur in seiner Währung) bzw. den laufenden PAYG-Monat in der falschen Währung abrechnen.
+ * Deshalb gesperrt, solange Guthaben (oder ein offener Betrag) in einer anderen Währung besteht,
+ * PAYG aktiv ist, ein Monat noch nicht abgerechnet ist oder ein Übertrag offen ist.
+ */
+export async function assertCurrencySwitchAllowed(deps: Deps, account: { id: string; currency: Currency; payg_enabled: boolean }, to: Currency): Promise<void> {
+  if (account.currency === to) return
+  const balances = await deps.db.query<{ currency: Currency; b: number }>(
+    `SELECT currency, sum(amount)::float8 AS b FROM credit_ledger WHERE account_id = $1 GROUP BY currency HAVING sum(amount) <> 0 ORDER BY currency`,
+    [account.id]
+  )
+  const other = balances.find(r => r.currency !== to)
+  if (other) {
+    const b = round2(Number(other.b))
+    throw new ApiError(
+      'BAD_REQUEST',
+      b > 0
+        ? `Du hast noch ${b.toFixed(2)} ${other.currency} Guthaben – die Währung lässt sich erst wechseln, wenn es aufgebraucht ist.`
+        : `Es ist noch ein offener Betrag von ${(-b).toFixed(2)} ${other.currency} auszugleichen – erst danach lässt sich die Währung wechseln.`
+    )
+  }
+  const pending = await deps.db.query(
+    `SELECT 1 FROM usage_daily u
+      WHERE u.account_id = $1 AND u.day >= (date_trunc('month', current_date) - interval '1 month')::date
+        AND NOT EXISTS (SELECT 1 FROM payg_invoices i WHERE i.account_id = u.account_id AND i.period = to_char(u.day, 'YYYY-MM'))
+      LIMIT 1`,
+    [account.id]
+  )
+  const carried = await deps.db.query<{ c: number }>(
+    `SELECT carried_out::float8 AS c FROM payg_invoices WHERE account_id = $1 ORDER BY period DESC LIMIT 1`,
+    [account.id]
+  )
+  if (account.payg_enabled || pending.length || Number(carried[0]?.c ?? 0) > 0) {
+    throw new ApiError(
+      'BAD_REQUEST',
+      'Solange Pay-as-you-go läuft oder Nutzung noch nicht abgerechnet ist, bleibt die Währung fest. Bitte Pay-as-you-go abschalten und den Monatsabschluss abwarten.'
+    )
+  }
 }
 
 export interface PlanChange {
@@ -125,6 +170,7 @@ export async function changePlan(
   if (await isFamilyMember(deps.db, session.accountId)) {
     throw new ApiError('BAD_REQUEST', 'Du bist Mitglied einer Family – für ein eigenes Abo bitte zuerst austreten.')
   }
+  if (input.plan !== 'free') await assertCurrencySwitchAllowed(deps, await loadAccount(deps, session.accountId), input.currency)
   const gw = stripeGateway()
   if (gw) {
     const url = await stripeChangePlan(deps, gw, session, input, ctx)
@@ -169,7 +215,7 @@ export async function changePlan(
         [account.id]
       )
       for (const a of addons) {
-        const pack = pricing.addons.find(x => x.id === a.pack_id)
+        const pack = findAddon(pricing, a.pack_id)
         if (!pack) continue
         await tx.query('UPDATE account_addons SET currency = $2, billing_interval = $3, price = $4 WHERE id = $1', [
           a.id,
@@ -192,6 +238,16 @@ async function assertSeatsFit(deps: Deps, accountId: string, seats: number): Pro
   if (members > seats) throw new ApiError('BAD_REQUEST', `Dein Team hat ${members} Personen – bitte mindestens ${members} Nutzer wählen.`)
 }
 
+/** Zusatzspeicher-Paket finden (privat: Pro/Family, business: Business-Pakete). */
+export function findAddon(pricing: PricingConfig, id: string | null, audience?: 'private' | 'business') {
+  if (!id) return undefined
+  if (audience !== 'business') {
+    const p = pricing.addons.find(a => a.id === id)
+    if (p || audience === 'private') return p
+  }
+  return pricing.businessAddons.find(a => a.id === id)
+}
+
 export async function buyAddon(deps: Deps, session: SessionInfo, packId: string): Promise<BillingResult> {
   const account = await loadAccount(deps, session.accountId)
   if (account.plan !== 'pro' && account.plan !== 'family' && account.plan !== 'business') {
@@ -201,7 +257,7 @@ export async function buyAddon(deps: Deps, session: SessionInfo, packId: string)
     throw new ApiError('PLAN_REQUIRED', 'Zusatzspeicher für die Familie bucht der Family-Inhaber.')
   }
   const pricing = await getPricing(deps.db)
-  const pack = pricing.addons.find(a => a.id === packId)
+  const pack = findAddon(pricing, packId, account.plan === 'business' ? 'business' : 'private')
   if (!pack) throw new ApiError('NOT_FOUND', 'Paket nicht gefunden.')
   const gw = stripeGateway()
   if (gw) {
@@ -260,12 +316,22 @@ export async function setPayg(
   }
   const pricing = await getPricing(deps.db)
   const cap = Math.min(Math.max(1, Math.round(capGb ?? pricing.payg.defaultCapGb)), pricing.payg.maxCapGb)
-  if (enabled) assertPurchasesAllowed()
-  // Mit Stripe: beim ersten Einschalten Karte hinterlegen lassen (Webhook schaltet dann ein).
-  const gw = stripeGateway()
-  if (gw && enabled && !account.payg_enabled) {
-    const url = await stripePaygSetupUrl(deps, gw, session, cap, ctx)
-    if (url) return { redirectUrl: url }
+  if (enabled) {
+    // Offener Betrag (z. B. erstattete oder angefochtene Aufladung) sperrt PAYG, bis er ausgeglichen ist.
+    const balance = await creditBalance(deps.db, account.id, account.currency)
+    if (balance < 0) {
+      throw new ApiError('BAD_REQUEST', `Bitte zuerst den offenen Betrag von ${(-balance).toFixed(2)} ${account.currency} per Aufladung ausgleichen.`)
+    }
+    // Voraussetzung ist immer eine hinterlegte Zahlungsmethode: Die Nutzung bis zur Obergrenze wird erst
+    // am Monatsende abgerechnet – Guthaben allein deckt das nicht ab (es wird aber zuerst verwendet).
+    const gw = stripeGateway()
+    if (gw) {
+      const url = await stripePaygSetupUrl(deps, gw, session, cap, ctx)
+      if (url) return { redirectUrl: url }
+    } else {
+      // Ohne Stripe gibt es keine Zahlungsmethode: nur lokal bzw. Staging (BILLING_DEV_PURCHASES=1).
+      assertPurchasesAllowed()
+    }
   }
   if (!enabled) {
     const used = await usedBytes(deps.db, account.id)

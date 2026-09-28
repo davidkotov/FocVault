@@ -1,4 +1,10 @@
 const de = {
+  aside: {
+    login: { title: 'Willkommen zurück.', lead: 'Melde dich an und entsperre deinen Tresor – verschlüsselt wird ausschliesslich auf deinem Gerät.', points: ['Ende-zu-Ende-verschlüsselt mit AES-256-GCM', 'Anmeldung per E-Mail, Google, Apple oder Wallet', 'Passkeys statt Passphrase möglich', 'Gespeichert in der EU und auf Filecoin'] },
+    register: { title: 'Deine Privacy Cloud in zwei Minuten.', lead: 'Du wählst eine Passphrase und erhältst ein Recovery-Kit. Damit gehört der Schlüssel nur dir.', points: ['5 GB kostenlos, keine Kreditkarte', 'Dateien, Passwörter, Notizen und 2FA', 'Recovery-Kit mit 24 Wörtern', 'Jederzeit exportierbar'] },
+    recover: { title: 'Zugang wiederherstellen.', lead: 'Mit deinen 24 Wörtern setzt du eine neue Passphrase – ohne E-Mail, ohne Support, ohne Zugriff durch uns.', points: ['Deine Dateien bleiben unverändert', 'Andere Geräte werden abgemeldet', 'Die Wörter verlassen dein Gerät nicht', 'Danach neues Recovery-Kit empfohlen'] },
+    share: { title: 'Jemand hat dir etwas sicher geschickt.', lead: 'Die Inhalte werden erst in deinem Browser entschlüsselt. Der Schlüssel steckt nur im Link – FocVault kann nichts lesen.', points: ['Ende-zu-Ende-verschlüsselt', 'Kein Konto nötig', 'Ablauf und Download-Limit vom Absender', 'Gespeichert in der EU und auf Filecoin'] }
+  },
   shellFoot: 'Ende-zu-Ende-verschlüsselt: Passphrase und Schlüssel verlassen nie dein Gerät. Gespeichert auf Filecoin über Fil One (EU).',
   email: 'E-Mail',
   passphrase: 'Passphrase',
@@ -80,6 +86,12 @@ const de = {
 }
 
 const en: typeof de = {
+  aside: {
+    login: { title: 'Welcome back.', lead: 'Sign in and unlock your vault – encryption happens only on your device.', points: ['End-to-end encrypted with AES-256-GCM', 'Sign in with email, Google, Apple or a wallet', 'Passkeys instead of a passphrase', 'Stored in the EU and on Filecoin'] },
+    register: { title: 'Your privacy cloud in two minutes.', lead: 'You choose a passphrase and get a recovery kit. The key belongs to you alone.', points: ['5 GB free, no credit card', 'Files, passwords, notes and 2FA', 'Recovery kit with 24 words', 'Export any time'] },
+    recover: { title: 'Restore access.', lead: 'Use your 24 words to set a new passphrase – no email, no support, no access by us.', points: ['Your files stay unchanged', 'Other devices are signed out', 'The words never leave your device', 'A new recovery kit is recommended afterwards'] },
+    share: { title: 'Someone sent you something securely.', lead: 'Content is decrypted only in your browser. The key lives in the link – FocVault cannot read anything.', points: ['End-to-end encrypted', 'No account needed', 'Expiry and download limit set by the sender', 'Stored in the EU and on Filecoin'] }
+  },
   shellFoot: 'End-to-end encrypted: your passphrase and keys never leave your device. Stored on Filecoin via Fil One (EU).',
   email: 'Email',
   passphrase: 'Passphrase',

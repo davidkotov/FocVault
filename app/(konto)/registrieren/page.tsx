@@ -15,7 +15,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState('form')
   const firstStep = step === 'form'
   return (
-    <AuthShell wide={!firstStep}>
+    <AuthShell kind="register" wide={!firstStep}>
       {mode.kind === 'email' && firstStep && (
         <SocialEntry onNew={r => setMode({ kind: 'wallet', registrationToken: r.registrationToken, address: r.address, label: r.label })} />
       )}

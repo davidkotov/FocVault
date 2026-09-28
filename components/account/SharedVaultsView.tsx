@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import NotesPanel from '@/components/NotesPanel'
 import PasswordsPanel from '@/components/PasswordsPanel'
 import TotpPanel from '@/components/TotpPanel'
+import { Icon } from '@/components/site/Icons'
 import { useAccount } from '@/features/account/AccountProvider'
 import { api, type VaultAuditEvent, type VaultRole } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
@@ -47,6 +49,15 @@ export default function SharedVaultsView() {
   const [addRole, setAddRole] = useState<VaultRole>('view')
   const [copyId, setCopyId] = useState('')
   const [audit, setAudit] = useState<VaultAuditEvent[] | null>(null)
+  const autoOpened = useRef(false)
+  const createRef = useRef<HTMLInputElement>(null)
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => setSlot(document.getElementById('pageactions-slot')), [])
+  useEffect(() => {
+    if (!loaded || autoOpened.current || openId || !vaults.length) return
+    autoOpened.current = true
+    if (typeof window !== 'undefined' && window.innerWidth >= 1000) setOpenId(vaults[0].id)
+  }, [loaded, vaults, openId])
 
   const sync = useCallback(() => setVaults([...c.vaults]), [c])
   const run = useCallback(
@@ -123,10 +134,10 @@ export default function SharedVaultsView() {
           {vaults.map(v => (
             <button key={v.id} type="button" className="vaultrow" onClick={() => (setOpenId(v.id), setTab('passwords'), setAudit(null))}>
               <span className="vaulticon" aria-hidden="true">
-                🗄️
+                <Icon name="vault" size={20} />
               </span>
               <span className="vaultmain">
-                <strong>{v.data ? v.data.name || '—' : `🔒 ${m.waiting}`}</strong>
+                <strong>{v.data ? v.data.name || '—' : m.waiting}</strong>
                 <span className="hint">
                   {v.data ? `${fmt(m.items, { n: v.data.secrets.length })} · ` : ''}
                   {fmt(m.people, { n: v.state.members.length })}
@@ -156,11 +167,151 @@ export default function SharedVaultsView() {
   const save = (s: SecretEntry) => void run(() => c.saveSecret(current.id, s))
   const del = (id: string) => void run(() => c.deleteSecret(current.id, id))
 
+  const peopleCard = (
+    <div className="card plansection vaultpeople">
+      <div className="plansection-head">
+        <h3>{m.peopleTitle}</h3>
+        <span className="dim">{fmt(m.peopleCount, { n: members.length })}</span>
+      </div>
+      {members.map(p => {
+        const hasKey = p.generations.includes(current.state.generation)
+        return (
+          <div className="sharerow personrow" key={p.accountId}>
+            <PersonAvatar label={p.label} />
+            <span className="sharename">
+              <b>{p.label}</b>
+              {p.accountId === me && <span className="dim"> ({m.you})</span>}
+              {!hasKey && (
+                <span className="pwbadge warn" title={m.noKeyTip}>
+                  {m.noKey}
+                </span>
+              )}
+            </span>
+            {manage ? (
+              <select
+                className="rolepill"
+                value={p.role}
+                aria-label={`${m.tabs.people}: ${p.label}`}
+                disabled={busy || (p.role === 'manage' && managers <= 1)}
+                onChange={e => void run(() => c.setRole(current.id, p.accountId, e.target.value as VaultRole))}
+              >
+                {ROLES.map(r => (
+                  <option key={r} value={r}>
+                    {m.roles[r]}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className={`badge role-${p.role}`}>{m.roles[p.role]}</span>
+            )}
+            {manage && p.accountId !== me ? (
+              <button className="linkish dangerlink" disabled={busy || (p.role === 'manage' && managers <= 1)} onClick={() => void run(() => c.removeMember(current.id, p.accountId))}>
+                {m.remove}
+              </button>
+            ) : (
+              <span />
+            )}
+          </div>
+        )
+      })}
+      {manage && (
+        <div className="vaultadd">
+          {addable.length === 0 ? (
+            <p className="hint">{m.allAdded}</p>
+          ) : (
+            <div className="row">
+              <Icon name="users" size={16} />
+              <select value={addId} onChange={e => setAddId(e.target.value)} aria-label={m.addPerson}>
+                <option value="">{m.addPerson} …</option>
+                {addable.map(t => (
+                  <option key={t.accountId} value={t.accountId}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <select className="rolepill" value={addRole} onChange={e => setAddRole(e.target.value as VaultRole)} aria-label={m.roles.view}>
+                {ROLES.map(r => (
+                  <option key={r} value={r}>
+                    {m.roles[r]}
+                  </option>
+                ))}
+              </select>
+              <button className="primary small" disabled={!addId || busy} onClick={() => void run(() => c.addMember(current.id, addId, addRole)).then(() => setAddId(''))}>
+                {m.add}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {tab === 'people' && (
+        <ul className="rolehelp">
+          {ROLES.map(r => (
+            <li key={r}>
+              <span className={`badge role-${r}`}>{m.roles[r]}</span> {m.roleHelp[r]}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="hint vaultpeople-foot">
+        {m.removedNote} {tab === 'people' ? m.limit : ''}
+      </p>
+    </div>
+  )
+
   return (
-    <>
+    <div className="vaultsplit">
+      {slot &&
+        createPortal(
+          <button className="primary small" onClick={() => createRef.current?.focus()}>
+            + {m.newVault}
+          </button>,
+          slot
+        )}
+      <aside className="vaultside">
+        {vaults.map(v => (
+          <button key={v.id} type="button" className={`vaultrow${v.id === current.id ? ' on' : ''}`} onClick={() => (setOpenId(v.id), setTab('passwords'), setAudit(null))}>
+            <span className="vaulticon" aria-hidden="true">
+              <Icon name="vault" size={18} />
+            </span>
+            <span className="vaultmain">
+              <strong>{v.data ? v.data.name || '—' : m.waiting}</strong>
+              <span className="avstack">
+                {v.state.members.slice(0, 4).map(p => (
+                  <PersonAvatar key={p.accountId} label={p.label} small />
+                ))}
+                {v.state.members.length > 4 && <span className="avmore">+{v.state.members.length - 4}</span>}
+                <span className="hint">{v.data ? fmt(m.items, { n: v.data.secrets.length }) : ''}</span>
+              </span>
+            </span>
+            <span className={`badge role-${v.role}`}>{m.roles[v.role]}</span>
+          </button>
+        ))}
+        <div className="card vaultnew">
+          <form
+            className="vaultcreate"
+            onSubmit={e => {
+              e.preventDefault()
+              const n = name.trim()
+              if (!n) return
+              void run(async () => {
+                const id = await c.create(n)
+                setName('')
+                setOpenId(id)
+                setTab('passwords')
+              })
+            }}
+          >
+            <input ref={createRef} value={name} onChange={e => setName(e.target.value)} placeholder={m.newPlaceholder} aria-label={m.newName} maxLength={80} />
+            <button className="primary" type="submit" disabled={busy || !name.trim()}>
+              {busy ? m.creating : m.create}
+            </button>
+          </form>
+        </div>
+      </aside>
+      <div className="vaultmaincol">
       <div className="card">
         <div className="vaulthead">
-          <button className="small" onClick={() => setOpenId(null)}>
+          <button className="linkish backlink" onClick={() => setOpenId(null)}>
             {m.back}
           </button>
           <span className={`badge role-${role}`}>{m.roles[role]}</span>
@@ -183,7 +334,7 @@ export default function SharedVaultsView() {
           </form>
         ) : (
           <h3 className="vaulttitle">
-            🗄️ {data ? data.name : m.waiting}
+            <Icon name="vault" size={20} className="inlineicon" /> {data ? data.name : m.waiting}
             {data && canEdit && (
               <button className="linkish small-link" onClick={() => setRenaming(data.name)}>
                 {m.rename}
@@ -196,7 +347,8 @@ export default function SharedVaultsView() {
         {!data && <p className="dim">{m.waitingLead}</p>}
         {data && role === 'view' && <p className="hint">{m.viewOnly}</p>}
 
-        <div className="tabs" role="tablist">
+        {data && <p className="hint vaultsub">{fmt(m.generation, { n: current.state.generation })} · {fmt(m.peopleCount, { n: members.length })}</p>}
+        <div className="tabs pilltabs" role="tablist">
           {(['passwords', 'notes', 'totp', 'people', ...(manage ? ['audit'] : [])] as Tab[]).map(t => (
             <button
               key={t}
@@ -251,92 +403,6 @@ export default function SharedVaultsView() {
           </div>
         )}
 
-        {tab === 'people' && (
-          <div className="vaultpeople">
-            {members.map(p => {
-              const hasKey = p.generations.includes(current.state.generation)
-              return (
-                <div className="sharerow" key={p.accountId}>
-                  <span className="sharename">
-                    {p.label}
-                    {p.accountId === me && <span className="dim"> ({m.you})</span>}
-                  </span>
-                  {!hasKey && (
-                    <span className="badge" title={m.noKeyTip}>
-                      {m.noKey}
-                    </span>
-                  )}
-                  {manage ? (
-                    <select
-                      value={p.role}
-                      aria-label={`${m.tabs.people}: ${p.label}`}
-                      disabled={busy || (p.role === 'manage' && managers <= 1)}
-                      onChange={e => void run(() => c.setRole(current.id, p.accountId, e.target.value as VaultRole))}
-                    >
-                      {ROLES.map(r => (
-                        <option key={r} value={r}>
-                          {m.roles[r]}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className={`badge role-${p.role}`}>{m.roles[p.role]}</span>
-                  )}
-                  {manage && p.accountId !== me && (
-                    <button className="small danger" disabled={busy || (p.role === 'manage' && managers <= 1)} onClick={() => void run(() => c.removeMember(current.id, p.accountId))}>
-                      {m.remove}
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-            {manage && (
-              <div className="vaultadd">
-                <div className="navsection" style={{ padding: '14px 0 6px' }}>
-                  {m.addPerson}
-                </div>
-                {addable.length === 0 ? (
-                  <p className="hint">{m.allAdded}</p>
-                ) : (
-                  <div className="row">
-                    <select value={addId} onChange={e => setAddId(e.target.value)} aria-label={m.addPerson}>
-                      <option value="">—</option>
-                      {addable.map(t => (
-                        <option key={t.accountId} value={t.accountId}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select value={addRole} onChange={e => setAddRole(e.target.value as VaultRole)} aria-label={m.roles.view}>
-                      {ROLES.map(r => (
-                        <option key={r} value={r}>
-                          {m.roles[r]}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="primary"
-                      disabled={!addId || busy}
-                      onClick={() => void run(() => c.addMember(current.id, addId, addRole)).then(() => setAddId(''))}
-                    >
-                      {m.add}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            <ul className="rolehelp">
-              {ROLES.map(r => (
-                <li key={r}>
-                  <strong>{m.roles[r]}:</strong> {m.roleHelp[r]}
-                </li>
-              ))}
-            </ul>
-            <p className="hint">{m.removedNote}</p>
-            <p className="hint">{m.limit}</p>
-          </div>
-        )}
-
         {tab === 'audit' && manage && (
           <div className="vaultaudit">
             {audit === null ? (
@@ -383,11 +449,13 @@ export default function SharedVaultsView() {
           readOnly={!canEdit}
           onSave={save}
           onSaveMany={list => void run(() => c.saveSecrets(current.id, list))}
+          onPatch={canEdit ? list => void c.saveSecrets(current.id, list).catch(() => undefined) : undefined}
           onDelete={del}
         />
       )}
       {data && tab === 'notes' && <NotesPanel heading={m.tabs.notes} entries={of('note')} readOnly={!canEdit} onSave={save} onDelete={del} />}
-      {data && tab === 'totp' && <TotpPanel heading={m.tabs.totp} entries={of('totp')} readOnly={!canEdit} onSave={save} onDelete={del} />}
+      {data && tab === 'totp' && <TotpPanel heading={m.tabs.totp} entries={of('totp')} readOnly={!canEdit} onSave={save} onDelete={del} passwords={of('password')} onPatch={canEdit ? list => void c.saveSecrets(current.id, list).catch(() => undefined) : undefined} />}
+      {(tab === 'people' || (!!data && tab !== 'audit')) && peopleCard}
 
       {confirm && (
         <ConfirmDialog
@@ -407,6 +475,19 @@ export default function SharedVaultsView() {
           }}
         />
       )}
-    </>
+      </div>
+    </div>
+  )
+}
+
+const AV_COLORS = ['#0b1220', '#0070cc', '#148a52', '#a15c00', '#7a3fd1', '#c43b3b']
+function PersonAvatar({ label, small }: { label: string; small?: boolean }) {
+  const ini = label.split('@')[0].replace(/[._-]+/g, ' ').trim().split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase() || '?'
+  let h = 0
+  for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return (
+    <span className={`personav${small ? ' small' : ''}`} style={{ background: AV_COLORS[h % AV_COLORS.length] }} title={label}>
+      {ini}
+    </span>
   )
 }
