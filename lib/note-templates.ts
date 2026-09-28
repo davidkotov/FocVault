@@ -77,6 +77,11 @@ export function expiryDate(note: Pick<SecretEntry, 'fields'>): Date | null {
   return null
 }
 
+/** Ablauf nur als Monat/Jahr angegeben (z. B. Kreditkarte „10/2026“)? */
+export function expiresAtMonthEnd(note: Pick<SecretEntry, 'fields'>): boolean {
+  return /^\d{4}-\d{2}$/.test(note.fields?.find(f => f.key === 'expires')?.value?.trim() ?? '')
+}
+
 /** Tage bis zum Ablauf (negativ = abgelaufen), null ohne Datum. */
 export function daysUntilExpiry(note: Pick<SecretEntry, 'fields'>, now = Date.now()): number | null {
   const d = expiryDate(note)

@@ -234,7 +234,8 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
     email_verified_at: Date | null
     plan: Plan
     created_at: Date
-  }>('SELECT id, email, label, email_verified_at, plan, created_at FROM accounts WHERE id = $1', [accountId])
+    recovery_checked_at: Date | null
+  }>('SELECT id, email, label, email_verified_at, plan, created_at, recovery_checked_at FROM accounts WHERE id = $1', [accountId])
   const a = rows[0]
   if (!a) throw new ApiError('NOT_FOUND', 'Konto nicht gefunden.')
   const wallets = (
@@ -269,6 +270,7 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
     usedBytes: used,
     billing,
     createdAt: new Date(a.created_at).toISOString(),
+    recoveryCheckedAt: a.recovery_checked_at ? new Date(a.recovery_checked_at).toISOString() : null,
     kdf: pass.kdf_params,
     envelopes,
     passkeys: await passkeyEnvelopes(deps.db, a.id, a.plan),

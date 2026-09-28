@@ -72,7 +72,18 @@ const de = {
     more: 'Weitere Aktionen',
     copyPassword: 'Passwort kopieren',
     open: 'Öffnen',
-    linked2fa: 'Code im 2FA-Authenticator verknüpft'
+    linked2fa: 'Code im 2FA-Authenticator verknüpft',
+    favorites: 'Favoriten',
+    favorite: 'Als Favorit markieren',
+    unfavorite: 'Aus Favoriten entfernen',
+    copied: 'Kopiert ✓',
+    totpLabel: '2FA (Einmal-Code)',
+    totpPlaceholder: 'Schlüssel oder otpauth://-Link',
+    totpScan: 'QR-Code scannen',
+    totpLive: 'Live-Code – so prüfst du, ob der Schlüssel stimmt',
+    totpInvalid: 'Kein gültiger 2FA-Schlüssel.',
+    totpHint: 'Optional: den Schlüssel aus der 2FA-Einrichtung der Website einfügen oder den QR-Code scannen.',
+    totpPro: '2FA beim Passwort gibt es ab Pro'
   },
   notes: {
     heading: 'Notizen',
@@ -109,6 +120,7 @@ const de = {
     expiredNamed: '{title} ist abgelaufen',
     expiresTodayNamed: '{title} läuft heute ab',
     expiresInNamed: '{title} läuft in {n} Tagen ab',
+    expiresEndOf: '{title} läuft Ende {month} ab',
     showExpiring: 'Anzeigen',
     expiringNav: 'Läuft ab',
     templatesNav: 'Vorlagen',
@@ -117,6 +129,7 @@ const de = {
     oneAttachment: '1 Anhang',
     nAttachments: '{n} Anhänge',
     shareShort: 'Teilen',
+    shareProOnly: 'Notizen teilen gibt es ab Pro',
     share: 'Per Secure Send teilen',
     reveal: 'Anzeigen',
     hide: 'Verbergen',
@@ -160,6 +173,7 @@ const de = {
     }
   },
   totp: {
+    copied: 'Kopiert ✓',
     filter: 'Konten filtern …',
     tip: 'Tipp: Klick auf einen Code kopiert ihn. Die Codes entstehen in deinem Browser – das Geheimnis verlässt den Tresor nie.',
     heading: '2FA-Authenticator',
@@ -263,7 +277,18 @@ const en: typeof de = {
     more: 'More actions',
     copyPassword: 'Copy password',
     open: 'Open',
-    linked2fa: 'Code linked from 2FA authenticator'
+    linked2fa: 'Code linked from 2FA authenticator',
+    favorites: 'Favourites',
+    favorite: 'Mark as favourite',
+    unfavorite: 'Remove from favourites',
+    copied: 'Copied ✓',
+    totpLabel: '2FA (one-time code)',
+    totpPlaceholder: 'Setup key or otpauth:// link',
+    totpScan: 'Scan QR code',
+    totpLive: 'Live code – check that the key is correct',
+    totpInvalid: 'Not a valid 2FA key.',
+    totpHint: 'Optional: paste the key from the website’s 2FA setup or scan the QR code.',
+    totpPro: '2FA with passwords is available from Pro'
   },
   notes: {
     heading: 'Notes',
@@ -300,6 +325,7 @@ const en: typeof de = {
     expiredNamed: '{title} has expired',
     expiresTodayNamed: '{title} expires today',
     expiresInNamed: '{title} expires in {n} days',
+    expiresEndOf: '{title} expires at the end of {month}',
     showExpiring: 'Show',
     expiringNav: 'Expiring',
     templatesNav: 'Templates',
@@ -308,6 +334,7 @@ const en: typeof de = {
     oneAttachment: '1 attachment',
     nAttachments: '{n} attachments',
     shareShort: 'Share',
+    shareProOnly: 'Sharing notes is available from Pro',
     share: 'Share via Secure Send',
     reveal: 'Show',
     hide: 'Hide',
@@ -351,6 +378,7 @@ const en: typeof de = {
     }
   },
   totp: {
+    copied: 'Copied ✓',
     filter: 'Filter accounts …',
     tip: 'Tip: click a code to copy it. Codes are generated in your browser – the secret never leaves the vault.',
     heading: '2FA authenticator',

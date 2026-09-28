@@ -32,6 +32,14 @@ interface Props {
   onFilecoin?: Record<string, { copies: number }>
   /** Hinweis unter der Liste; Standard beschreibt den Wallet-Modus (Pieces bleiben on-chain). */
   deleteNote?: string
+  /** Ordner: aktueller Pfad („“ = oberste Ebene, sonst mit „/“ am Ende) */
+  cwd?: string
+  onCwd?: (path: string) => void
+  /** leere, selbst angelegte Ordner (vollständige Pfade ohne „/“ am Ende) */
+  dirs?: string[]
+  /** Dateien in einen Ordner verschieben (Ziel mit „/“ am Ende, „“ = oberste Ebene) */
+  onMoveTo?: (ids: string[], dir: string) => void
+  onDeleteDir?: (dir: string) => void
 }
 
 /** Datentyp für gezogene Dateien (IDs als JSON) */
@@ -56,7 +64,7 @@ function tileColor(folder: string): string {
   }
 }
 
-export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote, selected, onToggleSelect, onSelectAll, dragIds }: Props) {
+export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote, selected, onToggleSelect, onSelectAll, dragIds, cwd = '', onCwd, dirs = [], onMoveTo, onDeleteDir }: Props) {
   const [active, setActive] = useState<string>('all')
   const [layout, setLayout] = useState<'list' | 'grid'>(() =>
     typeof window !== 'undefined' && window.localStorage.getItem('fv_fileview') === 'grid' ? 'grid' : 'list'
@@ -76,9 +84,59 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
   const t = useMessages(appMessages)
   const { fmtDate } = useI18n()
 
+  const [overDir, setOverDir] = useState<string | null>(null)
+  const folderMode = !!onCwd && !searchQuery
   const bySearch = searchQuery
     ? entries.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : entries
+    : onCwd
+      ? entries.filter(e => e.name.startsWith(cwd) && !e.name.slice(cwd.length).includes('/'))
+      : entries
+  const subdirs = (() => {
+    if (!folderMode) return []
+    const map = new Map<string, { n: number; size: number }>()
+    for (const e of entries) {
+      if (!e.name.startsWith(cwd)) continue
+      const rest = e.name.slice(cwd.length)
+      const i = rest.indexOf('/')
+      if (i <= 0) continue
+      const d = rest.slice(0, i)
+      const x = map.get(d) ?? { n: 0, size: 0 }
+      map.set(d, { n: x.n + 1, size: x.size + e.size })
+    }
+    for (const d of dirs) {
+      if (!d.startsWith(cwd)) continue
+      const first = d.slice(cwd.length).split('/')[0]
+      if (first && !map.has(first)) map.set(first, { n: 0, size: 0 })
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  })()
+  const shownName = (e: VaultEntry) => (folderMode ? e.name.slice(cwd.length) : e.name)
+  const crumbs = cwd ? cwd.slice(0, -1).split('/') : []
+  const dropDir = (dir: string) =>
+    onMoveTo
+      ? {
+          onDragOver: (ev: React.DragEvent) => {
+            if (!ev.dataTransfer.types.includes(DRAG_MIME)) return
+            ev.preventDefault()
+            ev.stopPropagation()
+            ev.dataTransfer.dropEffect = 'move'
+            setOverDir(dir)
+          },
+          onDragLeave: () => setOverDir(d => (d === dir ? null : d)),
+          onDrop: (ev: React.DragEvent) => {
+            ev.preventDefault()
+            ev.stopPropagation()
+            setOverDir(null)
+            document.body.classList.remove('fv-dragging')
+            try {
+              const ids = JSON.parse(ev.dataTransfer.getData(DRAG_MIME)) as string[]
+              if (Array.isArray(ids) && ids.length) onMoveTo(ids, dir)
+            } catch {
+              /* fremde Daten */
+            }
+          }
+        }
+      : {}
 
   const counts = new Map<string, number>()
   for (const e of bySearch) counts.set(e.folder, (counts.get(e.folder) ?? 0) + 1)
@@ -99,6 +157,25 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
           {headerAction}
         </div>
       </h3>
+
+      {folderMode && (cwd || subdirs.length > 0) && (
+        <nav className="crumbs" aria-label={t.files.path}>
+          <button type="button" className={`crumb${overDir === '' ? ' over' : ''}`} onClick={() => onCwd?.('')} {...dropDir('')}>
+            <Icon name="cloud" size={14} /> {t.files.root}
+          </button>
+          {crumbs.map((c, i) => {
+            const path = crumbs.slice(0, i + 1).join('/') + '/'
+            return (
+              <span key={path} className="crumbwrap">
+                <span className="crumbsep">/</span>
+                <button type="button" className={`crumb${overDir === path ? ' over' : ''}${i === crumbs.length - 1 ? ' current' : ''}`} onClick={() => onCwd?.(path)} {...dropDir(path)}>
+                  {c}
+                </button>
+              </span>
+            )
+          })}
+        </nav>
+      )}
 
       {entries.length > 0 && (
         <div className="chipsrow">
@@ -135,9 +212,9 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
         <p className="dim">{t.files.empty}</p>
       )}
 
-      {entries.length > 0 && filtered.length === 0 && <p className="dim">{t.files.noMatch}</p>}
+      {entries.length > 0 && filtered.length === 0 && subdirs.length === 0 && <p className="dim">{cwd ? t.files.emptyFolder : t.files.noMatch}</p>}
 
-      {filtered.length > 0 && (
+      {(filtered.length > 0 || subdirs.length > 0) && (
         <div className={`filegrid${layout === 'list' ? ' aslist' : ''}`}>
           {layout === 'list' && (
             <div className="filelisthead" aria-hidden="true">
@@ -150,6 +227,36 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
               <span />
             </div>
           )}
+          {subdirs.map(([d, info]) => {
+            const path = cwd + d + '/'
+            return (
+              <div className={`folderrow${overDir === path ? ' over' : ''}`} key={'d' + path} {...dropDir(path)}>
+                {onToggleSelect && <span />}
+                <button type="button" className="filetile foldertile" aria-label={`${t.files.openFolder}: ${d}`} onClick={() => onCwd?.(path)}>
+                  <Icon name="folder" size={26} />
+                </button>
+                <div className="filename">
+                  <button type="button" className="linkish" onClick={() => onCwd?.(path)}>
+                    {d}
+                  </button>
+                </div>
+                <div className="filemeta">
+                  <span className="fm-size">{info.n ? fmt(info.n === 1 ? t.files.folderCountOne : t.files.folderCount, { n: info.n }) : t.files.folderEmpty}</span>
+                  <span className="fm-sep"> · </span>
+                  <span className="fm-date">{info.n ? formatBytes(info.size) : ''}</span>
+                </div>
+                <div className="fileactions">
+                  {info.n === 0 && onDeleteDir && (
+                    <button className="iconbtn danger" title={t.files.deleteFolder} aria-label={`${t.files.deleteFolder}: ${d}`} onClick={() => onDeleteDir(cwd + d)}>
+                      <svg className="icon" width="15" height="15" viewBox="0 0 24 24">
+                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
           {filtered.map(e => (
             <div
               className={`filecard ${selected?.has(e.id) ? 'selected' : ''}`}
@@ -183,10 +290,10 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
               <div className="filename" title={e.name}>
                 {onPreview ? (
                   <button type="button" className="linkish" onClick={() => onPreview(e)}>
-                    {e.name}
+                    {shownName(e)}
                   </button>
                 ) : (
-                  e.name
+                  shownName(e)
                 )}
                 {layout === 'list' && !!e.versions?.length && onVersions && (
                   <button type="button" className="versionbadge" onClick={() => onVersions(e)}>

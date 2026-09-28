@@ -39,7 +39,7 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   await page.getByLabel(`Paket für ${owner}`).selectOption('family')
   await expect(page.locator('tr', { hasText: owner })).toContainText('monatlich')
 
-  await page.goto('/app?view=account')
+  await page.goto('/app?view=account&tab=team')
   await unlockVault(page, PASS)
   await page.getByRole('button', { name: /Person einladen/ }).click()
   const link = await page.locator('.sharelink input').inputValue()
@@ -59,6 +59,7 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   await expect(g.locator('.navitem.locked', { hasText: 'Speicher-API' })).toHaveCount(1)
   await expect(g.locator('.navitem.locked', { hasText: 'Geteilte Tresore' })).toHaveCount(1)
   await g.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await g.locator('.accnav').getByRole('button', { name: 'Familie & Team' }).click()
   await expect(g.getByText(`Du nutzt den Family-Speicher von ${owner}.`, { exact: false })).toBeVisible()
 
   // Familienordner: Kind öffnet zuerst (veröffentlicht seinen Schlüssel, wartet auf Zugriff)
@@ -109,6 +110,7 @@ test('Family: Inhaber lädt ein, neues Konto registriert sich über den Link und
   await page.reload()
   await unlockVault(page, PASS)
   await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await page.locator('.accnav').getByRole('button', { name: 'Familie & Team' }).click()
   const row = page.locator('.trashrow', { hasText: kid })
   await row.getByRole('button', { name: 'Entfernen' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Entfernen' }).click()

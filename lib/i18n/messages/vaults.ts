@@ -1,4 +1,7 @@
 const de = {
+  peopleTitle: 'Personen & Rechte',
+  peopleCount: '{n} Personen',
+  generation: 'Schlüssel-Generation {n}',
   newVault: 'Neuer Tresor',
   nav: 'Geteilte Tresore',
   lockTip: 'Upgrade nötig – ab Business Starter',
@@ -63,6 +66,9 @@ const de = {
 }
 
 const en: typeof de = {
+  peopleTitle: 'People & permissions',
+  peopleCount: '{n} people',
+  generation: 'Key generation {n}',
   newVault: 'New vault',
   nav: 'Shared vaults',
   lockTip: 'Upgrade required – from Business Starter',

@@ -41,6 +41,42 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Ordner, Website-Icons, Favoriten, Geräte & Sitzungen, Konto mit Reitern, Passwörter/Notizen ab Free (Migration v24)
+
+**Meine Cloud**: „Neuer Ordner“, Brotkrumen-Pfad, Ordner aus Dateipfaden plus leere Ordner (verschlüsselt im
+Tresor, `dirs`), Dateien per Ziehen in Ordner verschieben, Hochladen in den offenen Ordner; **Dateien überall auf
+die Seite ziehen** lädt hoch (Overlay). Ablauf-Hinweis für Dokumente auch hier.
+**Passwörter**: Website-Icons (einmalig über `GET /api/v1/icon`, SSRF-geschützt: nur öffentliche Hosts, jede
+DNS-Auflösung inkl. Weiterleitungen geprüft, Grössen-/Zeitlimits; Icon wird auf 64 px verkleinert und
+verschlüsselt im Tresor gespeichert), **Favoriten**, „Kopiert ✓“-Feedback, **2FA direkt im Passwort-Formular**
+(Schlüssel/otpauth oder QR-Scan, Live-Code, verknüpfter 2FA-Eintrag, ab Pro). **2FA**: Icons (vom Passwort oder
+per Name erkannt), Kopier-Animation. **Notizen**: „läuft Ende Oktober ab“ für Karten mit Monat/Jahr.
+**Pläne**: Passwörter und Notizen ab Free; 2FA, Notizen teilen (Server: `PLAN_REQUIRED`) und 2FA im Passwort ab
+Pro. **Pakete**: alte PAYG-Erklärkarte entfernt, Obergrenze direkt änderbar, Aktivieren nur mit Guthaben oder
+Zahlungsmethode (sonst Hinweis mit Weg zu Konto & Sicherheit; Server lehnt ohne Online-Zahlung und Guthaben ab).
+Business-Vergleich: 5/10/20/50/100 oder eigene Anzahl Personen.
+**Konto & Sicherheit**: Reiter öffnen jeweils einen Bereich; Übersicht mit „Anmeldung“ (E-Mail, Paket,
+Speicher, Inhalte, Passphrase, Passkeys, **Auto-Sperre einstellbar** 5 Min.–8 Std. oder eigene Zeit bis 24 Std.,
+pro Gerät, Team-Richtlinie als Obergrenze), Karten Notfallzugang und **Recovery-Kit prüfen** (Wörter bleiben
+lokal, Server prüft nur den abgeleiteten Schlüssel, `recovery_checked_at`), **Geräte & Sitzungen** (einzeln oder
+alle anderen abmelden). Alte Konto-Karte entfernt.
+**Einladungen** (Family, Team, Notfallkontakt) als eigene Ansicht mit Absender und Erklärung; Notfallzugang mit
+Avatar und Fortschritt (Einladung → Angenommen → Bestätigt → Anfrage → Lesezugriff). **Geteilte Tresore**:
+Personen & Rechte mit Avataren, Rollen-Menü, Schlüsselstatus, Avatar-Stapel in der Liste.
+**Secure Send** neu gestaltet: Gültigkeit 1 Std./24 Std./7/30 Tage/**eigenes Datum**/unbegrenzt, Downloads
+1/3/10/**eigene Anzahl**/unbegrenzt, Passwort anzeigen/erzeugen, Zusammenfassung, Erfolgsansicht mit Kopieren und
+„Per E-Mail senden“. **Link-Verlauf** in Secure Send mit Filter und „Link kopieren“ – die vollständigen Links
+(mit Schlüssel) liegen nur verschlüsselt im Tresor (`links`), nie auf dem Server. **Nachweis auf Filecoin** als
+Zertifikatsansicht (Siegel, Kennzahlen, Kopien mit Status, Piece-CID kopieren).
+Fix: Tresor-Parser und Geräte-Merge übernehmen jetzt `dirs` und `links` (3-Wege-Merge für Ordner).
+**Landingpage**: Matterhorn im Hero (leichter Schleier, Berg erkennbar); Abschnitt „Sicherheit“ ohne Bild als
+heller Übergang mit drei Karten und echten Kennzahlen (Verfügbarkeit, Dateien auf Filecoin, Link zur Statusseite);
+die schwebende Live-Box darunter entfällt. Live-Verschlüsselungs-Animation als
+`components/site/marketing/LiveFlow.tsx` für Marketingseiten archiviert.
+
+**Tests:** Vitest 125/125, Playwright 14/14 (account-Test einmal unter Last instabil, einzeln grün).
+
+
 ### Business-Seiten 1:1 nach Mockups: Speicher-API, Admin-Konsole, Geteilte Tresore
 
 **Speicher-API**: Abschnittskopf mit „+ Bucket“ und „Zugangsschlüssel erstellen“, Endpoint-Karte mit

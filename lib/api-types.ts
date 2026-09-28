@@ -38,6 +38,8 @@ export interface AccountView {
   usedBytes: number
   billing: AccountBilling
   createdAt: string
+  /** letzte erfolgreiche Prüfung des Recovery-Kits */
+  recoveryCheckedAt: string | null
   kdf: KdfParams
   /** Passphrase-Envelope; nach Recovery-Login zusätzlich das Recovery-Envelope. */
   envelopes: KeyEnvelope[]

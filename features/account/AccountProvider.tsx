@@ -12,6 +12,8 @@ import { loadIndex, saveIndex, type IndexState } from '@/features/vault/sync'
 export type AccountStatus = 'loading' | 'signedOut' | 'locked' | 'ready'
 
 const AUTO_LOCK_MS = 30 * 60_000
+/** längste Auto-Sperre: 24 Stunden (kein „nie“ – der Schlüssel soll nicht unbegrenzt im Speicher bleiben) */
+const MAX_AUTO_LOCK_MIN = 24 * 60
 const empty = (): VaultContainer => ({ v: 3, files: [], secrets: [] })
 
 interface AccountContextValue {
@@ -30,6 +32,11 @@ interface AccountContextValue {
   /** Mit einem hinterlegten Passkey entsperren (Pro/Family) */
   unlockWithPasskey: () => Promise<void>
   lock: () => void
+  /** Automatisch sperren nach … Minuten (dieses Gerät; bei Teams höchstens die Richtlinie) */
+  autoLockMinutes: number
+  /** Vorgabe der Team-Richtlinie (Obergrenze) oder null */
+  autoLockMax: number | null
+  setAutoLockMinutes: (n: number) => void
   logout: () => Promise<void>
   refreshAccount: () => Promise<void>
   mutate: (fn: (c: VaultContainer) => VaultContainer) => void
@@ -191,10 +198,22 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [flush]
   )
 
-  // Auto-Lock nach Inaktivität (ARCHITECTURE §9.2)
+  // Auto-Lock nach Inaktivität (ARCHITECTURE §9.2) – pro Gerät einstellbar, Team-Richtlinie ist die Obergrenze
+  const [autoLockPref, setAutoLockPref] = useState<number>(() => {
+    if (typeof window === 'undefined') return AUTO_LOCK_MS / 60_000
+    const v = Number(window.localStorage.getItem('fv_autolock_min'))
+    return Number.isFinite(v) && v >= 1 && v <= MAX_AUTO_LOCK_MIN ? v : AUTO_LOCK_MS / 60_000
+  })
+  const autoLockMax = account?.team ? account.team.policy.autoLockMinutes : null
+  const autoLockMinutes = autoLockMax ? Math.min(autoLockPref, autoLockMax) : autoLockPref
+  const setAutoLockMinutes = useCallback((n: number) => {
+    const v = Math.max(1, Math.min(MAX_AUTO_LOCK_MIN, Math.round(n)))
+    setAutoLockPref(v)
+    window.localStorage.setItem('fv_autolock_min', String(v))
+  }, [])
   useEffect(() => {
     if (status !== 'ready') return
-    const ms = account?.team ? account.team.policy.autoLockMinutes * 60_000 : AUTO_LOCK_MS
+    const ms = autoLockMinutes * 60_000
     let timer = setTimeout(lock, ms)
     const reset = () => {
       clearTimeout(timer)
@@ -206,7 +225,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       clearTimeout(timer)
       events.forEach(ev => window.removeEventListener(ev, reset))
     }
-  }, [status, lock, account?.team?.policy.autoLockMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, lock, autoLockMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const value = useMemo<AccountContextValue>(
     () => ({
@@ -222,12 +241,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       unlock,
       unlockWithPasskey,
       lock,
+      autoLockMinutes,
+      autoLockMax,
+      setAutoLockMinutes,
       logout,
       refreshAccount,
       mutate,
       retrySync: () => void flush()
     }),
-    [status, account, masterKey, vault, syncing, syncError, bootError, enter, signIn, unlock, unlockWithPasskey, lock, logout, refreshAccount, mutate, flush]
+    [status, account, masterKey, vault, syncing, syncError, bootError, enter, signIn, unlock, unlockWithPasskey, lock, autoLockMinutes, autoLockMax, setAutoLockMinutes, logout, refreshAccount, mutate, flush]
   )
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import SiteAvatar from '@/components/SiteAvatar'
+import { hostFromName, loadSiteIcon } from '@/features/icons/client'
 import type { SecretEntry } from '@/lib/vault'
 import { generateTotp, generateBase32Secret, totpRemaining, parseOtpauth } from '@/lib/totp'
 import QrScanModal from '@/components/QrScanModal'
@@ -14,6 +16,10 @@ interface Props {
   onDelete: (id: string) => void
   readOnly?: boolean
   heading?: string
+  /** Einträge still aktualisieren (Icons nachladen) */
+  onPatch?: (list: SecretEntry[]) => void
+  /** Passwort-Einträge: deren Icons werden für passende 2FA-Konten übernommen */
+  passwords?: SecretEntry[]
 }
 
 interface LiveState {
@@ -28,12 +34,42 @@ interface FormState {
   otpauth: string
 }
 
-export default function TotpPanel({ entries, onSave, onDelete, readOnly = false, heading }: Props) {
+export default function TotpPanel({ entries, onSave, onDelete, readOnly = false, heading, onPatch, passwords = [] }: Props) {
   const { common: c, totp: m } = useMessages(secretsMessages)
   const [live, setLive] = useState<LiveState>({ codes: {}, remaining: {} })
   const [form, setForm] = useState<FormState | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
   const [filter, setFilter] = useState('')
+  const [copied, setCopied] = useState<string | null>(null)
+  const copyCode = (id: string, code: string) => {
+    void navigator.clipboard?.writeText(code).catch(() => undefined)
+    setCopied(id)
+    setTimeout(() => setCopied(c => (c === id ? null : c)), 1400)
+  }
+  // Icons: vom passenden Passwort-Eintrag übernehmen, sonst über den Namen erkennen
+  useEffect(() => {
+    if (!onPatch || readOnly) return
+    const keyOf = (e: SecretEntry) => hostFromName(e.issuer || e.title)
+    const todo = entries.filter(e => {
+      const k = keyOf(e)
+      return k && e.iconHost !== k
+    }).slice(0, 12)
+    if (!todo.length) return
+    let alive = true
+    void (async () => {
+      const out: SecretEntry[] = []
+      for (const e of todo) {
+        const host = keyOf(e)
+        const name = (e.issuer || e.title).toLowerCase()
+        const pw = passwords.find(p => p.icon && (p.iconHost === host || p.title.toLowerCase() === name))
+        out.push({ ...e, icon: pw?.icon || (await loadSiteIcon(host)), iconHost: host })
+      }
+      if (alive) onPatch(out)
+    })()
+    return () => {
+      alive = false
+    }
+  }, [entries, passwords, onPatch, readOnly])
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   useEffect(() => setSlot(document.getElementById('pageactions-slot')), [])
   const lastScan = useRef('')
@@ -220,8 +256,8 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
             const rem = live.remaining[s.id] ?? period
             const pct = Math.max(0, Math.min(100, (rem / period) * 100))
             return (
-              <div className="secrow totpcard" key={s.id}>
-                <span className="pwavatar">{s.title.slice(0, 2).toUpperCase()}</span>
+              <div className={`secrow totpcard${copied === s.id ? ' copied' : ''}`} key={s.id}>
+                <SiteAvatar title={s.issuer || s.title} icon={s.icon} size={40} />
                 <div className="secmain">
                   <div className="sectitle">{s.issuer || s.title}</div>
                   <div className="secmeta">{s.issuer && s.issuer !== s.title ? s.title : 'TOTP'}</div>
@@ -229,10 +265,13 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
                     type="button"
                     className="totpcode linkish"
                     title={c.copy}
-                    onClick={() => void navigator.clipboard?.writeText(live.codes[s.id] ?? '').catch(() => undefined)}
+                    onClick={() => copyCode(s.id, live.codes[s.id] ?? '')}
                   >
                     {(live.codes[s.id] ?? '······').replace(/^(\d{3})(\d{3})$/, '$1 $2')}
                   </button>
+                  <span className="copiedtoast" role="status" aria-live="polite">
+                    {copied === s.id ? m.copied : ''}
+                  </span>
                 </div>
                 <div className="totpcode-box">
                   <svg className="totpring" viewBox="0 0 36 36" aria-label={`${rem} s`}>

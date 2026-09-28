@@ -168,8 +168,8 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
         <Item id="account" label={m.account} />
 
         <div className="navsection">{m.more}</div>
-        <Item id="passwords" label={m.passwords} locked={!pro} />
-        <Item id="notes" label={m.notes} locked={!pro} />
+        <Item id="passwords" label={m.passwords} />
+        <Item id="notes" label={m.notes} />
         <Item id="2fa" label={m.totp} locked={!pro} />
 
         <div className="navsection">{businessSection}</div>

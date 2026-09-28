@@ -1,3 +1,4 @@
+import { addCredit } from '../credits/service'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_PRICING, GB } from '../../lib/pricing'
 import { resetRateLimits } from '../auth/ratelimit'
@@ -37,6 +38,9 @@ describe('Billing: Pakete, Zusatzspeicher, Pay-as-you-go', () => {
     const deps = await testDeps()
     const { session } = await newAccount(deps, 'free@example.com')
     expect((await accountView(deps, session.accountId)).quotaBytes).toBe(5 * GB)
+    // ohne Guthaben/Zahlungsmethode nicht startbar
+    await expect(setPayg(deps, session, true, 50)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    await addCredit(deps.db, { accountId: session.accountId, amount: 10, currency: 'CHF', kind: 'deposit', source: 'dev' })
     await setPayg(deps, session, true, 50)
     const v = await accountView(deps, session.accountId)
     expect(v.quotaBytes).toBe(55 * GB)
@@ -124,6 +128,7 @@ describe('Billing v2: Jahresabo, Währungen, Planwechsel', () => {
     const deps = await testDeps()
     const { session } = await newAccount(deps, 'usd@example.com')
     await setCurrency(deps, session, 'USD')
+    await addCredit(deps.db, { accountId: session.accountId, amount: 10, currency: 'USD', kind: 'deposit', source: 'dev' })
     await setPayg(deps, session, true, 200)
     await store(deps, session, 105 * GB)
     const v = await accountView(deps, session.accountId)

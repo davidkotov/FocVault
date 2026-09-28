@@ -103,6 +103,7 @@ function newId(): string {
 export async function createShare(deps: Deps, session: SessionInfo, input: z.output<typeof createShareSchema>): Promise<ShareSummary> {
   const ids = input.objectIds ?? (input.objectId ? [input.objectId] : [])
   if (!ids.length && !input.payload) throw new ApiError('BAD_REQUEST', 'Datei oder Inhalt erforderlich.')
+  if (input.payload && session.plan === 'free') throw new ApiError('PLAN_REQUIRED', 'Notizen per Secure Send teilen gibt es ab Pro.')
   const policy = await policyFor(deps.db, session.accountId)
   if (policy && !policy.allowShareLinks) throw new ApiError('FORBIDDEN', 'Secure-Send-Links sind in deinem Team per Richtlinie deaktiviert.')
   if (policy?.maxShareDays && (input.expiresInHours === null || input.expiresInHours > policy.maxShareDays * 24)) {

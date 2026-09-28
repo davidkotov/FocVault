@@ -98,6 +98,13 @@ export interface SecretEntry {
   period?: number
   /** TOTP: standard SHA1 */
   algorithm?: 'SHA1' | 'SHA256' | 'SHA512'
+  /** Website-Icon (PNG-Data-URL, 64 px; „“ = keins gefunden) und der Host, für den es gilt */
+  icon?: string
+  iconHost?: string
+  /** Passwort: verknüpfter 2FA-Eintrag */
+  totpId?: string
+  /** Passwort: als Favorit markiert */
+  favorite?: boolean
   /** Notiz: oben angeheftet */
   pinned?: boolean
   /** Notiz: freie Schlagwörter */
@@ -130,6 +137,10 @@ export interface VaultContainer {
   files: VaultEntry[]
   secrets: SecretEntry[]
   trash?: TrashEntry[]
+  /** eigene Secure-Send-Links inkl. Schlüssel (nur hier, verschlüsselt) – zum erneuten Kopieren */
+  links?: Array<{ id: string; url: string; label: string; createdAt: number }>
+  /** selbst angelegte (auch leere) Ordner in „Meine Cloud“, vollständige Pfade ohne „/“ am Ende */
+  dirs?: string[]
   /** Schlüsselpaar für den Familienordner (privater Teil nur hier, im verschlüsselten Tresor) */
   familyKey?: { publicJwk: JsonWebKey; privateJwk: JsonWebKey }
 }
@@ -217,7 +228,23 @@ export function parseVaultContainer(json: string): VaultContainer {
       : []
     const familyKey =
       parsed.familyKey && typeof parsed.familyKey === 'object' && parsed.familyKey.privateJwk && parsed.familyKey.publicJwk ? parsed.familyKey : undefined
-    return { v: 3, files, secrets, ...(trash.length ? { trash } : {}), ...(familyKey ? { familyKey } : {}) }
+    const dirs = Array.isArray(parsed.dirs)
+      ? [...new Set<string>(parsed.dirs.filter((d: unknown): d is string => typeof d === 'string' && d.length > 0 && d.length <= 500 && !d.startsWith('/') && !d.endsWith('/')))]
+      : []
+    const links = Array.isArray(parsed.links)
+      ? parsed.links.filter(
+          (l: any) => l && typeof l.id === 'string' && typeof l.url === 'string' && /^https?:\/\//.test(l.url) && typeof l.label === 'string' && typeof l.createdAt === 'number'
+        )
+      : []
+    return {
+      v: 3,
+      files,
+      secrets,
+      ...(trash.length ? { trash } : {}),
+      ...(familyKey ? { familyKey } : {}),
+      ...(dirs.length ? { dirs } : {}),
+      ...(links.length ? { links } : {})
+    }
   }
   return { v: 3, files: [], secrets: [] }
 }

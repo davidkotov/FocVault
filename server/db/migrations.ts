@@ -694,6 +694,14 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       );
       CREATE INDEX credit_ledger_account ON credit_ledger (account_id, created_at DESC);
     `
+  },
+  {
+    version: 24,
+    name: 'recovery_check',
+    sql: `
+      -- Recovery-Kit geprüft (Nutzer hat die 24 Wörter erfolgreich eingegeben)
+      ALTER TABLE accounts ADD COLUMN recovery_checked_at timestamptz;
+    `
   }
 ]
 

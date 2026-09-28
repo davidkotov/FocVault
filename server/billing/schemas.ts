@@ -11,7 +11,7 @@ export const changePlanSchema = z.object({
   currency,
   /** Business: Stufe (Enterprise nur per Vertrag) und zusätzliche Nutzer */
   tier: z.enum(['starter', 'business']).optional(),
-  extraSeats: z.number().int().min(0).max(1000).optional()
+  extraSeats: z.number().int().min(0).max(10000).optional()
 })
 export const currencySchema = z.object({ currency })
 export const grantAddonSchema = z.object({

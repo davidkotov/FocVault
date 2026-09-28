@@ -10,7 +10,7 @@ import { appMessages } from '@/lib/i18n/messages/app'
 /** Sicherheitsstatus: Ring mit erfüllten Punkten und der wichtigsten Empfehlung. */
 export default function SecurityStatus({ onAction }: { onAction: (target: 'passkeys' | 'emergency' | 'plans') => void }) {
   const m = useMessages(appMessages).secstatus
-  const { account } = useAccount()
+  const { account, autoLockMinutes } = useAccount()
   const [emergency, setEmergency] = useState<boolean | null>(null)
   useEffect(() => {
     api
@@ -22,7 +22,7 @@ export default function SecurityStatus({ onAction }: { onAction: (target: 'passk
   const paid = account.plan !== 'free'
   const checks: Array<{ ok: boolean; label: string; fix?: { t: string; go: 'passkeys' | 'emergency' | 'plans' } }> = [
     { ok: true, label: m.recovery },
-    { ok: true, label: fmt(m.autolock, { n: account.team?.policy.autoLockMinutes ?? 30 }) },
+    { ok: true, label: fmt(m.autolock, { n: autoLockMinutes }) },
     { ok: account.passkeys.length > 0, label: m.passkey, fix: { t: paid ? m.addPasskey : m.upgradePasskey, go: paid ? 'passkeys' : 'plans' } },
     { ok: !!emergency, label: m.emergency, fix: { t: paid ? m.addEmergency : m.upgradeEmergency, go: paid ? 'emergency' : 'plans' } }
   ]

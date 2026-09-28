@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { formatBytes, type VaultEntry } from '@/lib/vault'
 import { uploadFile } from '@/features/objects/transfer'
 import { fmt, useMessages } from '@/features/i18n/I18nProvider'
@@ -22,10 +22,12 @@ interface Props {
   space?: boolean
   onStored: (entry: VaultEntry) => void
   onError: (msg: string) => void
+  /** Ordnerpfad, in den hochgeladen wird („a/b/“) */
+  prefix?: string
 }
 
 /** Drag & Drop, mehrere Dateien, nacheinander: verschlüsseln → hochladen → abschließen. */
-export default function AccountUpload({ masterKey, freeBytes, onStored, onError, space }: Props) {
+export default function AccountUpload({ masterKey, freeBytes, onStored, onError, space, prefix = '' }: Props) {
   const m = useMessages(appMessages).upload
   const errText = useErrorText()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -53,7 +55,7 @@ export default function AccountUpload({ masterKey, freeBytes, onStored, onError,
           onProgress: p => patch(job.id, { pct: p.total ? Math.round((p.done / p.total) * 100) : 100 })
         })
         patch(job.id, { state: 'done', pct: 100 })
-        onStored(entry)
+        onStored(prefix ? { ...entry, name: prefix + entry.name } : entry)
       } catch (e) {
         patch(job.id, { state: 'error' })
         onError(`${files[i].name}: ${errText(e) || m.failed}`)
@@ -63,8 +65,18 @@ export default function AccountUpload({ masterKey, freeBytes, onStored, onError,
     setTimeout(() => setJobs(js => (js.every(j => j.state === 'done' || j.state === 'error') ? [] : js)), 2500)
   }
 
+  // Dateien, die irgendwo auf die Seite gezogen werden
+  const startRef = useRef(start)
+  startRef.current = start
+  useEffect(() => {
+    const h = (e: Event) => void startRef.current((e as CustomEvent<File[]>).detail)
+    window.addEventListener('fv:upload', h)
+    return () => window.removeEventListener('fv:upload', h)
+  }, [])
+
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
+    e.stopPropagation()
     setDrag(false)
     void start(Array.from(e.dataTransfer.files ?? []))
   }

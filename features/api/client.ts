@@ -28,6 +28,7 @@ import type { StatusOverview } from '@/server/status/service'
 import type { PublicStats } from '@/server/status/public-stats'
 import type { SupportTicket } from '@/server/support/service'
 import type { CreditsView } from '@/server/credits/service'
+import type { SessionListItem } from '@/server/auth/sessions'
 import type { CardLite, InvoiceLite } from '@/server/stripe/gateway'
 import type { TeamPolicy } from '@/lib/api-types'
 import type { RetentionRule, S3Overview } from '@/server/s3/service'
@@ -148,6 +149,10 @@ export const api = {
   familySpace: () => call<SpaceState>('GET', '/family/space'),
   status: () => call<StatusOverview>('GET', '/status'),
   credits: () => call<CreditsView>('GET', '/credits'),
+  sessions: () => call<{ sessions: SessionListItem[] }>('GET', '/account/sessions'),
+  revokeSession: (id: string) => call<{ ok: true }>('DELETE', `/account/sessions/${encodeURIComponent(id)}`),
+  revokeOtherSessions: () => call<{ ok: true }>('DELETE', '/account/sessions'),
+  checkRecovery: (recoveryAuthKey: string) => call<{ checkedAt: string }>('POST', '/account/recovery/check', { recoveryAuthKey }),
   deposit: (amount: number) => call<{ ok?: true; redirectUrl?: string }>('POST', '/credits/deposit', { amount }),
   addPaymentMethod: () => call<{ redirectUrl: string }>('POST', '/credits/payment-method'),
   publicStats: () => call<PublicStats>('GET', '/public/stats'),

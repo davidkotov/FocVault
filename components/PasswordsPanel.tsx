@@ -6,8 +6,11 @@ import { parseCsv, toCsv, downloadText } from '@/lib/csv'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { createPortal } from 'react-dom'
 import { Icon } from '@/components/site/Icons'
-import { generateTotp } from '@/lib/totp'
+import { generateTotp, parseOtpauth, type OtpauthData } from '@/lib/totp'
+import QrScanModal from '@/components/QrScanModal'
 import { relativeDay } from '@/lib/i18n/relative'
+import SiteAvatar from '@/components/SiteAvatar'
+import { hostFromUrl, loadSiteIcon } from '@/features/icons/client'
 import { secretsMessages } from '@/lib/i18n/messages/secrets'
 import { reusedPasswords, strength } from '@/lib/password-health'
 import { checkBreaches } from '@/features/passwords/breach'
@@ -22,10 +25,14 @@ interface Props {
   readOnly?: boolean
   /** eigene Überschrift (z. B. im geteilten Tresor) */
   heading?: string
+  /** Einträge still aktualisieren (Icons nachladen), ohne Reihenfolge/Datum zu ändern */
+  onPatch?: (list: SecretEntry[]) => void
   /** 2FA-Einträge, um verknüpfte Codes anzuzeigen */
   totps?: SecretEntry[]
   /** aus der globalen Suche: Eintrag vorauswählen */
   initialSelect?: string
+  /** 2FA direkt beim Passwort hinzufügen (ab Pro) */
+  canTotp?: boolean
 }
 
 interface FormState {
@@ -35,6 +42,8 @@ interface FormState {
   password: string
   url: string
   folder: string
+  /** 2FA: otpauth-Link oder Base32-Schlüssel */
+  totp: string
 }
 
 interface GenOptions {
@@ -45,7 +54,7 @@ interface GenOptions {
   symbols: boolean
 }
 
-const EMPTY: FormState = { title: '', username: '', password: '', url: '', folder: '' }
+const EMPTY: FormState = { title: '', username: '', password: '', url: '', folder: '', totp: '' }
 const DEFAULT_GEN: GenOptions = { len: 20, upper: true, lower: true, digits: true, symbols: true }
 
 function genPassword(len: number, opts: GenOptions): string {
@@ -71,7 +80,7 @@ async function copyText(text: string): Promise<void> {
   }
 }
 
-export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, readOnly = false, heading, initialSelect, totps = [] }: Props) {
+export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, readOnly = false, heading, initialSelect, totps = [], onPatch, canTotp = false }: Props) {
   const { common: c, passwords: m } = useMessages(secretsMessages)
   const [form, setForm] = useState<FormState | null>(null)
   const [showPwForm, setShowPwForm] = useState(false)
@@ -82,6 +91,32 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
   const [genOpts, setGenOpts] = useState<GenOptions>(DEFAULT_GEN)
   const [selId, setSelId] = useState<string | null>(initialSelect ?? null)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+  const copy = (key: string, text: string) => {
+    void copyText(text)
+    setCopied(key)
+    setTimeout(() => setCopied(c => (c === key ? null : c)), 1400)
+  }
+  // Website-Icons nachladen (einmal je Host; gespeichert im verschlüsselten Tresor)
+  useEffect(() => {
+    if (!onPatch || readOnly) return
+    const todo = entries.filter(e => hostFromUrl(e.url) && e.iconHost !== hostFromUrl(e.url)).slice(0, 12)
+    if (!todo.length) return
+    let alive = true
+    void (async () => {
+      const out: SecretEntry[] = []
+      for (const e of todo) {
+        const host = hostFromUrl(e.url)
+        const icon = await loadSiteIcon(host)
+        out.push({ ...e, icon, iconHost: host })
+      }
+      if (alive && out.length) onPatch(out)
+    })()
+    return () => {
+      alive = false
+    }
+  }, [entries, onPatch, readOnly])
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   useEffect(() => setSlot(document.getElementById('pageactions-slot')), [])
   const { locale } = useI18n()
@@ -126,7 +161,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
       if (healthFilter === 'weak' && !weak.has(e.id)) return false
       if (healthFilter === 'reused' && !reused.has(e.id)) return false
       if (healthFilter === 'leaked' && !leaked.has(e.id)) return false
-      if (folderFilter !== 'all' && (e.folder ?? '') !== folderFilter) return false
+      if (folderFilter === '__fav') { if (!e.favorite) return false } else if (folderFilter !== 'all' && (e.folder ?? '') !== folderFilter) return false
       if (!q) return true
       return [e.title, e.username, e.url, e.folder].filter(Boolean).some(v => (v as string).toLowerCase().includes(q))
     })
@@ -141,7 +176,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
     setGenOpen(false)
   }
   const startEdit = (s: SecretEntry) => {
-    setForm({ id: s.id, title: s.title, username: s.username ?? '', password: s.password ?? '', url: s.url ?? '', folder: s.folder ?? '' })
+    setForm({ id: s.id, title: s.title, username: s.username ?? '', password: s.password ?? '', url: s.url ?? '', folder: s.folder ?? '', totp: (s.totpId && totps.find(x => x.id === s.totpId)?.secretBase32) || '' })
     setShowPwForm(false)
     setGenOpen(false)
   }
@@ -150,7 +185,30 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
     e.preventDefault()
     if (!form || form.title.trim() === '') return
     const now = Date.now()
+    const prev = form.id ? entries.find(x => x.id === form.id) : undefined
+    let totpId = prev?.totpId
+    const parsedTotp = canTotp && form.totp.trim() ? parseTotpInput(form.totp) : null
+    if (parsedTotp) {
+      const existing = totpId ? totps.find(x => x.id === totpId) : undefined
+      totpId = existing?.id ?? crypto.randomUUID()
+      onSave({
+        ...(existing ?? {}),
+        id: totpId,
+        kind: 'totp',
+        title: parsedTotp.account || form.username.trim() || form.title.trim(),
+        issuer: parsedTotp.issuer || form.title.trim(),
+        secretBase32: parsedTotp.secret,
+        digits: parsedTotp.digits ?? existing?.digits ?? 6,
+        period: parsedTotp.period ?? existing?.period ?? 30,
+        algorithm: parsedTotp.algorithm ?? existing?.algorithm ?? 'SHA1',
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now
+      })
+    } else if (canTotp && !form.totp.trim()) totpId = undefined
     onSave({
+      totpId,
+      ...(prev?.iconHost === hostFromUrl(form.url.trim()) ? { icon: prev?.icon, iconHost: prev?.iconHost } : {}),
+      favorite: prev?.favorite,
       id: form.id ?? crypto.randomUUID(),
       kind: 'password',
       title: form.title.trim(),
@@ -228,6 +286,10 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
 
   const okCount = entries.filter(e => e.password && !weak.has(e.id) && !reused.has(e.id) && !leaked.has(e.id)).length
   const linkedTotp = (s: SecretEntry) => {
+    if (s.totpId) {
+      const byId = totps.find(x => x.id === s.totpId)
+      if (byId) return byId
+    }
     const host = hostOf(s.url)
     const t = s.title.toLowerCase()
     return totps.find(x => {
@@ -253,6 +315,8 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
     ) : null
   const selTotp = sel ? linkedTotp(sel) : undefined
   const selCode = useTotpCode(selTotp)
+  const formTotp = form && canTotp && form.totp.trim() ? parseTotpInput(form.totp) : null
+  const formCode = useTotpCode(formTotp ? ({ id: 'preview', kind: 'totp', title: '', secretBase32: formTotp.secret, digits: formTotp.digits, period: formTotp.period, algorithm: formTotp.algorithm, createdAt: 0, updatedAt: 0 } as SecretEntry) : undefined)
 
   const actions = !readOnly && (
     <>
@@ -332,13 +396,21 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
 
       {entries.length === 0 && !form && <p className="dim pwempty card">{m.empty}</p>}
 
-      <div className={`pwlayout${folders.length ? '' : ' nofolders'}`} hidden={entries.length === 0 && !form}>
-        {folders.length > 0 && (
+      <div className={`pwlayout${folders.length || entries.some(e => e.favorite) ? '' : ' nofolders'}`} hidden={entries.length === 0 && !form}>
+        {(folders.length > 0 || entries.some(e => e.favorite)) && (
         <nav className="pwfolders card" aria-label={m.folders}>
           <button className={`pwnav${folderFilter === 'all' ? ' active' : ''}`} onClick={() => setFolderFilter('all')}>
             <span>{m.allLabel}</span>
             <em>{entries.length}</em>
           </button>
+          {entries.some(e => e.favorite) && (
+            <button className={`pwnav${folderFilter === '__fav' ? ' active' : ''}`} onClick={() => setFolderFilter('__fav')}>
+              <span>
+                <StarIcon on /> {m.favorites}
+              </span>
+              <em>{entries.filter(e => e.favorite).length}</em>
+            </button>
+          )}
           {folders.length > 0 && <div className="pwnav-label">{m.folders}</div>}
           {folders.map(f => (
             <button key={f} className={`pwnav${folderFilter === f ? ' active' : ''}`} onClick={() => setFolderFilter(f)}>
@@ -355,9 +427,12 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
           </div>
           {filtered.map(s => (
             <div className={`secrow${sel?.id === s.id ? ' selected' : ''}`} key={s.id} onClick={() => setSelId(s.id)}>
-              <span className="pwavatar">{s.title.slice(0, 2).toUpperCase()}</span>
+              <SiteAvatar title={s.title} icon={s.icon} />
               <div className="secmain">
-                <div className="sectitle">{s.title}</div>
+                <div className="sectitle">
+                  {s.title}
+                  {s.favorite && <StarIcon on small />}
+                </div>
                 <div className="secmeta">{s.username || hostOf(s.url) || s.folder || m.noExtra}</div>
               </div>
               {badgeFor(s)}
@@ -437,6 +512,41 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
                     {folders.map(f => <option key={f} value={f} />)}
                   </datalist>
                 </label>
+                {canTotp ? (
+                  <div className="pwtotpfield">
+                    <span className="pwtotp-label">{m.totpLabel}</span>
+                    <div className="pwrow">
+                      <input
+                        className="mono"
+                        value={form.totp}
+                        onChange={e => setForm({ ...form, totp: e.target.value })}
+                        placeholder={m.totpPlaceholder}
+                        aria-label={m.totpLabel}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <button type="button" className="small" onClick={() => setScanOpen(true)}>
+                        {m.totpScan}
+                      </button>
+                    </div>
+                    {form.totp.trim() && (formTotp ? (
+                      <div className="pwtotp-live">
+                        <b className="mono">{formCode ? `${formCode.slice(0, Math.ceil(formCode.length / 2))} ${formCode.slice(Math.ceil(formCode.length / 2))}` : '…'}</b>
+                        <span className="hint">{m.totpLive}</span>
+                      </div>
+                    ) : (
+                      <span className="errortext">{m.totpInvalid}</span>
+                    ))}
+                    {!form.totp.trim() && <span className="hint">{m.totpHint}</span>}
+                  </div>
+                ) : (
+                  <div className="pwtotpfield locked" data-tip={m.totpPro}>
+                    <span className="pwtotp-label">
+                      <Icon name="lock" size={13} /> {m.totpLabel}
+                    </span>
+                    <span className="hint">{m.totpPro}</span>
+                  </div>
+                )}
               </div>
               <div className="row" style={{ marginTop: 14 }}>
                 <button className="primary" type="submit" disabled={form.title.trim() === ''}>
@@ -448,7 +558,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
           ) : sel ? (
             <>
               <div className="pwdhead">
-                <span className="pwavatar">{sel.title.slice(0, 2).toUpperCase()}</span>
+                <SiteAvatar title={sel.title} icon={sel.icon} size={40} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <strong>{sel.title}</strong>
                   <span className="hint">
@@ -457,6 +567,15 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
                 </div>
                 {!readOnly && (
                   <>
+                    <button
+                      className={`iconbtn favbtn${sel.favorite ? ' on' : ''}`}
+                      aria-pressed={!!sel.favorite}
+                      title={sel.favorite ? m.unfavorite : m.favorite}
+                      aria-label={sel.favorite ? m.unfavorite : m.favorite}
+                      onClick={() => (onPatch ? onPatch([{ ...sel, favorite: !sel.favorite || undefined }]) : onSave({ ...sel, favorite: !sel.favorite || undefined }))}
+                    >
+                      <StarIcon on={!!sel.favorite} />
+                    </button>
                     <button className="small" onClick={() => startEdit(sel)}>
                       {c.edit}
                     </button>
@@ -486,8 +605,8 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
                 <div className="pwfield">
                   <span className="k">{m.username}</span>
                   <b>{sel.username}</b>
-                  <button className="linkish copybtn" onClick={() => void copyText(sel.username ?? '')}>
-                    <CopyIcon /> {c.copy}
+                  <button className={`linkish copybtn${copied === 'u' + sel.id ? ' done' : ''}`} onClick={() => copy('u' + sel.id, sel.username ?? '')}>
+                    <CopyIcon /> {copied === 'u' + sel.id ? m.copied : c.copy}
                   </button>
                 </div>
               )}
@@ -503,8 +622,8 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
                       </svg>
                     </button>
                   </span>
-                  <button className="linkish copybtn" onClick={() => void copyText(sel.password ?? '')}>
-                    <CopyIcon /> {c.copy}
+                  <button className={`linkish copybtn${copied === 'p' + sel.id ? ' done' : ''}`} onClick={() => copy('p' + sel.id, sel.password ?? '')}>
+                    <CopyIcon /> {copied === 'p' + sel.id ? m.copied : c.copy}
                   </button>
                 </div>
               )}
@@ -548,8 +667,26 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
           )}
         </div>
       </div>
+      {scanOpen && (
+        <QrScanModal
+          onClose={() => setScanOpen(false)}
+          onDetected={data => {
+            if (!parseOtpauth(data)) return
+            setForm(f => (f ? { ...f, totp: data.trim() } : f))
+            setScanOpen(false)
+          }}
+        />
+      )}
     </div>
   )
+}
+
+/** 2FA-Eingabe: otpauth://-Link oder reiner Base32-Schlüssel (Leerzeichen erlaubt). */
+function parseTotpInput(v: string): OtpauthData | null {
+  const t = v.trim()
+  if (/^otpauth:/i.test(t)) return parseOtpauth(t)
+  const secret = t.replace(/[\s-]/g, '').replace(/=+$/, '').toUpperCase()
+  return /^[A-Z2-7]{16,128}$/.test(secret) ? { account: '', secret } : null
 }
 
 function hostOf(url?: string): string {
@@ -579,4 +716,12 @@ function useTotpCode(entry?: SecretEntry): string | null {
     }
   }, [entry?.secretBase32, entry?.digits, entry?.period, entry?.algorithm])
   return code
+}
+
+function StarIcon({ on, small }: { on?: boolean; small?: boolean }) {
+  return (
+    <svg className={`icon star${on ? ' on' : ''}`} width={small ? 13 : 16} height={small ? 13 : 16} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" />
+    </svg>
+  )
 }

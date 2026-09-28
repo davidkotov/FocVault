@@ -41,70 +41,97 @@ export default function ProofDialog({ entry, onClose }: { entry: VaultEntry; onC
     setTimeout(() => URL.revokeObjectURL(url), 5000)
   }
 
+  const [cidCopied, setCidCopied] = useState(false)
+  const since = cert ? packs.map(p => p.storedAt).sort().pop() : null
+
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="proof-title" onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <div className="sharemodal">
-        <div className="sharehead">
-          <h3 id="proof-title">
-            <Icon name="proof" size={18} className="inlineicon" /> {m.title}
-          </h3>
-          <button className="small" onClick={onClose}>
+      <div className="sharemodal sm2 proofmodal">
+        <div className="proofhero">
+          <button className="linkish sm2-close proofclose" onClick={onClose} aria-label={m.close}>
             {m.close}
           </button>
+          <span className="proofseal">
+            <Icon name="proof" size={26} />
+          </span>
+          <span className="inviteeyebrow">{m.eyebrow}</span>
+          <h3 id="proof-title">{m.title}</h3>
+          <span className="prooffile">
+            <Icon name="file" size={14} /> {entry.name} · {formatBytes(entry.size)}
+          </span>
         </div>
-        <div className="hint" style={{ margin: '6px 0 10px' }}>
-          {entry.name} · {formatBytes(entry.size)}
-        </div>
-        {error && <div className="errorbox">{error}</div>}
-        {!cert && !error && <div className="hint">{m.loading}</div>}
-        {cert && (
-          <>
-            <p className="lead">{fmt(m.lead, { copies: copies.length })}</p>
-            <div className="stat">
-              <span className="k">{m.network}</span>
-              <span className="v">{cert.network === 'mainnet' ? m.mainnet : m.calibration}</span>
-            </div>
-            <div className="stat">
-              <span className="k">{m.since}</span>
-              <span className="v">{fmtDate(packs.map(p => p.storedAt).sort().pop()!)}</span>
-            </div>
-            <div className="stat">
-              <span className="k">{m.parts}</span>
-              <span className="v">{cert.pieces.length}</span>
-            </div>
-            <div className="trashlist">
-              {copies.map((c, i) => (
-                <div className="trashrow" key={`${c.providerId}:${c.dataSetId}`}>
-                  <div className="trashinfo">
-                    <strong>{fmt(m.copy, { n: i + 1 })}</strong>
-                    <span className="hint">
-                      {fmt(m.provider, { id: c.providerId })} · {fmt(m.dataset, { id: c.dataSetId })}
-                    </span>
-                  </div>
-                  <a className="small linkbtn" href={c.explorer} target="_blank" rel="noreferrer">
-                    {m.openDataset} ↗
-                  </a>
+        <div className="proofbody">
+          {error && <div className="errorbox">{error}</div>}
+          {!cert && !error && <div className="hint">{m.loading}</div>}
+          {cert && (
+            <>
+              <div className="proofstats">
+                <div>
+                  <span className="dim">{m.copiesLabel}</span>
+                  <b>{copies.length}</b>
                 </div>
-              ))}
+                <div>
+                  <span className="dim">{m.network}</span>
+                  <b>{cert.network === 'mainnet' ? m.mainnet : m.calibration}</b>
+                </div>
+                <div>
+                  <span className="dim">{m.since}</span>
+                  <b>{since ? fmtDate(since) : '—'}</b>
+                </div>
+                <div>
+                  <span className="dim">{m.parts}</span>
+                  <b>{cert.pieces.length}</b>
+                </div>
+              </div>
+              <p className="prooflead">{fmt(m.lead, { copies: copies.length })}</p>
+              <div className="proofcopies">
+                {copies.map((c, i) => (
+                  <div className="proofcopy" key={`${c.providerId}:${c.dataSetId}`}>
+                    <span className="proofdot" aria-hidden="true" />
+                    <div className="invmain">
+                      <b>{fmt(m.copy, { n: i + 1 })}</b>
+                      <span className="dim">
+                        {fmt(m.provider, { id: c.providerId })} · {fmt(m.dataset, { id: c.dataSetId })}
+                      </span>
+                    </div>
+                    <span className="strongbadge">{m.verified}</span>
+                    <a className="button small" href={c.explorer} target="_blank" rel="noreferrer">
+                      {m.openDataset} ↗
+                    </a>
+                  </div>
+                ))}
+              </div>
               {packs.map(p => (
-                <div className="trashrow" key={p.pieceCid}>
-                  <div className="trashinfo">
-                    <strong>{m.piece}</strong>
-                    <span className="hint mono" style={{ overflowWrap: 'anywhere' }}>
-                      {p.pieceCid}
-                    </span>
+                <div className="proofcid" key={p.pieceCid}>
+                  <span className="dim">{m.piece}</span>
+                  <div className="proofcid-row">
+                    <code>{p.pieceCid}</code>
+                    <button
+                      className="small"
+                      onClick={() =>
+                        void navigator.clipboard?.writeText(p.pieceCid).then(() => {
+                          setCidCopied(true)
+                          setTimeout(() => setCidCopied(false), 1500)
+                        })
+                      }
+                    >
+                      {cidCopied ? '✓' : m.copyCid}
+                    </button>
+                    <a className="button small" href={p.explorer} target="_blank" rel="noreferrer" aria-label={m.openPiece}>
+                      ↗
+                    </a>
                   </div>
-                  <a className="small linkbtn" href={p.explorer} target="_blank" rel="noreferrer">
-                    ↗
-                  </a>
                 </div>
               ))}
-            </div>
-            <button className="primary full" style={{ marginTop: 14 }} onClick={download}>
-              {m.download}
-            </button>
-          </>
-        )}
+              <button className="primary full" style={{ marginTop: 16 }} onClick={download}>
+                <Icon name="file" size={15} /> {m.download}
+              </button>
+              <p className="hint" style={{ marginTop: 8 }}>
+                {m.certHint}
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

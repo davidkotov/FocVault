@@ -37,6 +37,7 @@ test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async 
 
   // Free: Schloss, Upgrade-Hinweis
   await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await page.locator('.accnav').getByRole('button', { name: 'Passkeys' }).click()
   await expect(page.locator('.lockedcard')).toContainText('Passkeys')
   await expect(page.getByRole('button', { name: '+ Passkey hinzufügen' })).toHaveCount(0)
 
@@ -50,6 +51,7 @@ test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async 
   await page.goto('/app')
   await unlockVault(page, PASS)
   await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await page.locator('.accnav').getByRole('button', { name: 'Passkeys' }).click()
   await page.getByRole('button', { name: '+ Passkey hinzufügen' }).click()
   await page.getByLabel('Zur Bestätigung deine Passphrase').fill(PASS)
   await page.getByRole('button', { name: 'Einrichten' }).click()

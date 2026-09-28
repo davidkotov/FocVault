@@ -16,7 +16,7 @@ import { formatBytes } from '@/lib/vault'
 type PaidPlan = 'pro' | 'family'
 
 /** Pakete, Pay-as-you-go und Zusatzspeicher – verständlich erklärt, in der Kontowährung. */
-export default function PlansView({ initialSegment }: { initialSegment?: 'private' | 'business' } = {}) {
+export default function PlansView({ initialSegment, onCredits }: { initialSegment?: 'private' | 'business'; onCredits?: () => void } = {}) {
   const { account, refreshAccount, vault } = useAccount()
   const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber, fmtDate, path } = useI18n()
   const m = useMessages(billingMessages)
@@ -34,12 +34,18 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
   const [confirmFree, setConfirmFree] = useState(false)
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   useEffect(() => setSlot(document.getElementById('pageactions-slot')), [])
+  const [payReady, setPayReady] = useState<boolean | null>(null)
+  const [needPay, setNeedPay] = useState(false)
+  useEffect(() => {
+    api.credits().then(c => setPayReady(c.balance > 0 || c.hasPaymentMethod)).catch(() => setPayReady(false))
+  }, [])
   const [invoices, setInvoices] = useState<Awaited<ReturnType<typeof api.invoices>> | null>(null)
   useEffect(() => {
     api.invoices().then(setInvoices).catch(() => setInvoices({ stripe: false, invoices: [], card: null }))
   }, [])
   const [segment, setSegment] = useState<'private' | 'business'>(initialSegment ?? (account?.plan === 'business' ? 'business' : 'private'))
   // gewählte Zusatz-Nutzer je Stufe (im Elternteil, damit die Auswahl Re-Renders übersteht)
+  const [customSeats, setCustomSeats] = useState<Record<'starter' | 'business', boolean>>({ starter: false, business: false })
   const [seatChoice, setSeatChoice] = useState<Record<'starter' | 'business', number | undefined>>({ starter: undefined, business: undefined })
 
   // Rückkehr von Stripe: Hinweis zeigen und Konto neu laden (der Webhook kann ein paar Sekunden brauchen).
@@ -116,7 +122,7 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
   const canAddons = !isFree && !biz?.member
   const gbLabel = (gb: number) => (gb >= 1000 ? `${tb(gb)} TB` : `${fmtNumber(gb)} GB`)
   const monthPrice = (x: { monthly: Record<Currency, number>; yearly: Record<Currency, number> }) => (interval === 'year' ? x.yearly[cur] / 12 : x.monthly[cur])
-  const paygMax = offer.payg.perGbMonth[b.currency] * (b.payg.enabled ? b.payg.capGb : capGb)
+  const paygMax = offer.payg.perGbMonth[b.currency] * capGb
 
   const switchPlan = (plan: PaidPlan, i: Interval, cu: Currency) =>
     void run(plan + i, () => api.changePlan(plan, i, cu), fmt(m.planChanged, { plan: plan === 'pro' ? m.pro.name : m.family.name }))
@@ -240,7 +246,7 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
           <div className="planhero-rows">
             <div>
               <span className="dim">{m.paygSide.cap}</span>
-              {isFree && !b.payg.enabled ? (
+              {isFree ? (
                 <span className="row" style={{ gap: 6, alignItems: 'center' }}>
                   <input
                     className="capinput"
@@ -254,7 +260,7 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
                   <b>GB · max. {fmtMoney(paygMax, b.currency)}</b>
                 </span>
               ) : (
-                <b>{fmt(m.paygSide.capValue, { gb: fmtNumber(b.payg.enabled ? b.payg.capGb : capGb), max: fmtMoney(paygMax, b.currency) })}</b>
+                <b>{fmt(m.paygSide.capValue, { gb: fmtNumber(capGb), max: fmtMoney(paygMax, b.currency) })}</b>
               )}
             </div>
             <div>
@@ -268,17 +274,38 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
                 <>
                   <span className="badge ok">{fmt(m.payg.active, { cap: fmtNumber(b.payg.capGb) })}</span>
                   <span style={{ flex: 1 }} />
+                  {capGb !== b.payg.capGb && (
+                    <button className="small primary" disabled={!!busy} onClick={() => void run('payg', () => api.setPayg(true, capGb), m.payg.capSaved)}>
+                      {m.payg.saveCap}
+                    </button>
+                  )}
                   <button className="small" disabled={!!busy} onClick={() => void run('payg', () => api.setPayg(false), m.payg.disabled)}>
                     {m.payg.disable}
                   </button>
                 </>
               ) : (
-                <button className="primary small" disabled={!!busy || !offer.purchasesEnabled} onClick={() => void run('payg', () => api.setPayg(true, capGb), m.payg.enabled)}>
+                <button
+                  className="primary small"
+                  disabled={!!busy || payReady === null}
+                  onClick={() => (payReady ? void run('payg', () => api.setPayg(true, capGb), m.payg.enabled) : setNeedPay(true))}
+                >
                   {m.payg.enable}
                 </button>
               )}
             </div>
-          ) : (
+          ) : null}
+          {isFree && needPay && !b.payg.enabled && (
+            <div className="notice warn paygneed">
+              <span>{m.paygSide.needPay}</span>
+              {onCredits && (
+                <button className="small" onClick={onCredits}>
+                  {m.paygSide.toCredits}
+                </button>
+              )}
+            </div>
+          )}
+          {isFree && <p className="hint" style={{ marginTop: 10 }}>{m.paygSide.howBilled}</p>}
+          {!isFree && (
             <p className="hint" style={{ marginTop: 12 }}>
               {fmt(m.paygSide.inactivePlan, { plan: planName })}
             </p>
@@ -447,13 +474,45 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
                         </td>
                         <td>{tb(t2.quotaGb)} TB</td>
                         <td>
-                          <select className="smallselect" aria-label={`${m.biz.users} ${t2.label}`} value={extra} onChange={e => setSeatChoice(c2 => ({ ...c2, [tier]: Number(e.target.value) }))} disabled={!!busy}>
-                            {[0, 1, 3, 5, 20, 50].map(n => (
-                              <option key={n} value={n}>
-                                {t2.seats + n}
-                              </option>
-                            ))}
-                          </select>
+                          {(() => {
+                            const total = t2.seats + extra
+                            const opts = [5, 10, 20, 50, 100].filter(n => n >= t2.seats)
+                            const isCustom = customSeats[tier] || !opts.includes(total)
+                            const setTotal = (n: number) => setSeatChoice(c2 => ({ ...c2, [tier]: Math.max(0, Math.round(n) - t2.seats) }))
+                            return (
+                              <span className="row" style={{ gap: 6, flexWrap: 'nowrap', alignItems: 'center' }}>
+                                <select
+                                  className="smallselect"
+                                  aria-label={`${m.biz.users} ${t2.label}`}
+                                  value={isCustom ? 'custom' : String(total)}
+                                  disabled={!!busy}
+                                  onChange={e => {
+                                    if (e.target.value === 'custom') return setCustomSeats(c2 => ({ ...c2, [tier]: true }))
+                                    setCustomSeats(c2 => ({ ...c2, [tier]: false }))
+                                    setTotal(Number(e.target.value))
+                                  }}
+                                >
+                                  {opts.map(n => (
+                                    <option key={n} value={n}>
+                                      {n}
+                                    </option>
+                                  ))}
+                                  <option value="custom">{m.compare.customSeats}</option>
+                                </select>
+                                {isCustom && (
+                                  <input
+                                    className="capinput"
+                                    type="number"
+                                    min={t2.seats}
+                                    max={10000}
+                                    aria-label={`${m.compare.customSeatsLabel} ${t2.label}`}
+                                    value={total}
+                                    onChange={e => setTotal(Math.max(t2.seats, Math.min(10000, Number(e.target.value) || t2.seats)))}
+                                  />
+                                )}
+                              </span>
+                            )
+                          })()}
                         </td>
                         <td>{fmtMoney(monthPrice(t2) + extra * unit, cur)}</td>
                         <td className="act">
@@ -557,59 +616,6 @@ export default function PlansView({ initialSegment }: { initialSegment?: 'privat
         />
       )}
 
-      {isFree && segment === 'private' && (
-        <div className="card">
-          <h3>
-            {m.payg.title} <span className="badge ok">{m.payg.badge}</span>
-          </h3>
-          <p className="lead" style={{ marginTop: 0 }}>
-            {fmt(m.payg.intro, { gb: offer.free.quotaGb })}
-          </p>
-          <div className="paygsteps">
-            {[
-              [fmt(m.payg.step1Title, { gb: offer.free.quotaGb }), m.payg.step1],
-              [fmt(m.payg.step2Title, { price: perGbMoney(calc.perGb, cur) }), m.payg.step2],
-              [m.payg.step3Title, fmt(m.payg.step3, { min: fmtMoney(offer.payg.minInvoice[cur], cur) })]
-            ].map(([title, body], i) => (
-              <div className="paygstep" key={i}>
-                <span className="stepnum">{i + 1}</span>
-                <strong>{title}</strong>
-                <p className="dim">{body}</p>
-              </div>
-            ))}
-          </div>
-          <div className="paygcalc" style={{ marginTop: 16 }}>
-            <strong>{m.payg.calcTitle}</strong>
-            <label className="field" style={{ marginTop: 10 }}>
-              <span className="dim">
-                {m.payg.calcExtra}: <strong>{fmtNumber(calcGb)} GB</strong>
-              </span>
-              <input type="range" min={0} max={1000} step={10} value={calcGb} onChange={e => setCalcGb(Number(e.target.value))} />
-            </label>
-            <div className="stat">
-              <span className="k">{m.payg.calcCost}</span>
-              <span className="v">
-                <strong>{fmtMoney(calc.cost, cur)}</strong>
-                {calc.carry && calc.cost > 0 && <span className="dim"> · {fmt(m.payg.calcCarry, { min: fmtMoney(offer.payg.minInvoice[cur], cur) })}</span>}
-              </span>
-            </div>
-            <p className="hint" style={{ color: calcGb >= calc.breakEven ? 'var(--accent-dark)' : undefined }}>
-              {calcGb >= calc.breakEven ? m.payg.proCheaperNow : fmt(m.payg.proCheaper, { gb: fmtNumber(calc.breakEven), tb: tb(offer.plans.pro.quotaGb) })}
-            </p>
-            {b.payg.enabled && (
-              <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
-                <label className="field" style={{ maxWidth: 160, marginBottom: 0 }}>
-                  <span className="hint">{m.payg.cap}</span>
-                  <input type="number" min={1} max={offer.payg.maxCapGb} value={capGb} onChange={e => setCapGb(Math.max(1, Math.min(offer.payg.maxCapGb, Number(e.target.value) || 1)))} />
-                </label>
-                <button className="small" disabled={!!busy} onClick={() => void run('payg', () => api.setPayg(true, capGb), m.payg.capSaved)}>
-                  {m.payg.saveCap}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </>
   )
 }

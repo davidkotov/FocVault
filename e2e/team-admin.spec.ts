@@ -6,6 +6,7 @@ const PASS = 'Korrekt Pferd Batterie Heftklammer'
 
 async function joinTeam(browser: Browser, owner: Page, email: string): Promise<Page> {
   await owner.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await owner.locator('.accnav').getByRole('button', { name: 'Familie & Team' }).click()
   const input = owner.locator('.sharelink input').first()
   const before = (await input.count()) ? await input.inputValue() : ''
   await owner.getByRole('button', { name: /Person einladen/ }).click()
@@ -75,6 +76,7 @@ test('Admin-Konsole: Rollen, Richtlinien, Firmen-Notfallzugriff (Vier-Augen), Pr
   await d.getByTestId('upload-input').setInputFiles({ name: 'kunden.csv', mimeType: 'text/csv', buffer: Buffer.from('id;name\n1;Muster AG') })
   await expect(d.locator('.filecard', { hasText: 'kunden.csv' })).toBeVisible()
   await d.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await d.locator('.accnav').getByRole('button', { name: 'Notfallzugang' }).click()
   await d.getByLabel('Mit Passphrase hinterlegen').fill(PASS)
   await d.getByRole('button', { name: 'Mit Passphrase hinterlegen' }).click()
   await expect(d.getByText('✓ Schlüssel hinterlegt.')).toBeVisible()

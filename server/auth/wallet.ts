@@ -206,3 +206,20 @@ export async function recoveryWithSession(
   await audit(deps.db, session.accountId, 'user', 'auth.recovery_login', { via: 'session' })
   return accountView(deps, session.accountId, ['recovery'])
 }
+
+/** Recovery-Kit prüfen ohne Anmeldung/Envelope – merkt sich nur das Datum der letzten Prüfung. */
+export async function checkRecoveryKit(deps: Deps, session: SessionInfo, recoveryAuthKey: string): Promise<{ checkedAt: string }> {
+  rateLimit(`auth:recovery:check:${session.accountId}`, 10, 15 * 60_000)
+  const rows = await deps.db.query<{ hash: Uint8Array; salt: Uint8Array; params: SecretHashParams }>(
+    `SELECT hash, salt, params FROM auth_secrets WHERE account_id = $1 AND kind = 'recovery'`,
+    [session.accountId]
+  )
+  const row = rows[0]
+  if (!row || !(await verifySecret(b64uDecode(recoveryAuthKey), row.hash, row.salt, row.params))) {
+    await audit(deps.db, session.accountId, 'user', 'auth.recovery_check_failed')
+    throw new ApiError('INVALID_CREDENTIALS', 'Die Wörter passen nicht zu diesem Konto.')
+  }
+  const r = await deps.db.query<{ at: Date }>('UPDATE accounts SET recovery_checked_at = now() WHERE id = $1 RETURNING recovery_checked_at AS at', [session.accountId])
+  await audit(deps.db, session.accountId, 'user', 'auth.recovery_checked')
+  return { checkedAt: new Date(r[0].at).toISOString() }
+}

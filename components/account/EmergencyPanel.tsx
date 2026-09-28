@@ -59,6 +59,20 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
 
   if (!account) return null
   const waitLabel = (h: number) => m.waits[h] ?? `${Math.round(h / 24)} d`
+  const stepOf = (c: { status: string; access: boolean }) => (c.access ? 4 : ({ invited: 0, accepted: 1, confirmed: 2, requested: 3 } as Record<string, number>)[c.status] ?? 0)
+  const Steps = ({ at }: { at: number }) => (
+    <ol className="emsteps" aria-label={m.progress}>
+      {m.steps.map((label, i) => (
+        <li key={label} className={i < at ? 'done' : i === at ? 'now' : ''}>
+          <span />
+          {label}
+        </li>
+      ))}
+    </ol>
+  )
+  const Avatar = ({ label }: { label: string | null }) => (
+    <span className="avatarbtn emavatar">{(label ?? '?').split('@')[0].replace(/[._-]+/g, ' ').trim().split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase()}</span>
+  )
 
   return (
     <div className="card emergency" id="emergency-card">
@@ -83,7 +97,8 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
           </div>
           {ov.asGrantor.length === 0 && <p className="hint">{m.none}</p>}
           {ov.asGrantor.map(c => (
-            <div className={`emrow${c.status === 'requested' ? ' alert' : ''}`} key={c.id}>
+            <div className={`emrow${c.status === 'requested' && !c.access ? ' alert' : ''}`} key={c.id}>
+              <Avatar label={c.label} />
               <div className="emmain">
                 <strong>{c.label ?? '—'}</strong>
                 <span className="hint">
@@ -93,6 +108,7 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
                   {c.status === 'requested' &&
                     (c.access ? fmt(m.hasAccess, { date: fmtDate(c.availableAt!) }) : fmt(m.requested, { date: fmtDate(c.requestedAt!), at: fmtDate(c.availableAt!) }))}
                 </span>
+                <Steps at={stepOf(c)} />
                 {c.status === 'accepted' && !!c.granteePublicKey && !!c.granteeId && (
                   <>
                   <p className="hint" style={{ color: '#9a5b00' }}>{m.confirmWarn}</p>
@@ -192,7 +208,8 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
             {m.forOthers}
           </div>
           {ov.asGrantee.map(c => (
-            <div className="emrow" key={c.id}>
+            <div className={`emrow${c.access ? ' ok' : ''}`} key={c.id}>
+              <Avatar label={c.label} />
               <div className="emmain">
                 <strong>{c.label ?? '—'}</strong>
                 <span className="hint">
@@ -200,6 +217,7 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
                   {c.status === 'confirmed' && fmt(m.gReady, { wait: waitLabel(c.waitHours) })}
                   {c.status === 'requested' && (c.access ? m.gAccess : fmt(m.gRequested, { at: fmtDate(c.availableAt!) }))}
                 </span>
+                <Steps at={stepOf(c)} />
               </div>
               <div className="row" style={{ gap: 6 }}>
                 {c.status === 'confirmed' && (

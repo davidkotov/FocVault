@@ -8,7 +8,7 @@ import { useErrorText } from '@/features/i18n/errors'
 import { downloadFile, uploadFile } from '@/features/objects/transfer'
 import { secretsMessages } from '@/lib/i18n/messages/secrets'
 import { relativeDay } from '@/lib/i18n/relative'
-import { EXPIRY_WARN_DAYS, NOTE_TEMPLATES, TEMPLATE_IDS, daysUntilExpiry, emptyFields, fieldType, noteSearchText, parseTags } from '@/lib/note-templates'
+import { EXPIRY_WARN_DAYS, NOTE_TEMPLATES, TEMPLATE_IDS, daysUntilExpiry, expiresAtMonthEnd, expiryDate, emptyFields, fieldType, noteSearchText, parseTags } from '@/lib/note-templates'
 import { formatBytes, type NoteField, type NoteTemplateId, type SecretEntry, type VaultEntry } from '@/lib/vault'
 import ConfirmDialog from './ConfirmDialog'
 import { Icon as SiteIcon } from '@/components/site/Icons'
@@ -22,12 +22,16 @@ interface Props {
   /** für Anhänge (Verschlüsseln/Entschlüsseln im Browser) */
   masterKey?: CryptoKey
   onShare?: (s: SecretEntry) => void
+  /** Teilen gesperrt (Free): Klick führt zu den Paketen */
+  onShareLocked?: () => void
   /** Speicherverbrauch hat sich geändert (Anhang hoch-/gelöscht) */
   onStorageChanged?: () => void
   readOnly?: boolean
   heading?: string
   /** aus der globalen Suche: Suchbegriff vorbelegen */
   initialQuery?: string
+  /** mit Filter „Läuft ab“ öffnen */
+  initialExpiring?: boolean
 }
 
 interface Form {
@@ -52,14 +56,14 @@ const SHARE = 'M22 2 11 13M22 2l-7 20-4-9-9-4z'
 const TAG = 'M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01'
 const CLIP = 'M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'
 
-export default function NotesPanel({ entries, onSave, onDelete, masterKey, onShare, onStorageChanged, readOnly = false, heading, initialQuery }: Props) {
+export default function NotesPanel({ entries, onSave, onDelete, masterKey, onShare, onStorageChanged, readOnly = false, heading, initialQuery, initialExpiring, onShareLocked }: Props) {
   const { common: c, notes: m } = useMessages(secretsMessages)
   const { locale } = useI18n()
   const relDate = (ts: number) => relativeDay(ts, locale)
   const errText = useErrorText()
   const [form, setForm] = useState<Form | null>(null)
   const [query, setQuery] = useState(initialQuery ?? '')
-  const [side, setSide] = useState<{ type: 'all' | 'pinned' | 'template' | 'tag' | 'expiring'; value?: string }>({ type: 'all' })
+  const [side, setSide] = useState<{ type: 'all' | 'pinned' | 'template' | 'tag' | 'expiring'; value?: string }>({ type: initialExpiring ? 'expiring' : 'all' })
   const [selId, setSelId] = useState<string | null>(null)
   const [tplOpen, setTplOpen] = useState(false)
   const [slot, setSlot] = useState<HTMLElement | null>(null)
@@ -200,6 +204,11 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
   const soonest = [...expiring].sort((a, b) => (daysUntilExpiry(a) ?? 0) - (daysUntilExpiry(b) ?? 0))
   const expiryText = (s: SecretEntry) => {
     const d = daysUntilExpiry(s) ?? 0
+    const exp = expiryDate(s)
+    if (d >= 0 && exp && expiresAtMonthEnd(s)) {
+      const month = exp.toLocaleDateString(locale, exp.getFullYear() === new Date().getFullYear() ? { month: 'long' } : { month: 'long', year: 'numeric' })
+      return fmt(m.expiresEndOf, { title: s.title, month })
+    }
     return d < 0 ? fmt(m.expiredNamed, { title: s.title }) : d === 0 ? fmt(m.expiresTodayNamed, { title: s.title }) : fmt(m.expiresInNamed, { title: s.title, n: d })
   }
   const rowMeta = (s: SecretEntry) => {
@@ -469,6 +478,11 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
                       {onShare && (
                         <button className="small sharebtn" aria-label={m.share} title={m.share} onClick={() => onShare(s)}>
                           <Icon d={SHARE} /> {m.shareShort}
+                        </button>
+                      )}
+                      {!onShare && onShareLocked && (
+                        <button className="small sharebtn locked" aria-label={`${m.share} – ${m.shareProOnly}`} data-tip={m.shareProOnly} onClick={onShareLocked}>
+                          <SiteIcon name="lock" size={13} /> {m.shareShort}
                         </button>
                       )}
                       {!readOnly && (

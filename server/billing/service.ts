@@ -275,6 +275,10 @@ export async function setPayg(
   // Voraussetzung: Zahlungsmethode bei Stripe ODER vorhandenes Guthaben (z. B. aus Krypto-Aufladungen)
   const hasCredit = (await creditBalance(deps.db, account.id, account.currency)) > 0
   if (enabled && !hasCredit) assertPurchasesAllowed()
+  // Ohne Online-Zahlung ist Guthaben die einzige Zahlungsquelle
+  if (enabled && !account.payg_enabled && !hasCredit && !stripeGateway()) {
+    throw new ApiError('BAD_REQUEST', 'Bitte zuerst unter Konto & Sicherheit Guthaben aufladen oder eine Zahlungsmethode hinterlegen.')
+  }
   // Mit Stripe ohne Guthaben: beim ersten Einschalten Karte hinterlegen lassen (Webhook schaltet dann ein).
   const gw = stripeGateway()
   if (gw && enabled && !account.payg_enabled && !hasCredit) {
