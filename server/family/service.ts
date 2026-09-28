@@ -91,16 +91,22 @@ export async function syncFamilyAfterPlanChange(db: Db, accountId: string): Prom
     return
   }
   // Mitglied bekommt einen anderen Plan (z. B. vom Admin) → verlässt die Familie
-  await db.query('DELETE FROM family_members WHERE account_id = $1', [accountId])
+  await db.tx(async tx => {
+    const left = await tx.query<{ owner_account_id: string }>('DELETE FROM family_members WHERE account_id = $1 RETURNING owner_account_id', [accountId])
+    if (left[0]) await dropTeamRecovery(tx, accountId, left[0].owner_account_id)
+  })
   const members = await db.query<{ account_id: string }>('SELECT account_id FROM family_members WHERE owner_account_id = $1', [accountId])
   if (!members.length && !(await db.query('SELECT 1 FROM families WHERE owner_account_id = $1', [accountId])).length) return
   // Die Familie selbst bleibt bestehen (Familienordner liest der Inhaber weiter); Mitglieder und
   // offene Einladungen enden, deren Familienordner-Dateien gehen an den Inhaber.
   for (const m of members) {
-    await detachFromSpace(db, m.account_id, accountId)
-    await db.query('DELETE FROM family_members WHERE account_id = $1', [m.account_id])
-    await db.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan IN ('family', 'business')`, [m.account_id])
-    await audit(db, m.account_id, 'system', 'family.ended', {})
+    await db.tx(async tx => {
+      await detachFromSpace(tx, m.account_id, accountId)
+      await dropTeamRecovery(tx, m.account_id, accountId)
+      await tx.query('DELETE FROM family_members WHERE account_id = $1', [m.account_id])
+      await tx.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan IN ('family', 'business')`, [m.account_id])
+      await audit(tx, m.account_id, 'system', 'family.ended', {})
+    })
   }
   await db.query('UPDATE family_invites SET revoked_at = now() WHERE owner_account_id = $1 AND used_at IS NULL AND revoked_at IS NULL', [accountId])
 }
@@ -249,16 +255,28 @@ export async function joinFamily(deps: Deps, session: SessionInfo, token: string
   })
 }
 
+/**
+ * Firmen-Notfallzugriff beim Austritt beenden: hinterlegten Master-Key und die für das Konto verpackten
+ * Team-Schlüssel (falls es Admin war) löschen. Innerhalb der Transaktion des Austritts aufrufen.
+ */
+async function dropTeamRecovery(db: Db, memberId: string, owner: string): Promise<void> {
+  await db.query('DELETE FROM team_escrow WHERE account_id = $1 AND owner_account_id = $2', [memberId, owner])
+  await db.query('DELETE FROM team_recovery_grants WHERE account_id = $1 AND owner_account_id = $2', [memberId, owner])
+}
+
 /** Mitglied entfernen (Inhaber) oder selbst austreten. Das Konto fällt auf Free zurück, Daten bleiben. */
 export async function removeMember(deps: Deps, session: SessionInfo, memberId: string): Promise<void> {
   if (!isUuid(memberId)) throw new ApiError('NOT_FOUND', 'Mitglied nicht gefunden.')
   const self = memberId === session.accountId
-  const r = await deps.db.query(
-    `DELETE FROM family_members WHERE account_id = $1 AND ${self ? 'TRUE' : 'owner_account_id = $2'} RETURNING owner_account_id`,
-    self ? [memberId] : [memberId, session.accountId]
-  )
-  if (!r.length) throw new ApiError('NOT_FOUND', 'Mitglied nicht gefunden.')
-  await detachFromSpace(deps.db, memberId, (r[0] as { owner_account_id: string }).owner_account_id)
-  await deps.db.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan IN ('family', 'business')`, [memberId])
-  await audit(deps.db, memberId, self ? 'user' : 'system', self ? 'family.left' : 'family.removed', {})
+  await deps.db.tx(async tx => {
+    const r = await tx.query<{ owner_account_id: string }>(
+      `DELETE FROM family_members WHERE account_id = $1 AND ${self ? 'TRUE' : 'owner_account_id = $2'} RETURNING owner_account_id`,
+      self ? [memberId] : [memberId, session.accountId]
+    )
+    if (!r.length) throw new ApiError('NOT_FOUND', 'Mitglied nicht gefunden.')
+    await detachFromSpace(tx, memberId, r[0].owner_account_id)
+    await dropTeamRecovery(tx, memberId, r[0].owner_account_id)
+    await tx.query(`UPDATE accounts SET plan = 'free', payg_enabled = false WHERE id = $1 AND plan IN ('family', 'business')`, [memberId])
+    await audit(tx, memberId, self ? 'user' : 'system', self ? 'family.left' : 'family.removed', {})
+  })
 }

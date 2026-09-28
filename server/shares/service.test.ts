@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { resetRateLimits } from '../auth/ratelimit'
 import { completeObject, createObject, deleteObject } from '../objects/service'
 import { objectPieceKey } from '../storage/provider'
-import { newAccount, testDeps } from '../testing'
+import { afterQuery, newAccount, testDeps } from '../testing'
 import { createShare, listShares, publicShare, purgeSharePayloads, revokeShare, startShareDownload } from './service'
 
 const meta = Buffer.from('verschluesselte-metadaten-0123456789').toString('base64')
@@ -104,5 +104,27 @@ describe('Secure Send (Konto-Modus)', () => {
     expect(dl.items).toEqual([])
     expect(dl.payload).toBe(payload)
     await expect(createShare(deps, pro, { objectIds: [], meta, expiresInHours: 1, maxDownloads: 1 })).rejects.toThrow()
+  })
+
+  it('gleichzeitige Abrufe: jeder gezählte Abruf erhält den Inhalt, auch wenn der letzte ihn löscht', async () => {
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'race@example.com')
+    const pro = { ...session, plan: 'pro' as const }
+    const payload = Buffer.from('verschlüsselte Notiz für zwei Abrufe, lang genug').toString('base64')
+    const note = await createShare(deps, pro, { objectIds: [], meta, payload, expiresInHours: 1, maxDownloads: 2 })
+    // zweiter (letzter) Abruf läuft komplett, nachdem der erste gezählt hat, aber bevor er weiterliest
+    let second: Promise<{ payload?: string }> | null = null
+    const racy = {
+      ...deps,
+      db: afterQuery(deps.db, async sql => {
+        if (second || !sql.includes('SET downloads = downloads + 1')) return
+        second = startShareDownload(deps, note.id)
+        await second
+      })
+    }
+    const first = await startShareDownload(racy, note.id)
+    expect([first.payload, (await second!)?.payload]).toEqual([payload, payload])
+    await expect(startShareDownload(deps, note.id)).rejects.toMatchObject({ code: 'GONE' })
+    expect((await deps.db.query<{ payload: unknown }>('SELECT payload FROM shares WHERE id = $1', [note.id]))[0].payload).toBeNull()
   })
 })

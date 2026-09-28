@@ -195,10 +195,12 @@ export async function startShareDownload(
   id: string
 ): Promise<DownloadResult & { items: Array<{ objectId: string } & DownloadResult>; payload?: string }> {
   const r = await loadPublic(deps, id)
-  const upd = await deps.db.query(
+  // Zählen und Inhalt in derselben Anweisung lesen: jeder gezählte Abruf erhält seinen Inhalt, auch wenn
+  // ein gleichzeitiger letzter Abruf ihn direkt danach löscht.
+  const upd = await deps.db.query<{ payload: Uint8Array | null; max_downloads: number | null; downloads: number }>(
     `UPDATE shares SET downloads = downloads + 1
       WHERE id = $1 AND revoked_at IS NULL AND (max_downloads IS NULL OR downloads < max_downloads)
-        AND (expires_at IS NULL OR expires_at > now()) RETURNING id`,
+        AND (expires_at IS NULL OR expires_at > now()) RETURNING payload, max_downloads, downloads`,
     [id]
   )
   if (!upd.length) throw new ApiError('GONE', 'Dieser Link ist abgelaufen oder wurde widerrufen.')
@@ -219,14 +221,11 @@ export async function startShareDownload(
   )
   // `pieces` der ersten Datei für ältere Empfängerseiten
   let payload: string | undefined
-  if (r.has_payload) {
-    const p = await deps.db.query<{ payload: Uint8Array | null; max_downloads: number | null; downloads: number }>(
-      'SELECT payload, max_downloads, downloads FROM shares WHERE id = $1',
-      [id]
-    )
-    if (p[0]?.payload) payload = Buffer.from(p[0].payload).toString('base64')
+  const u = upd[0]
+  if (u.payload) {
+    payload = Buffer.from(u.payload).toString('base64')
     // letzter erlaubter Abruf: Inhalt sofort löschen (nicht erst beim Aufräumen)
-    if (p[0]?.max_downloads !== null && p[0]?.max_downloads !== undefined && Number(p[0].downloads) >= Number(p[0].max_downloads)) {
+    if (u.max_downloads !== null && Number(u.downloads) >= Number(u.max_downloads)) {
       await deps.db.query('UPDATE shares SET payload = NULL WHERE id = $1', [id])
     }
   }

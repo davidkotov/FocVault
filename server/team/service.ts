@@ -97,7 +97,7 @@ async function labels(db: Db, ids: string[]): Promise<Map<string, string>> {
   return new Map(r.map(x => [x.id, x.email ?? x.label ?? 'Konto']))
 }
 
-/** Teil der Kontoansicht: Rolle, Richtlinie, Hinterlegung, durchgeführte Zugriffe. */
+/** Teil der Kontoansicht: Rolle, Richtlinie, Hinterlegung, offene und durchgeführte Zugriffe. */
 export async function teamInfo(db: Db, accountId: string): Promise<TeamInfo | null> {
   const t = await teamContext(db, accountId)
   if (!t) return null
@@ -110,7 +110,13 @@ export async function teamInfo(db: Db, accountId: string): Promise<TeamInfo | nu
       WHERE target = $1 AND approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT 20`,
     [accountId]
   )
-  const names = await labels(db, [t.owner, ...acc.flatMap(a => [a.requested_by, a.approved_by])])
+  // Anträge, die (noch) nicht freigegeben sind: das Mitglied sieht sie schon vor der Freigabe
+  const reqs = await db.query<{ created_at: string; requested_by: string; reason: string; rejected_at: string | null; expires_at: string }>(
+    `SELECT created_at, requested_by, reason, rejected_at, expires_at FROM team_recovery_requests
+      WHERE target = $1 AND approved_at IS NULL AND created_at > now() - interval '30 days' ORDER BY created_at DESC LIMIT 20`,
+    [accountId]
+  )
+  const names = await labels(db, [t.owner, ...acc.flatMap(a => [a.requested_by, a.approved_by]), ...reqs.map(q => q.requested_by)])
   return {
     ownerId: t.owner,
     ownerLabel: names.get(t.owner) ?? 'Konto',
@@ -126,6 +132,12 @@ export async function teamInfo(db: Db, accountId: string): Promise<TeamInfo | nu
       requestedBy: names.get(a.requested_by) ?? '—',
       approvedBy: names.get(a.approved_by) ?? '—',
       reason: a.reason
+    })),
+    requests: reqs.map(q => ({
+      at: new Date(q.created_at).toISOString(),
+      requestedBy: names.get(q.requested_by) ?? '—',
+      reason: q.reason,
+      status: q.rejected_at ? 'rejected' : new Date(q.expires_at).getTime() > Date.now() ? 'pending' : 'expired'
     }))
   }
 }
@@ -487,13 +499,22 @@ async function loadRequest(db: Db, owner: string, id: string) {
 export async function decideRecoveryRequest(deps: Deps, session: SessionInfo, id: string, approve: boolean): Promise<void> {
   const t = await requireAdmin(deps.db, session.accountId)
   const r = await loadRequest(deps.db, t.owner, id)
-  if (r.approved_at || r.rejected_at || new Date(r.expires_at).getTime() < Date.now()) throw new ApiError('BAD_REQUEST', 'Dieser Antrag ist bereits entschieden oder abgelaufen.')
+  const closed = () => new ApiError('BAD_REQUEST', 'Dieser Antrag ist bereits entschieden oder abgelaufen.')
+  if (r.approved_at || r.rejected_at || new Date(r.expires_at).getTime() < Date.now()) throw closed()
   if (approve && r.requested_by === session.accountId) throw new ApiError('FORBIDDEN', 'Vier-Augen-Prinzip: Ein anderer Admin muss freigeben.')
   if (approve && r.target === session.accountId) throw new ApiError('FORBIDDEN', 'Für das eigene Konto nicht möglich.')
-  await deps.db.query(
-    approve ? 'UPDATE team_recovery_requests SET approved_by = $2, approved_at = now() WHERE id = $1' : 'UPDATE team_recovery_requests SET rejected_at = now(), approved_by = NULL WHERE id = $1',
-    approve ? [id, session.accountId] : [id]
+  // Nur offene Anträge entscheiden – in derselben Anweisung geprüft, damit gleichzeitige Freigabe und
+  // Ablehnung nicht beide greifen (die zweite findet den Antrag nicht mehr offen vor).
+  const done = await deps.db.query(
+    approve
+      ? `UPDATE team_recovery_requests SET approved_by = $3, approved_at = now()
+          WHERE id = $1 AND owner_account_id = $2 AND approved_at IS NULL AND rejected_at IS NULL AND expires_at > now()
+            AND requested_by <> $3 AND target <> $3 RETURNING id`
+      : `UPDATE team_recovery_requests SET rejected_at = now(), approved_by = NULL
+          WHERE id = $1 AND owner_account_id = $2 AND approved_at IS NULL AND rejected_at IS NULL AND expires_at > now() RETURNING id`,
+    approve ? [id, t.owner, session.accountId] : [id, t.owner]
   )
+  if (!done.length) throw closed()
   await audit(deps.db, session.accountId, 'user', approve ? 'team.recovery_approved' : 'team.recovery_rejected', { team: t.owner, member: r.target, requestId: id })
 }
 
@@ -501,7 +522,11 @@ async function openRequest(db: Db, session: SessionInfo, id: string) {
   const t = await requireAdmin(db, session.accountId)
   const r = await loadRequest(db, t.owner, id)
   if (r.requested_by !== session.accountId && r.approved_by !== session.accountId) throw new ApiError('FORBIDDEN', 'Nur die beteiligten Admins haben Zugriff.')
-  if (!r.approved_at || new Date(r.approved_at).getTime() + ACCESS_WINDOW_HOURS * 3_600_000 < Date.now()) throw new ApiError('FORBIDDEN', 'Kein freigegebener Zugriff (oder abgelaufen).')
+  if (r.rejected_at || !r.approved_at || new Date(r.approved_at).getTime() + ACCESS_WINDOW_HOURS * 3_600_000 < Date.now()) {
+    throw new ApiError('FORBIDDEN', 'Kein freigegebener Zugriff (oder abgelaufen).')
+  }
+  // Mitglied hat das Team inzwischen verlassen → kein Zugriff mehr
+  if (!(await memberIds(db, t.owner)).includes(r.target)) throw new ApiError('NOT_FOUND', 'Mitglied nicht gefunden.')
   return { t, r }
 }
 
@@ -530,7 +555,7 @@ export async function recoveryVault(deps: Deps, session: SessionInfo, id: string
 }
 
 export async function recoveryDownload(deps: Deps, session: SessionInfo, id: string, objectId: string): Promise<DownloadResult> {
-  const { r } = await openRequest(deps.db, session, id)
+  const { t, r } = await openRequest(deps.db, session, id)
   if (!isUuid(objectId)) throw new ApiError('NOT_FOUND', 'Datei nicht gefunden.')
   const pieces = await deps.db.query<{ piece_index: number; storage_key: string; cipher_bytes: number }>(
     `SELECT op.piece_index, op.storage_key, op.cipher_bytes::float8 AS cipher_bytes FROM object_pieces op JOIN objects o ON o.id = op.object_id
@@ -538,6 +563,7 @@ export async function recoveryDownload(deps: Deps, session: SessionInfo, id: str
     [objectId, r.target]
   )
   if (!pieces.length) throw new ApiError('NOT_FOUND', 'Datei nicht gefunden.')
+  await audit(deps.db, session.accountId, 'user', 'team.recovery_downloaded', { team: t.owner, member: r.target, requestId: id, objectId })
   return {
     pieces: await Promise.all(pieces.map(async p => ({ index: Number(p.piece_index), cipherBytes: Number(p.cipher_bytes), ...(await deps.storage.presignGet(p.storage_key, 15 * 60)) })))
   }

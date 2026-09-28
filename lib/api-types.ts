@@ -80,6 +80,8 @@ export interface TeamInfo {
   recovery: { generation: number; publicKey: JsonWebKey; escrowed: boolean } | null
   /** durchgeführte Firmen-Zugriffe auf den eigenen Tresor */
   accessedBy: Array<{ at: string; requestedBy: string; approvedBy: string; reason: string }>
+  /** noch nicht freigegebene Anträge auf den eigenen Tresor (letzte 30 Tage) */
+  requests: Array<{ at: string; requestedBy: string; reason: string; status: 'pending' | 'rejected' | 'expired' }>
 }
 
 export interface PasskeyEnvelope {

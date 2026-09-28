@@ -147,6 +147,8 @@ const de = {
     escrowDone: 'Schlüssel hinterlegt.',
     escrowButton: 'Mit Passphrase hinterlegen',
     accessed: 'Firmen-Notfallzugriff auf deinen Tresor am {date}: beantragt von {a}, freigegeben von {b}. Grund: {reason}',
+    requested: 'Antrag auf Firmen-Notfallzugriff auf deinen Tresor vom {date}: beantragt von {a} ({status}). Grund: {reason}',
+    requestStatus: { pending: 'wartet auf Freigabe durch einen zweiten Admin', rejected: 'abgelehnt', expired: 'abgelaufen' } as Record<string, string>,
     go: 'Öffnen'
   },
   events: {
@@ -182,6 +184,7 @@ const de = {
     'team.recovery_approved': 'Notfallzugriff freigegeben (2. Admin)',
     'team.recovery_rejected': 'Notfallzugriff abgelehnt',
     'team.recovery_opened': 'Tresor per Notfallzugriff geöffnet',
+    'team.recovery_downloaded': 'Datei per Notfallzugriff abgerufen',
     'team.sso_configured': 'SSO eingerichtet',
     'team.sso_removed': 'SSO entfernt',
     'team.sso_domain_verified': 'SSO-Domain verifiziert',
@@ -347,6 +350,8 @@ const en: typeof de = {
     escrowDone: 'Key escrowed.',
     escrowButton: 'Escrow with passphrase',
     accessed: 'Company emergency access to your vault on {date}: requested by {a}, approved by {b}. Reason: {reason}',
+    requested: 'Request for company emergency access to your vault on {date}: requested by {a} ({status}). Reason: {reason}',
+    requestStatus: { pending: 'awaiting approval by a second admin', rejected: 'rejected', expired: 'expired' },
     go: 'Open'
   },
   events: {
@@ -382,6 +387,7 @@ const en: typeof de = {
     'team.recovery_approved': 'Emergency access approved (2nd admin)',
     'team.recovery_rejected': 'Emergency access rejected',
     'team.recovery_opened': 'Vault opened via emergency access',
+    'team.recovery_downloaded': 'File downloaded via emergency access',
     'team.sso_configured': 'SSO configured',
     'team.sso_removed': 'SSO removed',
     'team.sso_domain_verified': 'SSO domain verified',

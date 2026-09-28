@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetRateLimits } from '../auth/ratelimit'
 import { changePlan } from '../billing/service'
-import { createInvite, joinFamily } from '../family/service'
+import { createInvite, joinFamily, removeMember } from '../family/service'
 import { completeObject, createObject } from '../objects/service'
 import { createShare } from '../shares/service'
 import { objectPieceKey } from '../storage/provider'
-import { newAccount, testDeps } from '../testing'
+import { afterQuery, newAccount, testDeps } from '../testing'
 import { putIndex } from '../vault/service'
 import { accountView } from '../accounts/service'
 import {
@@ -15,6 +15,7 @@ import {
   DEFAULT_POLICY,
   escrowMasterKey,
   grantRecoveryKey,
+  recoveryDownload,
   recoveryVault,
   setMemberRole,
   setRecoveryKey,
@@ -104,6 +105,11 @@ describe('Admin-Konsole (Business)', () => {
     expect(v).toMatchObject({ targetId: dev.accountId, generation })
     expect(v.body).toBeTruthy()
     expect((await recoveryVault(deps, cto, id)).escrow).toBeTruthy()
+    // Abruf einzelner Dateien wird protokolliert
+    const f = await createObject(deps, dev, { fmt: 'frame2', pieces: [{ index: 0, cipherBytes: 50 }] })
+    await deps.storage.writeStream(objectPieceKey(dev.accountId, f.objectId, 0), new Blob([new Uint8Array(50)]).stream(), 50)
+    await completeObject(deps, dev, f.objectId)
+    expect((await recoveryDownload(deps, ceo, id, f.objectId)).pieces).toHaveLength(1)
     const info = (await accountView(deps, dev.accountId)).team!
     expect(info.accessedBy[0]).toMatchObject({ requestedBy: 'ceo@firma.ch', approvedBy: 'cto@firma.ch', reason: 'Mitarbeiter ausgeschieden, Kundendaten sichern' })
     // nach 24 h vorbei
@@ -113,7 +119,73 @@ describe('Admin-Konsole (Business)', () => {
     await setRecoveryKey(deps, ceo, { publicKey: jwk(), wrapped: wrapped() })
     expect((await accountView(deps, dev.accountId)).team?.recovery).toMatchObject({ generation: 2, escrowed: false })
     expect((await teamAudit(deps, ceo, { kind: 'team.recovery', limit: 50 })).map(e => e.kind)).toEqual(
-      expect.arrayContaining(['team.recovery_requested', 'team.recovery_approved', 'team.recovery_opened', 'team.recovery_key_created'])
+      expect.arrayContaining(['team.recovery_requested', 'team.recovery_approved', 'team.recovery_opened', 'team.recovery_downloaded', 'team.recovery_key_created'])
     )
+    const dl = (await teamAudit(deps, ceo, { kind: 'team.recovery_downloaded', limit: 5 }))[0]
+    expect(dl).toMatchObject({ actorId: ceo.accountId, meta: { member: dev.accountId, requestId: id, objectId: f.objectId } })
+  })
+
+  it('Vier-Augen-Status: offene Anträge sieht das Mitglied, Ablehnung ist endgültig, auch bei gleichzeitiger Freigabe', async () => {
+    const { deps, ceo, cto, dev } = await team()
+    await setMemberRole(deps, ceo, cto.accountId, 'admin')
+    const { generation } = await setRecoveryKey(deps, ceo, { publicKey: jwk(), wrapped: wrapped() })
+    await grantRecoveryKey(deps, ceo, { generation, grants: [{ accountId: cto.accountId, wrapped: wrapped() }] })
+    await escrowMasterKey(deps, dev, { generation, wrapped: wrapped() })
+    const reason = 'Kundenprojekt muss übergeben werden'
+
+    // offener Antrag ist für das Mitglied sichtbar, noch bevor jemand freigibt
+    const a = await createRecoveryRequest(deps, ceo, { target: dev.accountId, reason })
+    expect((await accountView(deps, dev.accountId)).team?.requests).toEqual([expect.objectContaining({ requestedBy: 'ceo@firma.ch', reason, status: 'pending' })])
+
+    // Freigabe nach Ablehnung schlägt fehl, abgelehnter Antrag gibt keinen Zugriff
+    await decideRecoveryRequest(deps, cto, a.id, false)
+    await expect(decideRecoveryRequest(deps, cto, a.id, true)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    await expect(recoveryVault(deps, ceo, a.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    expect((await accountView(deps, dev.accountId)).team?.requests[0]).toMatchObject({ status: 'rejected' })
+    // selbst wenn ein abgelehnter Antrag (Altbestand) einen Freigabezeitpunkt trägt: kein Zugriff
+    await deps.db.query('UPDATE team_recovery_requests SET approved_at = now(), approved_by = $2 WHERE id = $1', [a.id, cto.accountId])
+    await expect(recoveryVault(deps, ceo, a.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+
+    // gleichzeitig: Ablehnung landet zwischen Prüfung und Freigabe → Freigabe schlägt fehl
+    const b = await createRecoveryRequest(deps, ceo, { target: dev.accountId, reason })
+    let rejected = false
+    const racy = {
+      ...deps,
+      db: afterQuery(deps.db, async sql => {
+        if (rejected || !sql.startsWith('SELECT * FROM team_recovery_requests')) return
+        rejected = true
+        await decideRecoveryRequest(deps, ceo, b.id, false)
+      })
+    }
+    await expect(decideRecoveryRequest(racy, cto, b.id, true)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    const row = (await deps.db.query<{ approved_at: string | null; rejected_at: string | null }>('SELECT approved_at, rejected_at FROM team_recovery_requests WHERE id = $1', [b.id]))[0]
+    expect(row.rejected_at).not.toBeNull()
+    expect(row.approved_at).toBeNull()
+    await expect(recoveryVault(deps, ceo, b.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+
+  it('Austritt/Entfernen löscht Hinterlegung und Team-Schlüssel-Hüllen; freigegebener Zugriff endet', async () => {
+    const { deps, ceo, cto, dev } = await team()
+    await setMemberRole(deps, ceo, cto.accountId, 'admin')
+    const { generation } = await setRecoveryKey(deps, ceo, { publicKey: jwk(), wrapped: wrapped() })
+    await grantRecoveryKey(deps, ceo, { generation, grants: [{ accountId: cto.accountId, wrapped: wrapped() }] })
+    await escrowMasterKey(deps, dev, { generation, wrapped: wrapped() })
+    await escrowMasterKey(deps, cto, { generation, wrapped: wrapped() })
+    const { id } = await createRecoveryRequest(deps, ceo, { target: dev.accountId, reason: 'Mitarbeiter verlässt das Unternehmen' })
+    await decideRecoveryRequest(deps, cto, id, true)
+    expect((await recoveryVault(deps, ceo, id)).targetId).toBe(dev.accountId)
+
+    const count = async (table: string, accountId: string) =>
+      Number((await deps.db.query<{ n: number }>(`SELECT count(*)::float8 AS n FROM ${table} WHERE account_id = $1`, [accountId]))[0].n)
+    // Inhaber entfernt dev
+    await removeMember(deps, ceo, dev.accountId)
+    expect(await count('team_escrow', dev.accountId)).toBe(0)
+    await expect(recoveryVault(deps, ceo, id)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    // Admin tritt selbst aus: Hinterlegung und seine Hülle des Team-Schlüssels sind weg
+    expect(await count('team_recovery_grants', cto.accountId)).toBe(1)
+    await removeMember(deps, cto, cto.accountId)
+    expect(await count('team_escrow', cto.accountId)).toBe(0)
+    expect(await count('team_recovery_grants', cto.accountId)).toBe(0)
+    expect(await count('team_recovery_grants', ceo.accountId)).toBe(1)
   })
 })

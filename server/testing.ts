@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { openMemoryDb } from './db'
+import { openMemoryDb, type Db } from './db'
 import { MemoryProvider } from './storage/memory'
 import type { Deps } from './deps'
 import { registerSchema } from './accounts/schemas'
@@ -39,4 +39,22 @@ export async function newAccount(deps: Deps, email: string) {
   const result = await register(deps, input, META)
   const session = (await findSession(deps.db, result.token)) as SessionInfo
   return { input, result, session }
+}
+
+/**
+ * Nur für Tests (Races): Datenbank, die nach jeder Anweisung – auch innerhalb von Transaktionen –
+ * `after(sql)` abwartet. So lässt sich ein gleichzeitiger Vorgang genau zwischen zwei Anweisungen einschieben.
+ */
+export function afterQuery(db: Db, after: (sql: string) => Promise<void>): Db {
+  return {
+    driver: db.driver,
+    async query<T = Record<string, any>>(sql: string, params?: unknown[]): Promise<T[]> {
+      const rows = await db.query<T>(sql, params)
+      await after(sql)
+      return rows
+    },
+    exec: sql => db.exec(sql),
+    tx: fn => db.tx(inner => fn(afterQuery(inner, after))),
+    close: () => db.close()
+  }
 }

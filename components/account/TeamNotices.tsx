@@ -7,7 +7,7 @@ import { useErrorText } from '@/features/i18n/errors'
 import { escrowForTeam } from '@/features/team/client'
 import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
 
-/** Hinweise aus den Team-Richtlinien (Passkey, Passphrase, Hinterlegung, durchgeführte Zugriffe). */
+/** Hinweise aus den Team-Richtlinien (Passkey, Passphrase, Hinterlegung, offene und durchgeführte Zugriffe). */
 export default function TeamNotices({ onOpenAccount }: { onOpenAccount: () => void }) {
   const m = useMessages(teamAdminMessages).notices
   const { fmtDate } = useI18n()
@@ -19,9 +19,15 @@ export default function TeamNotices({ onOpenAccount }: { onOpenAccount: () => vo
   if (t.passphraseChars !== null && t.passphraseChars < t.policy.minPassphraseChars) items.push(fmt(m.passphrase, { n: t.policy.minPassphraseChars }))
   if (t.policy.recoveryRequired && t.recovery && !t.recovery.escrowed) items.push(m.escrow)
   const recent = t.accessedBy.filter(a => Date.now() - new Date(a.at).getTime() < 30 * 86_400_000)
-  if (!items.length && !recent.length) return null
+  const pending = t.requests.filter(q => q.status === 'pending')
+  if (!items.length && !recent.length && !pending.length) return null
   return (
     <>
+      {pending.map(q => (
+        <div className="notice warn" key={`p-${q.at}`}>
+          {fmt(m.requested, { date: fmtDate(q.at), a: q.requestedBy, status: m.requestStatus[q.status], reason: q.reason })}
+        </div>
+      ))}
       {recent.map(a => (
         <div className="notice warn" key={a.at}>
           {fmt(m.accessed, { date: fmtDate(a.at), a: a.requestedBy, b: a.approvedBy, reason: a.reason })}
@@ -87,6 +93,11 @@ export function TeamEscrowCard() {
           </button>
         </form>
       )}
+      {t.requests.map(q => (
+        <p className="hint" key={`r-${q.at}`}>
+          {fmt(m.requested, { date: fmtDate(q.at), a: q.requestedBy, status: m.requestStatus[q.status], reason: q.reason })}
+        </p>
+      ))}
       {t.accessedBy.map(a => (
         <p className="hint" key={a.at}>
           {fmt(m.accessed, { date: fmtDate(a.at), a: a.requestedBy, b: a.approvedBy, reason: a.reason })}

@@ -253,21 +253,27 @@ export async function putVaultIndex(deps: Deps, session: SessionInfo, vaultId: s
   const body = Buffer.from(input.body, 'base64')
   if (body.byteLength > MAX_BODY) throw new ApiError('BAD_REQUEST', 'Tresor ist zu groß.')
   const gen = bodyGeneration(body)
-  const current = await currentGeneration(deps.db, vaultId)
-  if (gen !== current) throw new ApiError('VERSION_CONFLICT', 'Der Tresor hat einen neuen Schlüssel – bitte neu laden.', { generation: current })
-  if (RANK[role] < RANK.edit) throw new ApiError('FORBIDDEN', 'Du darfst diesen Tresor nur ansehen.')
-  // Nach dem Entfernen einer Person: erst nach dem Schlüsselwechsel wieder schreiben (sonst mit altem Schlüssel)
-  const rot = await deps.db.query<{ rotate_needed: boolean }>('SELECT rotate_needed FROM shared_vaults WHERE id = $1', [vaultId])
-  if (rot[0]?.rotate_needed) throw new ApiError('VERSION_CONFLICT', 'Der Tresor erhält gerade einen neuen Schlüssel – ein Verwalter muss ihn einmal öffnen.', { rotateNeeded: true })
-  const r = await deps.db.query<{ version: number }>(
-    `UPDATE shared_vaults SET version = version + 1, body = $3, updated_at = now()
-      WHERE id = $1 AND version = $2 RETURNING version::float8 AS version`,
-    [vaultId, input.baseVersion, body]
-  )
-  if (!r[0]) {
-    const cur = await deps.db.query<{ version: number }>('SELECT version::float8 AS version FROM shared_vaults WHERE id = $1', [vaultId])
-    throw new ApiError('VERSION_CONFLICT', 'Der Tresor wurde inzwischen geändert.', { currentVersion: Number(cur[0]?.version ?? 0) })
-  }
+  // Atomar: Tresor-Zeile sperren (wie grantVaultKeys), dann Generation, Schlüsselwechsel-Status und
+  // Version prüfen und schreiben – sonst könnte ein Index mit dem alten Schlüssel nach einem Wechsel landen.
+  const r = await deps.db.tx(async tx => {
+    const lock = await tx.query<{ rotate_needed: boolean }>('SELECT rotate_needed FROM shared_vaults WHERE id = $1 FOR UPDATE', [vaultId])
+    if (!lock[0]) throw new ApiError('NOT_FOUND', 'Tresor nicht gefunden.')
+    const current = await currentGeneration(tx, vaultId)
+    if (gen !== current) throw new ApiError('VERSION_CONFLICT', 'Der Tresor hat einen neuen Schlüssel – bitte neu laden.', { generation: current })
+    if (RANK[role] < RANK.edit) throw new ApiError('FORBIDDEN', 'Du darfst diesen Tresor nur ansehen.')
+    // Nach dem Entfernen einer Person: erst nach dem Schlüsselwechsel wieder schreiben (sonst mit altem Schlüssel)
+    if (lock[0].rotate_needed) throw new ApiError('VERSION_CONFLICT', 'Der Tresor erhält gerade einen neuen Schlüssel – ein Verwalter muss ihn einmal öffnen.', { rotateNeeded: true })
+    const upd = await tx.query<{ version: number }>(
+      `UPDATE shared_vaults SET version = version + 1, body = $3, updated_at = now()
+        WHERE id = $1 AND version = $2 RETURNING version::float8 AS version`,
+      [vaultId, input.baseVersion, body]
+    )
+    if (!upd[0]) {
+      const cur = await tx.query<{ version: number }>('SELECT version::float8 AS version FROM shared_vaults WHERE id = $1', [vaultId])
+      throw new ApiError('VERSION_CONFLICT', 'Der Tresor wurde inzwischen geändert.', { currentVersion: Number(cur[0]?.version ?? 0) })
+    }
+    return upd
+  })
   await audit(deps.db, session.accountId, 'user', 'vault.updated', { vaultId, version: Number(r[0].version) })
   return { version: Number(r[0].version) }
 }
