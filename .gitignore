@@ -40,3 +40,6 @@ next-env.d.ts
 
 # gebautes Backup-Programm (npm run build:cli)
 /bin/
+
+# Zugangsdaten aus scripts/seed-demo.mjs (Passphrase, Recovery-Wörter)
+.demo-credentials.txt

@@ -52,7 +52,7 @@ Annehmen erneut. Beide ignorieren nun veraltete Antworten.
 **`vercel.json`**: Funktionen in Frankfurt (`fra1`, neben Neon, Verarbeitung in der EU), täglicher Cron
 `/api/v1/cron/maintenance` (PAYG-Abrechnung, Papierkorb, Filecoin-Sync, Statusprüfung; `CRON_SECRET`).
 
-**Demo-Konto** per `BASE_URL=… npm run seed:demo` (Skript `scripts/seed-demo.mjs`): legt `anna.demo@example.com`
+**Demo-Konto** per `BASE_URL=… DEMO_PASS=… npm run seed:demo` (Skript `scripts/seed-demo.mjs`; nur lokal/Preview, sonst `ALLOW_SEED_REMOTE=1`; Zugangsdaten landen in `.demo-credentials.txt`): legt `anna.demo@example.com`
 über die echte Oberfläche an (Verschlüsselung im Browser), setzt den Plan, lädt Dateien und einen Ordner hoch,
 erstellt Passwörter, 2FA-Konten und Notizen (Checkliste, WLAN, Reisepass und Kreditkarte mit Ablauf). Wiederholbar
 ohne Duplikate. Im Neon-Branch `development` angelegt.
@@ -82,7 +82,7 @@ Preiskarten an die neue Aufteilung angepasst.
 **Meine Cloud**: „Neuer Ordner“, Brotkrumen-Pfad, Ordner aus Dateipfaden plus leere Ordner (verschlüsselt im
 Tresor, `dirs`), Dateien per Ziehen in Ordner verschieben, Hochladen in den offenen Ordner; **Dateien überall auf
 die Seite ziehen** lädt hoch (Overlay). Ablauf-Hinweis für Dokumente auch hier.
-**Passwörter**: Website-Icons (einmalig über `GET /api/v1/icon`, SSRF-geschützt: nur öffentliche Hosts, jede
+**Passwörter**: Website-Icons (einmalig über `POST /api/v1/icon`, SSRF-geschützt: nur öffentliche Hosts, jede
 DNS-Auflösung inkl. Weiterleitungen geprüft, Grössen-/Zeitlimits; Icon wird auf 64 px verkleinert und
 verschlüsselt im Tresor gespeichert), **Favoriten**, „Kopiert ✓“-Feedback, **2FA direkt im Passwort-Formular**
 (Schlüssel/otpauth oder QR-Scan, Live-Code, verknüpfter 2FA-Eintrag, ab Pro). **2FA**: Icons (vom Passwort oder

@@ -207,6 +207,30 @@ function isSecret(s: any): s is SecretEntry {
   )
 }
 
+/** Obergrenze für ein Website-Icon als Data-URL (64-px-PNG ≈ 5–20 KB). */
+export const MAX_ICON_DATA_URL_LENGTH = 100_000
+const ICON_DATA_URL_RE = /^data:image\/(?:png|jpeg|gif|webp|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/]+={0,2}$/
+
+/**
+ * Nur eingebettete Raster-Bilder als Icon: keine http(s)-URLs (in geteilten Tresoren könnte ein Mitglied
+ * sonst über eine eigene Bild-URL die IP-Adressen der anderen Mitglieder abgreifen), kein SVG.
+ */
+export function isSafeIconDataUrl(v: unknown): v is string {
+  return typeof v === 'string' && v.length <= MAX_ICON_DATA_URL_LENGTH && ICON_DATA_URL_RE.test(v)
+}
+
+/** Eintrag übernehmen, ein ungültiges Icon (samt Host, damit es neu geladen wird) verwerfen. „“ = keins gefunden bleibt. */
+function sanitizeSecret(s: SecretEntry): SecretEntry {
+  if (s.icon === undefined || s.icon === '' || isSafeIconDataUrl(s.icon)) return s
+  const { icon: _icon, iconHost: _iconHost, ...rest } = s
+  return rest
+}
+
+/** Geheimnisse aus einem entschlüsselten Index (eigener oder geteilter Tresor) prüfen und bereinigen. */
+export function parseSecrets(list: unknown): SecretEntry[] {
+  return Array.isArray(list) ? list.filter(isSecret).map(sanitizeSecret) : []
+}
+
 /** Versteht das alte v2-Format (reines VaultEntry[]-Array) und v3 (Container). */
 export function parseVaultContainer(json: string): VaultContainer {
   const parsed = JSON.parse(json)
@@ -217,7 +241,7 @@ export function parseVaultContainer(json: string): VaultContainer {
   }
   if (parsed && typeof parsed === 'object' && Array.isArray(parsed.files)) {
     const files = parsed.files.map(normalize).filter((e: VaultEntry | null): e is VaultEntry => e !== null)
-    const secrets = Array.isArray(parsed.secrets) ? parsed.secrets.filter(isSecret) : []
+    const secrets = parseSecrets(parsed.secrets)
     const trash = Array.isArray(parsed.trash)
       ? parsed.trash
           .map((t: any) => {

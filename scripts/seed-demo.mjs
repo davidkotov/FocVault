@@ -2,21 +2,64 @@
 /**
  * Demo-Konto mit Beispieldaten anlegen – über die echte Oberfläche (Verschlüsselung im Browser).
  *
- *   BASE_URL=<App-URL> node scripts/seed-demo.mjs
+ *   BASE_URL=<App-URL> DEMO_PASS='<Passphrase>' node scripts/seed-demo.mjs
  *
- * Optional: DEMO_EMAIL, DEMO_PASS, DEMO_PLAN (free|pro|family|business). Nur für Entwicklung/Staging –
- * setzt den Plan über die Admin-Ansicht (dort sind im Dev-Modus alle Konten Admin).
+ * Pflicht: BASE_URL, DEMO_PASS (kein Standard-Passwort im Repo). Optional: DEMO_EMAIL,
+ * DEMO_PLAN (free|pro|family|business). Nur für Entwicklung/Staging – setzt den Plan über die
+ * Admin-Ansicht (dort sind im Dev-Modus alle Konten Admin).
+ *
+ * Erlaubte Ziele (BASE_URL):
+ *  - lokal: localhost, *.localhost, 127.0.0.1, [::1] – immer
+ *  - Vercel-Preview: *.vercel.app – ausser der Production-Adresse foc-vault.vercel.app
+ *  - alles andere (Production foc-vault.vercel.app, focvault.app und jede eigene Domain) nur mit
+ *    ausdrücklichem ALLOW_SEED_REMOTE=1
+ *
+ * Zugangsdaten (Passphrase, Recovery-Wörter) werden NICHT ausgegeben, sondern in `.demo-credentials.txt`
+ * im Projektordner abgelegt (Rechte 0600, per .gitignore ausgeschlossen).
  */
+import { chmodSync, writeFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
 
 const BASE = process.env.BASE_URL
 if (!BASE) {
-  console.error('BASE_URL fehlt, z. B. BASE_URL=http://… node scripts/seed-demo.mjs')
+  console.error('BASE_URL fehlt, z. B. BASE_URL=http://localhost:3000 DEMO_PASS=… node scripts/seed-demo.mjs')
+  process.exit(1)
+}
+let target
+try {
+  target = new URL(BASE)
+} catch {
+  console.error(`BASE_URL ist keine gültige Adresse: ${BASE}`)
+  process.exit(1)
+}
+const PRODUCTION_HOSTS = new Set(['foc-vault.vercel.app'])
+const host = target.hostname.toLowerCase()
+const isLocal = host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '[::1]' || host === '::1'
+const isPreview = host.endsWith('.vercel.app') && !PRODUCTION_HOSTS.has(host)
+if (!isLocal && !isPreview && process.env.ALLOW_SEED_REMOTE !== '1') {
+  console.error(
+    `Abgebrochen: ${host} ist weder lokal noch eine Vercel-Preview (möglicherweise Production).\n` +
+      'Nur wenn das wirklich gewollt ist: ALLOW_SEED_REMOTE=1 setzen.'
+  )
   process.exit(1)
 }
 const EMAIL = process.env.DEMO_EMAIL ?? 'anna.demo@example.com'
-const PASS = process.env.DEMO_PASS ?? 'Korrekt Pferd Batterie Heftklammer'
+const PASS = process.env.DEMO_PASS
+if (!PASS || PASS.length < 12) {
+  console.error('DEMO_PASS fehlt oder ist zu kurz (mind. 12 Zeichen) – es gibt bewusst kein Standard-Passwort.')
+  process.exit(1)
+}
 const PLAN = process.env.DEMO_PLAN ?? 'pro'
+const CREDENTIALS_FILE = fileURLToPath(new URL('../.demo-credentials.txt', import.meta.url))
+
+/** Zugangsdaten lokal ablegen (nur für den eigenen Benutzer lesbar), nie auf stdout. */
+function saveCredentials(words) {
+  const lines = [`# Demo-Konto (${new Date().toISOString()}) – nicht committen`, `BASE_URL=${BASE}`, `EMAIL=${EMAIL}`, `PASSPHRASE=${PASS}`]
+  if (words) lines.push(`RECOVERY_WORDS=${words.join(' ')}`)
+  writeFileSync(CREDENTIALS_FILE, `${lines.join('\n')}\n`, { mode: 0o600 })
+  chmodSync(CREDENTIALS_FILE, 0o600)
+}
 const url = p => new URL(p, BASE).toString()
 const T = 60_000
 
@@ -94,7 +137,8 @@ const buf = (s, n = 1) => Buffer.from(s.repeat(n))
 if (await login()) step(`angemeldet als ${EMAIL} (Konto existiert bereits)`)
 else {
   const words = await register()
-  step(`Konto ${EMAIL} erstellt – Recovery-Wörter: ${words.join(' ')}`)
+  saveCredentials(words)
+  step(`Konto ${EMAIL} erstellt – Zugangsdaten und Recovery-Wörter in .demo-credentials.txt (0600)`)
 }
 if (PLAN !== 'free') {
   await setPlan()
@@ -197,5 +241,5 @@ if ((await page.locator('.noterow').count()) === 0) {
 }
 
 await page.waitForTimeout(3000)
-console.log(`\nFertig: ${EMAIL} / ${PASS} (Plan ${PLAN})`)
+console.log(`\nFertig: ${EMAIL} (Plan ${PLAN}) – Zugangsdaten siehe .demo-credentials.txt`)
 await browser.close()

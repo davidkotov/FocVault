@@ -11,21 +11,31 @@ export { isPrivateIp, validHost } from '../net/safe-fetch'
 
 const MAX_HTML = 256 * 1024
 const MAX_ICON = 100 * 1024
+/** Leerlauf-Timeout je Verbindung */
 const TIMEOUT = 4000
+/** Gesamtfrist für alle Abrufe eines Icons (Startseite, Weiterleitungen, Favicon, www-Variante) */
+export const TOTAL_TIMEOUT = 10_000
 const cache = new Map<string, { type: string; body: Buffer } | null>()
 
-function get(url: URL, max: number, hops = 0): Promise<{ type: string; body: Buffer; url: URL }> {
+function get(url: URL, max: number, signal: AbortSignal, hops = 0): Promise<{ type: string; body: Buffer; url: URL }> {
   return new Promise((resolve, reject) => {
     if (url.protocol !== 'https:' || !validHost(url.hostname) || (url.port && url.port !== '443')) return reject(new Error('invalid url'))
+    if (signal.aborted) return reject(new Error('deadline'))
     const req = request(
       url,
-      { method: 'GET', lookup: safeLookup as never, timeout: TIMEOUT, headers: { 'user-agent': 'FocVault-Icon/1.0', accept: 'text/html,image/*;q=0.9,*/*;q=0.5' } },
+      { method: 'GET', lookup: safeLookup as never, timeout: TIMEOUT, signal, headers: { 'user-agent': 'FocVault-Icon/1.0', accept: 'text/html,image/*;q=0.9,*/*;q=0.5' } },
       res => {
         const status = res.statusCode ?? 0
         if (status >= 300 && status < 400 && res.headers.location) {
           res.resume()
           if (hops >= 3) return reject(new Error('too many redirects'))
-          return get(new URL(res.headers.location, url), max, hops + 1).then(resolve, reject)
+          let next: URL
+          try {
+            next = new URL(res.headers.location, url)
+          } catch {
+            return reject(new Error('invalid redirect'))
+          }
+          return get(next, max, signal, hops + 1).then(resolve, reject)
         }
         if (status !== 200) {
           res.resume()
@@ -40,7 +50,16 @@ function get(url: URL, max: number, hops = 0): Promise<{ type: string; body: Buf
             reject(new Error('too large'))
           } else chunks.push(c)
         })
-        res.on('end', () => resolve({ type: String(res.headers['content-type'] ?? ''), body: Buffer.concat(chunks), url }))
+        res.on('end', () => {
+          if (!res.complete) return reject(new Error('incomplete'))
+          resolve({ type: String(res.headers['content-type'] ?? ''), body: Buffer.concat(chunks), url })
+        })
+        // Abbruch mitten im Body: sonst bliebe das Promise ewig offen ('end' kommt dann nicht)
+        res.on('error', reject)
+        res.on('aborted', () => reject(new Error('aborted')))
+        res.on('close', () => {
+          if (!res.complete) reject(new Error('aborted'))
+        })
       }
     )
     req.on('timeout', () => req.destroy(new Error('timeout')))
@@ -68,20 +87,23 @@ export function pickIconHref(html: string): string | null {
   return cands[0]?.href ?? null
 }
 
-export async function fetchIcon(host: string): Promise<{ type: string; body: Buffer } | null> {
+export async function fetchIcon(host: string, deadlineMs = TOTAL_TIMEOUT): Promise<{ type: string; body: Buffer } | null> {
   host = host.toLowerCase().replace(/^www\./, '')
   if (!validHost(host)) return null
   if (cache.has(host)) return cache.get(host)!
   let out: { type: string; body: Buffer } | null = null
+  // Gesamtfrist: langsam tröpfelnde Server dürfen den Abruf nicht über den Leerlauf-Timeout hinaus strecken
+  const signal = AbortSignal.timeout(deadlineMs)
   const tryIcon = async (u: URL) => {
-    const r = await get(u, MAX_ICON)
+    const r = await get(u, MAX_ICON, signal)
     const type = r.type.split(';')[0].trim()
     if (!/^image\/(png|x-icon|vnd\.microsoft\.icon|jpeg|gif|webp|svg\+xml)$/.test(type) || r.body.length < 50) throw new Error('not an image')
     return { type, body: r.body }
   }
   for (const h of [host, `www.${host}`]) {
+    if (signal.aborted) break
     try {
-      const page = await get(new URL(`https://${h}/`), MAX_HTML)
+      const page = await get(new URL(`https://${h}/`), MAX_HTML, signal)
       const href = pickIconHref(page.body.toString('utf8'))
       if (href) out = await tryIcon(new URL(href, page.url)).catch(() => null)
       if (!out) out = await tryIcon(new URL('/favicon.ico', page.url)).catch(() => null)
@@ -90,6 +112,8 @@ export async function fetchIcon(host: string): Promise<{ type: string; body: Buf
     }
     if (out) break
   }
+  // Nach Ablauf der Frist nicht als „kein Icon“ merken – beim nächsten Mal erneut versuchen
+  if (!out && signal.aborted) return null
   if (cache.size > 1000) cache.delete(cache.keys().next().value!)
   cache.set(host, out)
   return out

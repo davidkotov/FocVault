@@ -47,7 +47,13 @@ export function loadSiteIcon(host: string): Promise<string> {
   if (!p) {
     p = (async () => {
       try {
-        const res = await fetch(`/api/v1/icon?host=${encodeURIComponent(host)}`, { credentials: 'same-origin' })
+        // Host im Body statt in der URL: landet so nicht in Zugriffs-Logs
+        const res = await fetch('/api/v1/icon', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json', 'x-fv-client': 'web' },
+          body: JSON.stringify({ host })
+        })
         if (!res.ok) return ''
         const url = URL.createObjectURL(await res.blob())
         try {
