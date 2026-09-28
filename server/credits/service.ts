@@ -12,7 +12,26 @@ import { uuidv7 } from '../shared/ids'
 export type Currency = 'CHF' | 'EUR' | 'USD'
 export const MIN_DEPOSIT = 5
 export const MAX_DEPOSIT = 5000
-export const depositSchema = z.object({ amount: z.number().min(MIN_DEPOSIT).max(MAX_DEPOSIT) })
+
+/** Ganze Rappen/Cent (höchstens zwei Nachkommastellen), gegen Gleitkomma-Rauschen robust. */
+export const isWholeCents = (n: number) => Number.isFinite(n) && Math.abs(n * 100 - Math.round(n * 100)) < 1e-6
+
+export const depositSchema = z.object({
+  amount: z
+    .number()
+    .finite()
+    .min(MIN_DEPOSIT, `Mindestens ${MIN_DEPOSIT} aufladen.`)
+    .max(MAX_DEPOSIT, `Höchstens ${MAX_DEPOSIT} pro Aufladung.`)
+    .refine(isWholeCents, 'Betrag höchstens mit zwei Nachkommastellen angeben.')
+})
+
+/** Auch serverseitig (nicht nur im Schema) prüfen, bevor ein Zahlungsvorgang entsteht. */
+export function assertDepositAmount(amount: number): void {
+  if (!Number.isFinite(amount) || amount < MIN_DEPOSIT || amount > MAX_DEPOSIT) {
+    throw new ApiError('BAD_REQUEST', `Aufladungen zwischen ${MIN_DEPOSIT} und ${MAX_DEPOSIT} sind möglich.`)
+  }
+  if (!isWholeCents(amount)) throw new ApiError('BAD_REQUEST', 'Betrag höchstens mit zwei Nachkommastellen angeben.')
+}
 
 export interface CreditEntry {
   id: string
@@ -76,6 +95,55 @@ export async function consumeCredit(db: Db, accountId: string, amount: number, c
     ])
     return use
   })
+}
+
+/**
+ * Rückbuchung (z. B. erstattete oder angefochtene Aufladung). Anders als `consumeCredit` darf das
+ * Guthaben dabei ins Minus fallen – das Geld ist bereits weg. Gleiche Sperre wie `consumeCredit`
+ * (Konto FOR UPDATE), idempotent über ref. `amount` darf eine Funktion sein, die den Betrag erst
+ * unter der Sperre berechnet (z. B. Rest nach früheren Teilerstattungen).
+ * Fällt das Guthaben unter null, wird Pay-as-you-go abgeschaltet und bleibt gesperrt, bis das
+ * Minus ausgeglichen ist (siehe setPayg).
+ */
+export async function debitCredit(
+  db: Db,
+  input: { accountId: string; currency: Currency; ref: string; note: string; amount: number | ((tx: Db) => Promise<number>) }
+): Promise<{ debited: number; balance: number; paygDisabled: boolean }> {
+  return db.tx(async tx => {
+    await tx.query('SELECT id FROM accounts WHERE id = $1 FOR UPDATE', [input.accountId])
+    const bal = async () => {
+      const r = await tx.query<{ b: number }>(`SELECT coalesce(sum(amount), 0)::float8 AS b FROM credit_ledger WHERE account_id = $1 AND currency = $2`, [input.accountId, input.currency])
+      return round2(Number(r[0]?.b ?? 0))
+    }
+    const done = await tx.query('SELECT 1 FROM credit_ledger WHERE ref = $1', [input.ref])
+    if (done[0]) return { debited: 0, balance: await bal(), paygDisabled: false }
+    const amount = round2(typeof input.amount === 'function' ? await input.amount(tx) : input.amount)
+    if (!(amount > 0)) return { debited: 0, balance: await bal(), paygDisabled: false }
+    await tx.query(`INSERT INTO credit_ledger (id, account_id, amount, currency, kind, source, ref, note) VALUES ($1, $2, $3, $4, 'refund', 'stripe', $5, $6)`, [
+      uuidv7(),
+      input.accountId,
+      -amount,
+      input.currency,
+      input.ref,
+      input.note
+    ])
+    const balance = await bal()
+    let paygDisabled = false
+    if (balance < 0) {
+      const r = await tx.query(`UPDATE accounts SET payg_enabled = false WHERE id = $1 AND payg_enabled RETURNING id`, [input.accountId])
+      paygDisabled = r.length > 0
+    }
+    await audit(tx, input.accountId, 'system', 'credit.reversed', { amount, currency: input.currency, balance, paygDisabled })
+    return { debited: amount, balance, paygDisabled }
+  })
+}
+
+/** Summe negativer Rückbuchungen, deren ref mit `prefix` beginnt (für Teilerstattungen/Obergrenzen). */
+export async function reversedSum(db: Db, prefix: string): Promise<number> {
+  const r = await db.query<{ s: number }>(`SELECT coalesce(sum(-amount), 0)::float8 AS s FROM credit_ledger WHERE ref LIKE $1 AND kind = 'refund' AND amount < 0`, [
+    prefix.replace(/[\\%_]/g, m => '\\' + m) + '%'
+  ])
+  return round2(Number(r[0]?.s ?? 0))
 }
 
 export interface CreditsView {

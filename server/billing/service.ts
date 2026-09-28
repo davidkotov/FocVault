@@ -93,11 +93,54 @@ export async function offer(deps: Deps): Promise<PublicOffer> {
 /** Währung wählen (nur solange kein Abo/Zusatzspeicher läuft – sonst Wechsel beim Planwechsel). */
 export async function setCurrency(deps: Deps, session: SessionInfo, currency: Currency): Promise<void> {
   const account = await loadAccount(deps, session.accountId)
+  if (account.currency === currency) return
   const addons = await deps.db.query(`SELECT 1 FROM account_addons WHERE account_id = $1 AND status = 'active' LIMIT 1`, [account.id])
   if (account.plan !== 'free' || addons.length) {
     throw new ApiError('BAD_REQUEST', 'Die Währung lässt sich bei einem laufenden Abo nur zusammen mit einem Planwechsel ändern.')
   }
+  await assertCurrencySwitchAllowed(deps, account, currency)
   await deps.db.query('UPDATE accounts SET currency = $2 WHERE id = $1', [account.id, currency])
+}
+
+/**
+ * Guthaben und Pay-as-you-go laufen in der Kontowährung. Ein Wechsel würde Guthaben „verstecken“
+ * (es gilt nur in seiner Währung) bzw. den laufenden PAYG-Monat in der falschen Währung abrechnen.
+ * Deshalb gesperrt, solange Guthaben (oder ein offener Betrag) in einer anderen Währung besteht,
+ * PAYG aktiv ist, ein Monat noch nicht abgerechnet ist oder ein Übertrag offen ist.
+ */
+export async function assertCurrencySwitchAllowed(deps: Deps, account: { id: string; currency: Currency; payg_enabled: boolean }, to: Currency): Promise<void> {
+  if (account.currency === to) return
+  const balances = await deps.db.query<{ currency: Currency; b: number }>(
+    `SELECT currency, sum(amount)::float8 AS b FROM credit_ledger WHERE account_id = $1 GROUP BY currency HAVING sum(amount) <> 0 ORDER BY currency`,
+    [account.id]
+  )
+  const other = balances.find(r => r.currency !== to)
+  if (other) {
+    const b = round2(Number(other.b))
+    throw new ApiError(
+      'BAD_REQUEST',
+      b > 0
+        ? `Du hast noch ${b.toFixed(2)} ${other.currency} Guthaben – die Währung lässt sich erst wechseln, wenn es aufgebraucht ist.`
+        : `Es ist noch ein offener Betrag von ${(-b).toFixed(2)} ${other.currency} auszugleichen – erst danach lässt sich die Währung wechseln.`
+    )
+  }
+  const pending = await deps.db.query(
+    `SELECT 1 FROM usage_daily u
+      WHERE u.account_id = $1 AND u.day >= (date_trunc('month', current_date) - interval '1 month')::date
+        AND NOT EXISTS (SELECT 1 FROM payg_invoices i WHERE i.account_id = u.account_id AND i.period = to_char(u.day, 'YYYY-MM'))
+      LIMIT 1`,
+    [account.id]
+  )
+  const carried = await deps.db.query<{ c: number }>(
+    `SELECT carried_out::float8 AS c FROM payg_invoices WHERE account_id = $1 ORDER BY period DESC LIMIT 1`,
+    [account.id]
+  )
+  if (account.payg_enabled || pending.length || Number(carried[0]?.c ?? 0) > 0) {
+    throw new ApiError(
+      'BAD_REQUEST',
+      'Solange Pay-as-you-go läuft oder Nutzung noch nicht abgerechnet ist, bleibt die Währung fest. Bitte Pay-as-you-go abschalten und den Monatsabschluss abwarten.'
+    )
+  }
 }
 
 export interface PlanChange {
@@ -127,6 +170,7 @@ export async function changePlan(
   if (await isFamilyMember(deps.db, session.accountId)) {
     throw new ApiError('BAD_REQUEST', 'Du bist Mitglied einer Family – für ein eigenes Abo bitte zuerst austreten.')
   }
+  if (input.plan !== 'free') await assertCurrencySwitchAllowed(deps, await loadAccount(deps, session.accountId), input.currency)
   const gw = stripeGateway()
   if (gw) {
     const url = await stripeChangePlan(deps, gw, session, input, ctx)
@@ -272,18 +316,22 @@ export async function setPayg(
   }
   const pricing = await getPricing(deps.db)
   const cap = Math.min(Math.max(1, Math.round(capGb ?? pricing.payg.defaultCapGb)), pricing.payg.maxCapGb)
-  // Voraussetzung: Zahlungsmethode bei Stripe ODER vorhandenes Guthaben (z. B. aus Krypto-Aufladungen)
-  const hasCredit = (await creditBalance(deps.db, account.id, account.currency)) > 0
-  if (enabled && !hasCredit) assertPurchasesAllowed()
-  // Ohne Online-Zahlung ist Guthaben die einzige Zahlungsquelle
-  if (enabled && !account.payg_enabled && !hasCredit && !stripeGateway()) {
-    throw new ApiError('BAD_REQUEST', 'Bitte zuerst unter Konto & Sicherheit Guthaben aufladen oder eine Zahlungsmethode hinterlegen.')
-  }
-  // Mit Stripe ohne Guthaben: beim ersten Einschalten Karte hinterlegen lassen (Webhook schaltet dann ein).
-  const gw = stripeGateway()
-  if (gw && enabled && !account.payg_enabled && !hasCredit) {
-    const url = await stripePaygSetupUrl(deps, gw, session, cap, ctx)
-    if (url) return { redirectUrl: url }
+  if (enabled) {
+    // Offener Betrag (z. B. erstattete oder angefochtene Aufladung) sperrt PAYG, bis er ausgeglichen ist.
+    const balance = await creditBalance(deps.db, account.id, account.currency)
+    if (balance < 0) {
+      throw new ApiError('BAD_REQUEST', `Bitte zuerst den offenen Betrag von ${(-balance).toFixed(2)} ${account.currency} per Aufladung ausgleichen.`)
+    }
+    // Voraussetzung ist immer eine hinterlegte Zahlungsmethode: Die Nutzung bis zur Obergrenze wird erst
+    // am Monatsende abgerechnet – Guthaben allein deckt das nicht ab (es wird aber zuerst verwendet).
+    const gw = stripeGateway()
+    if (gw) {
+      const url = await stripePaygSetupUrl(deps, gw, session, cap, ctx)
+      if (url) return { redirectUrl: url }
+    } else {
+      // Ohne Stripe gibt es keine Zahlungsmethode: nur lokal bzw. Staging (BILLING_DEV_PURCHASES=1).
+      assertPurchasesAllowed()
+    }
   }
   if (!enabled) {
     const used = await usedBytes(deps.db, account.id)

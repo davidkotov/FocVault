@@ -40,6 +40,8 @@ export interface StripeEventLite {
   id: string
   type: string
   object: Record<string, any>
+  /** data.previous_attributes (z. B. customer bei payment_method.detached) */
+  previous?: Record<string, any>
 }
 
 export interface InvoiceLite {
@@ -102,6 +104,8 @@ export interface StripeGateway {
   setupIntentPaymentMethod(setupIntentId: string): Promise<string | null>
   setDefaultPaymentMethod(customer: string, paymentMethod: string): Promise<void>
   hasDefaultPaymentMethod(customer: string): Promise<boolean>
+  /** Checkout-Session zu einer Zahlung (für Erstattungen/Anfechtungen von Aufladungen) */
+  checkoutSessionForPaymentIntent(paymentIntent: string): Promise<Record<string, any> | null>
   listInvoices(customer: string, limit: number): Promise<InvoiceLite[]>
   defaultCard(customer: string): Promise<CardLite | null>
   /** Einzelrechnung (Pay-as-you-go) sofort abbuchen */
@@ -281,6 +285,11 @@ export class LiveStripeGateway implements StripeGateway {
     return !('deleted' in c && c.deleted) && !!(c as any).invoice_settings?.default_payment_method
   }
 
+  async checkoutSessionForPaymentIntent(paymentIntent: string) {
+    const r = await this.s.checkout.sessions.list({ payment_intent: paymentIntent, limit: 1 })
+    return (r.data[0] as unknown as Record<string, any>) ?? null
+  }
+
   async listInvoices(customer: string, limit: number) {
     const r = await this.s.invoices.list({ customer, limit })
     return r.data
@@ -333,7 +342,7 @@ export class LiveStripeGateway implements StripeGateway {
 
   verifyWebhook(rawBody: string, signature: string): StripeEventLite {
     const e = this.s.webhooks.constructEvent(rawBody, signature, this.webhookSecret)
-    return { id: e.id, type: e.type, object: (e.data as any).object }
+    return { id: e.id, type: e.type, object: (e.data as any).object, previous: (e.data as any).previous_attributes ?? undefined }
   }
 }
 

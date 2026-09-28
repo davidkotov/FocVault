@@ -10,8 +10,10 @@ export const dynamic = 'force-dynamic'
 /**
  * Stripe-Webhook. Authentisch nur mit gültiger Signatur (STRIPE_WEBHOOK_SECRET); ohne Signatur
  * oder mit falscher → 400. Kein CSRF-Header (Aufrufer ist Stripe).
- * Ereignisse im Stripe-Dashboard: checkout.session.completed, customer.subscription.*,
- * invoice.paid, invoice.payment_failed.
+ * Ereignisse im Stripe-Dashboard (vollständige Liste in STRIPE.md): checkout.session.completed,
+ * checkout.session.async_payment_succeeded, checkout.session.async_payment_failed, customer.subscription.*,
+ * invoice.paid, invoice.payment_failed, charge.refunded, charge.dispute.created, charge.dispute.closed,
+ * customer.updated, payment_method.detached.
  */
 export const POST = route(
   async req => {

@@ -6,7 +6,7 @@ import type { SessionInfo } from '../auth/sessions'
 import type { Db } from '../db'
 import { audit, type Deps } from '../deps'
 import { getPricing } from '../billing/settings'
-import { addCredit, consumeCredit } from '../credits/service'
+import { addCredit, assertDepositAmount, consumeCredit, debitCredit, reversedSum } from '../credits/service'
 import { findAddon, planQuotaGb, type PlanChange } from '../billing/service'
 import { ApiError } from '../shared/errors'
 import { uuidv7 } from '../shared/ids'
@@ -317,6 +317,65 @@ export async function applySubscription(deps: Deps, gw: StripeGateway, sub: Subs
   await audit(deps.db, accountId, 'system', 'billing.subscription_ended', { status: sub.status })
 }
 
+const customerId = (o: Record<string, any>): string | undefined => (typeof o.customer === 'string' ? o.customer : o.customer?.id) ?? undefined
+const CURRENCIES = new Set<Currency>(['CHF', 'EUR', 'USD'])
+
+/**
+ * Aufladung gutschreiben – Betrag und Währung ausschließlich aus dem, was Stripe tatsächlich kassiert hat
+ * (`amount_total` in Rappen/Cent, `currency`), nicht aus unseren Metadaten. Idempotent über die Session-ID.
+ */
+async function creditTopup(deps: Deps, o: Record<string, any>): Promise<'processed' | 'ignored'> {
+  if (o.payment_status !== 'paid') return 'ignored'
+  const acc = await accountForCustomer(deps.db, customerId(o) ?? '', o.metadata?.accountId)
+  const minor = Number(o.amount_total)
+  const currency = String(o.currency ?? '').toUpperCase() as Currency
+  if (!acc || !Number.isSafeInteger(minor) || minor <= 0 || !CURRENCIES.has(currency)) return 'ignored'
+  const amount = minor / 100
+  const a = await deps.db.query<{ currency: Currency }>('SELECT currency FROM accounts WHERE id = $1', [acc])
+  if (a[0] && a[0].currency !== currency) {
+    // Bezahlt ist bezahlt: in der tatsächlich kassierten Währung buchen (das Guthaben gilt je Währung) und
+    // für den Support festhalten. Ein Währungswechsel ist ohnehin gesperrt, solange Guthaben besteht.
+    await audit(deps.db, acc, 'system', 'credit.currency_mismatch', { session: o.id, paid: currency, account: a[0].currency, amount })
+  }
+  await addCredit(deps.db, { accountId: acc, amount, currency, kind: 'deposit', source: 'stripe', ref: `stripe:${o.id}`, note: 'Aufladung per Karte' })
+  return 'processed'
+}
+
+/**
+ * Zu einer Zahlung (Charge oder Dispute) die Guthaben-Aufladung finden. Nur Aufladungen, die bei uns
+ * gutgeschrieben sind (bzw. jetzt nachgebucht werden, falls die Erstattung vor der Gutschrift eintrifft).
+ */
+async function topupForPayment(
+  deps: Deps,
+  gw: StripeGateway,
+  o: Record<string, any>
+): Promise<{ sessionId: string; accountId: string; amount: number; currency: Currency } | null> {
+  // Abo-/PAYG-Rechnungen tragen eigene Metadaten – ohne API-Aufruf überspringen
+  if (o.metadata?.purpose && o.metadata.purpose !== 'credit') return null
+  const pi = typeof o.payment_intent === 'string' ? o.payment_intent : o.payment_intent?.id
+  if (!pi) return null
+  const cs = await gw.checkoutSessionForPaymentIntent(pi)
+  if (!cs || cs.mode !== 'payment' || cs.metadata?.purpose !== 'credit') return null
+  const find = () =>
+    deps.db.query<{ account_id: string; amount: number; currency: Currency }>(
+      `SELECT account_id, amount::float8 AS amount, currency FROM credit_ledger WHERE ref = $1`,
+      [`stripe:${cs.id}`]
+    )
+  let row = (await find())[0]
+  if (!row && cs.payment_status === 'paid') {
+    await creditTopup(deps, cs)
+    row = (await find())[0]
+  }
+  if (!row) return null
+  return { sessionId: cs.id, accountId: row.account_id, amount: round2(Number(row.amount)), currency: row.currency }
+}
+
+/** PAYG ohne hinterlegte Zahlungsmethode abschalten (Daten bleiben, Uploads über der Free-Quota gesperrt). */
+async function disablePaygWithoutPaymentMethod(deps: Deps, accountId: string): Promise<void> {
+  const r = await deps.db.query(`UPDATE accounts SET payg_enabled = false WHERE id = $1 AND payg_enabled RETURNING id`, [accountId])
+  if (r.length) await audit(deps.db, accountId, 'system', 'billing.payg_disabled', { reason: 'payment_method_removed' })
+}
+
 /** Verarbeitet ein verifiziertes Stripe-Ereignis genau einmal. */
 export async function handleStripeEvent(deps: Deps, gw: StripeGateway, event: StripeEventLite): Promise<'processed' | 'duplicate' | 'ignored'> {
   const fresh = await deps.db.query(`INSERT INTO stripe_events (id, type) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING RETURNING id`, [
@@ -336,12 +395,13 @@ export async function handleStripeEvent(deps: Deps, gw: StripeGateway, event: St
           return 'processed'
         }
         if (o.mode === 'payment' && o.metadata?.purpose === 'credit') {
-          const acc = await accountForCustomer(deps.db, typeof o.customer === 'string' ? o.customer : o.customer?.id, o.metadata?.accountId)
-          const amount = Number(o.metadata?.amount)
-          const currency = String(o.metadata?.currency ?? '').toUpperCase() as 'CHF' | 'EUR' | 'USD'
-          if (!acc || !(amount > 0) || !['CHF', 'EUR', 'USD'].includes(currency) || o.payment_status !== 'paid') return 'ignored'
-          await addCredit(deps.db, { accountId: acc, amount, currency, kind: 'deposit', source: 'stripe', ref: `stripe:${o.id}`, note: 'Aufladung per Karte' })
-          return 'processed'
+          // Sofortzahlung (Karte, TWINT …) ist jetzt „paid“; SEPA & Co. kommen später per async_payment_succeeded.
+          if (o.payment_status !== 'paid') {
+            const acc = await accountForCustomer(deps.db, customerId(o) ?? '', o.metadata?.accountId)
+            if (acc) await audit(deps.db, acc, 'system', 'credit.pending', { session: o.id })
+            return 'ignored'
+          }
+          return creditTopup(deps, o)
         }
         if (o.mode === 'setup' && o.metadata?.purpose === 'card' && o.setup_intent) {
           const pm = await gw.setupIntentPaymentMethod(typeof o.setup_intent === 'string' ? o.setup_intent : o.setup_intent.id)
@@ -365,6 +425,71 @@ export async function handleStripeEvent(deps: Deps, gw: StripeGateway, event: St
           return 'processed'
         }
         return 'ignored'
+      }
+      case 'checkout.session.async_payment_succeeded': {
+        if (o.mode !== 'payment' || o.metadata?.purpose !== 'credit') return 'ignored'
+        // gleiche ref wie der Sofort-Pfad → genau einmal gutgeschrieben, egal welches Ereignis zuerst kommt
+        return creditTopup(deps, o)
+      }
+      case 'checkout.session.async_payment_failed': {
+        if (o.mode !== 'payment' || o.metadata?.purpose !== 'credit') return 'ignored'
+        const acc = await accountForCustomer(deps.db, customerId(o) ?? '', o.metadata?.accountId)
+        if (!acc) return 'ignored'
+        await audit(deps.db, acc, 'system', 'credit.payment_failed', { session: o.id })
+        return 'processed'
+      }
+      case 'charge.refunded': {
+        const top = await topupForPayment(deps, gw, o)
+        if (!top) return 'ignored'
+        const refunded = round2(Number(o.amount_refunded ?? 0) / 100)
+        const prefix = `stripe-rev:${top.sessionId}:`
+        await debitCredit(deps.db, {
+          accountId: top.accountId,
+          currency: top.currency,
+          // kumulierter Betrag im Schlüssel: jede Teilerstattung genau einmal, Reihenfolge egal
+          ref: `${prefix}refund:${Number(o.amount_refunded ?? 0)}`,
+          note: 'Aufladung erstattet',
+          amount: async tx => Math.min(refunded - (await reversedSum(tx, `${prefix}refund:`)), top.amount - (await reversedSum(tx, prefix)))
+        })
+        return 'processed'
+      }
+      case 'charge.dispute.created': {
+        const top = await topupForPayment(deps, gw, o)
+        if (!top) return 'ignored'
+        const prefix = `stripe-rev:${top.sessionId}:`
+        await debitCredit(deps.db, {
+          accountId: top.accountId,
+          currency: top.currency,
+          ref: `${prefix}dispute:${o.id}`,
+          note: 'Aufladung angefochten (Chargeback)',
+          amount: async tx => Math.min(round2(Number(o.amount ?? 0) / 100), top.amount - (await reversedSum(tx, prefix)))
+        })
+        return 'processed'
+      }
+      case 'charge.dispute.closed': {
+        // Gewonnen bzw. Anfrage ohne Rückbuchung geschlossen → abgezogenen Betrag wieder gutschreiben.
+        if (o.status !== 'won' && o.status !== 'warning_closed') return 'ignored'
+        const top = await topupForPayment(deps, gw, o)
+        if (!top) return 'ignored'
+        const prefix = `stripe-rev:${top.sessionId}:`
+        const debited = await deps.db.query<{ a: number }>('SELECT -amount::float8 AS a FROM credit_ledger WHERE ref = $1', [`${prefix}dispute:${o.id}`])
+        const amount = round2(Number(debited[0]?.a ?? 0))
+        if (!(amount > 0)) return 'ignored'
+        await addCredit(deps.db, { accountId: top.accountId, amount, currency: top.currency, kind: 'refund', source: 'stripe', ref: `${prefix}dispute-won:${o.id}`, note: 'Anfechtung zu unseren Gunsten entschieden' })
+        return 'processed'
+      }
+      case 'customer.updated':
+      case 'payment_method.detached': {
+        // Zahlungsmittel im Kundenportal entfernt → PAYG nicht ohne Zahlungsquelle weiterlaufen lassen.
+        const customer = event.type === 'customer.updated' ? o.id : (customerId(o) ?? event.previous?.customer)
+        if (typeof customer !== 'string' || !customer) return 'ignored'
+        const acc = await accountForCustomer(deps.db, customer)
+        if (!acc) return 'ignored'
+        const on = await deps.db.query('SELECT 1 FROM accounts WHERE id = $1 AND payg_enabled', [acc])
+        // Live nachfragen – Ereignisse können in falscher Reihenfolge ankommen.
+        if (!on.length || (await gw.hasDefaultPaymentMethod(customer))) return 'processed'
+        await disablePaygWithoutPaymentMethod(deps, acc)
+        return 'processed'
       }
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
@@ -489,6 +614,7 @@ export async function closePaygMonth(deps: Deps, gw: StripeGateway | null, now =
 
 /** Guthaben aufladen: Stripe-Checkout für eine Einmalzahlung in der Kontowährung. */
 export async function stripeDepositUrl(deps: Deps, gw: StripeGateway, session: SessionInfo, amount: number, ctx: StripeContext): Promise<string> {
+  assertDepositAmount(amount)
   const acc = await loadBillingAccount(deps.db, session.accountId)
   const customer = await ensureCustomer(deps.db, gw, acc)
   const back = (q: string) => `${ctx.origin}/${ctx.locale}/app?view=account&${q}`
@@ -499,6 +625,7 @@ export async function stripeDepositUrl(deps: Deps, gw: StripeGateway, session: S
     description: `FocVault Guthaben ${amount.toFixed(2)} ${acc.currency}`,
     successUrl: back('credit=ok'),
     cancelUrl: back('credit=cancelled'),
+    // amount/currency nur zur Information – gutgeschrieben wird, was Stripe kassiert (amount_total)
     metadata: { accountId: acc.id, purpose: 'credit', amount: amount.toFixed(2), currency: acc.currency },
     locale: ctx.locale
   })

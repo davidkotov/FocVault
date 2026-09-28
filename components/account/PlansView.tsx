@@ -37,7 +37,8 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
   const [payReady, setPayReady] = useState<boolean | null>(null)
   const [needPay, setNeedPay] = useState(false)
   useEffect(() => {
-    api.credits().then(c => setPayReady(c.balance > 0 || c.hasPaymentMethod)).catch(() => setPayReady(false))
+    // Zahlungsmethode ist Pflicht (ohne Stripe entscheidet der Server, z. B. lokal)
+    api.credits().then(c => setPayReady(c.hasPaymentMethod || !c.stripe)).catch(() => setPayReady(false))
   }, [])
   const [invoices, setInvoices] = useState<Awaited<ReturnType<typeof api.invoices>> | null>(null)
   useEffect(() => {

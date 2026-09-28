@@ -1,4 +1,4 @@
-import { addCredit } from '../credits/service'
+import { addCredit, consumeCredit, debitCredit } from '../credits/service'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_PRICING, GB } from '../../lib/pricing'
 import { resetRateLimits } from '../auth/ratelimit'
@@ -38,7 +38,9 @@ describe('Billing: Pakete, Zusatzspeicher, Pay-as-you-go', () => {
     const deps = await testDeps()
     const { session } = await newAccount(deps, 'free@example.com')
     expect((await accountView(deps, session.accountId)).quotaBytes).toBe(5 * GB)
-    // ohne Guthaben/Zahlungsmethode nicht startbar
+    // offener Betrag (negatives Guthaben) sperrt PAYG; ohne Stripe sonst nur lokal (Entwicklung) startbar.
+    // Mit Stripe ist eine Zahlungsmethode Pflicht – siehe stripe/service.test.ts.
+    await debitCredit(deps.db, { accountId: session.accountId, currency: 'CHF', amount: 3, ref: 'test:minus', note: 'Erstattung' })
     await expect(setPayg(deps, session, true, 50)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
     await addCredit(deps.db, { accountId: session.accountId, amount: 10, currency: 'CHF', kind: 'deposit', source: 'dev' })
     await setPayg(deps, session, true, 50)
@@ -135,5 +137,31 @@ describe('Billing v2: Jahresabo, Währungen, Planwechsel', () => {
     expect(v.billing.payg).toMatchObject({ perGb: 0.035, estimate: 3.5, charged: true })
     await changePlan(deps, session, { plan: 'pro', interval: 'month', currency: 'USD' })
     await expect(setCurrency(deps, { ...session, plan: 'pro' }, 'EUR')).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  })
+
+  it('Währungswechsel gesperrt, solange Guthaben, ein offener Betrag oder PAYG-Nutzung besteht', async () => {
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'wechsel@example.com')
+    const id = session.accountId
+    await addCredit(deps.db, { accountId: id, amount: 12, currency: 'CHF', kind: 'deposit', source: 'dev', ref: 'dev:w1' })
+    await expect(setCurrency(deps, session, 'EUR')).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringContaining('12.00 CHF') })
+    // auch nicht über einen Planwechsel in anderer Währung
+    await expect(changePlan(deps, session, { plan: 'pro', interval: 'month', currency: 'EUR' })).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    await setCurrency(deps, session, 'CHF') // gleiche Währung: nichts zu tun
+
+    // aufgebraucht → Wechsel möglich; Guthaben in der Zielwährung stört nicht
+    expect(await consumeCredit(deps.db, id, 12, 'CHF', 'test:verbrauch', 'Verbrauch')).toBe(12)
+    await setCurrency(deps, session, 'EUR')
+    await addCredit(deps.db, { accountId: id, amount: 5, currency: 'CHF', kind: 'deposit', source: 'dev', ref: 'dev:w2' })
+    await setCurrency(deps, session, 'CHF')
+
+    // offener Betrag
+    await debitCredit(deps.db, { accountId: id, currency: 'CHF', amount: 8, ref: 'test:minus', note: 'Erstattung' })
+    await expect(setCurrency(deps, session, 'USD')).rejects.toMatchObject({ message: expect.stringContaining('offener Betrag von 3.00 CHF') })
+    await addCredit(deps.db, { accountId: id, amount: 3, currency: 'CHF', kind: 'deposit', source: 'dev', ref: 'dev:w3' })
+
+    // PAYG-Nutzung des laufenden Monats noch nicht abgerechnet
+    await deps.db.query(`INSERT INTO usage_daily (account_id, day, bytes) VALUES ($1, current_date, $2)`, [id, 1e9])
+    await expect(setCurrency(deps, session, 'USD')).rejects.toMatchObject({ message: expect.stringContaining('Pay-as-you-go') })
   })
 })
