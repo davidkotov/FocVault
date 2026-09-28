@@ -52,6 +52,11 @@ Annehmen erneut. Beide ignorieren nun veraltete Antworten.
 **`vercel.json`**: Funktionen in Frankfurt (`fra1`, neben Neon, Verarbeitung in der EU), täglicher Cron
 `/api/v1/cron/maintenance` (PAYG-Abrechnung, Papierkorb, Filecoin-Sync, Statusprüfung; `CRON_SECRET`).
 
+**Demo-Konto** per `BASE_URL=… npm run seed:demo` (Skript `scripts/seed-demo.mjs`): legt `anna.demo@example.com`
+über die echte Oberfläche an (Verschlüsselung im Browser), setzt den Plan, lädt Dateien und einen Ordner hoch,
+erstellt Passwörter, 2FA-Konten und Notizen (Checkliste, WLAN, Reisepass und Kreditkarte mit Ablauf). Wiederholbar
+ohne Duplikate. Im Neon-Branch `development` angelegt.
+
 **Tests:** Vitest 126/126, Playwright 14/14 (lokal gegen Neon-Branch `development`).
 
 
