@@ -6,6 +6,8 @@ import LocaleSwitch from '@/components/LocaleSwitch'
 import { api } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { landingMessages } from '@/lib/i18n/messages/landing'
+import { landing2Messages } from '@/lib/i18n/messages/landing2'
+import { Icon, type IconName } from '@/components/site/Icons'
 import { DEFAULT_PRICING, type Interval, type PricingConfig } from '@/lib/pricing'
 
 type Offer = Pick<PricingConfig, 'free' | 'payg' | 'plans' | 'addons' | 'business'>
@@ -23,6 +25,7 @@ export default function PricingSection() {
   const router = useRouter()
   const { path, currency, fmtMoney, fmtNumber } = useI18n()
   const t = useMessages(landingMessages)
+  const mods = useMessages(landing2Messages).modules
   const [interval, setIntervalState] = useState<Interval>('year')
   const [offer, setOffer] = useState<Offer>(DEFAULT_PRICING)
   useEffect(() => {
@@ -137,6 +140,50 @@ export default function PricingSection() {
           <p className="hint" style={{ textAlign: 'center', marginTop: 14 }}>
             {t.pricing.vat}
           </p>
+          <details className="cmpall">
+            <summary>
+              <span>{mods.compareOpen}</span>
+              <Icon name="arrow" size={15} />
+            </summary>
+            <div className="cmpwrap">
+              <table className="cmptable">
+                <thead>
+                  <tr>
+                    <th />
+                    {['Free', 'Pro', 'Family', 'Business'].map(p => (
+                      <th key={p}>{p}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {mods.items.map(x => {
+                    const rank: Record<string, number> = { Free: 0, Alle: 0, Pro: 1, Family: 2, Business: 3, Enterprise: 3 }
+                    const r = rank[x.p] ?? 0
+                    const cell = (col: number) => {
+                      if (x.p === 'Enterprise') return col === 3 ? <span className="cmpnote">Enterprise</span> : <span className="cmpno">—</span>
+                      if (x.p === 'Family') return col >= 2 ? <span className="cmpyes">✓</span> : <span className="cmpno">—</span>
+                      if (x.p === 'Business') return col === 3 ? <span className="cmpyes">✓</span> : <span className="cmpno">—</span>
+                      return col >= r ? <span className="cmpyes">✓</span> : <span className="cmpno">—</span>
+                    }
+                    return (
+                      <tr key={x.t}>
+                        <th scope="row">
+                          <Icon name={x.i as IconName} size={15} />
+                          <span>
+                            <b>{x.t}</b>
+                            <small>{x.d}</small>
+                          </span>
+                        </th>
+                        {[0, 1, 2, 3].map(c => (
+                          <td key={c}>{cell(c)}</td>
+                        ))}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </details>
         </div>
       </section>
   )

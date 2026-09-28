@@ -1,5 +1,6 @@
 'use client'
 
+import Wordmark from '@/components/Wordmark'
 import { useState } from 'react'
 import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
@@ -154,7 +155,7 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
           <rect x="15" y="17" width="10" height="9" rx="2" fill="#fff" />
           <path d="M17 17v-2a3 3 0 0 1 6 0v2" stroke="#fff" strokeWidth="2.4" fill="none" />
         </svg>
-        Foc<span style={{ color: 'var(--accent)' }}>Vault</span>
+        <Wordmark />
         <button className="navtoggle" aria-label={m.menu} aria-expanded={open} onClick={() => setOpen(o => !o)}>
           <svg viewBox="0 0 24 24" width="22" height="22">
             {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}

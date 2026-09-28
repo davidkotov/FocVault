@@ -6,11 +6,13 @@ test('Neue Landing, Sicherheitsseite mit Live-Verschlüsselung, Rechtsseiten, Te
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Verschlüsselt, bevor sie dein Gerät verlassen')
   await expect(page.getByRole('heading', { name: /Matterhorn/ })).toBeVisible()
-  await expect(page.locator('.v2module')).toHaveCount(17)
-  await page.locator('.v2filter').getByRole('button', { name: 'Business' }).click()
-  await expect(page.locator('.v2module')).toHaveCount(6)
+  // Live-Verschlüsselung in der Sicherheitskarte erzeugt echtes Chiffrat
+  await expect(page.locator('.bv-ct')).toHaveText(/[0-9a-f]{16}/)
+  await expect(page.locator('.v2bridge-stats')).toContainText('Verfügbarkeit')
+  // Funktionsvergleich unter den Preisen
+  await page.locator('.cmpall summary').click()
+  await expect(page.locator('.cmptable tbody tr')).toHaveCount(17)
   await expect(page.locator('.v2store')).toHaveCount(6)
-  await expect(page.locator('.v2livebox')).toContainText('Verfügbarkeit')
 
   await page.goto('/sicherheit')
   const ct = page.locator('.secct')

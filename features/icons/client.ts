@@ -22,6 +22,12 @@ export function hostFromUrl(url?: string): string {
   }
 }
 
+/** Nur bekannte Dienste (ohne Raten) – für Passwörter ohne Webseite. */
+export function knownHost(name?: string): string {
+  const n = (name ?? '').trim().toLowerCase()
+  return KNOWN[n] ?? KNOWN[n.split(/[\s:(]/)[0]] ?? ''
+}
+
 /** Host aus einem Namen raten (2FA-Aussteller): bekannte Dienste, sonst „name.com“ nur bei einfachen Namen. */
 export function hostFromName(name?: string): string {
   const n = (name ?? '').trim().toLowerCase()

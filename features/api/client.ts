@@ -152,6 +152,7 @@ export const api = {
   sessions: () => call<{ sessions: SessionListItem[] }>('GET', '/account/sessions'),
   revokeSession: (id: string) => call<{ ok: true }>('DELETE', `/account/sessions/${encodeURIComponent(id)}`),
   revokeOtherSessions: () => call<{ ok: true }>('DELETE', '/account/sessions'),
+  deleteAccount: (input: { kind: 'passphrase' | 'recovery'; authKey: string; confirm: 'DELETE' }) => call<{ ok: true; deletedObjects: number }>('DELETE', '/account', input),
   checkRecovery: (recoveryAuthKey: string) => call<{ checkedAt: string }>('POST', '/account/recovery/check', { recoveryAuthKey }),
   deposit: (amount: number) => call<{ ok?: true; redirectUrl?: string }>('POST', '/credits/deposit', { amount }),
   addPaymentMethod: () => call<{ redirectUrl: string }>('POST', '/credits/payment-method'),

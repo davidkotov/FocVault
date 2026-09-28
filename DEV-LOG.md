@@ -41,6 +41,23 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Konto löschen, Landing: Hero wie Anmelden, Live-Karten, Funktionsvergleich bei den Preisen
+
+**Konto löschen** (Reiter in Konto & Sicherheit): Bestätigung mit Passphrase oder Recovery-Wörtern plus getipptem
+„LÖSCHEN“; Server (`DELETE /api/v1/account`) prüft den abgeleiteten Schlüssel, blockiert bei laufendem Abo oder
+Family/Team mit Mitgliedern, löscht alle verschlüsselten Datenstücke und Tresor-Indizes im Speicher und dann das
+Konto (alle Verknüpfungen per Cascade), meldet ab; Hinweis auf der Startseite.
+**Landing**: Hero wie die Anmeldeseite (Matterhorn klar sichtbar, blauer Ton, weisse Schrift, füllt den ganzen
+Abschnitt, 1920/3840-px-Bild für 4K); Sicherheitsabschnitt mit **Live-Karten** (echte AES-256-GCM-Verschlüsselung
+im Browser, Replikation auf drei Speicherorte, Beweis-Zyklus); Modulübersicht oben entfernt – stattdessen
+aufklappbarer **„Alle Funktionen vergleichen“** unter den Preisen (Module × Free/Pro/Family/Business);
+Preiskarten an die neue Aufteilung angepasst.
+**Icons** auch in geteilten Tresoren und bei bekannten Diensten ohne Webseite (z. B. LinkedIn).
+**Logo**: gemeinsamer Schriftzug `Wordmark` („Foc“ dunkel + „Vault“ blau, ohne Lücke) auf Website, Sidebar, Anmeldung, Ladebildschirm und Statusseite.
+
+**Tests:** Vitest 126/126 (neu: Konto löschen), Playwright 14/14.
+
+
 ### Ordner, Website-Icons, Favoriten, Geräte & Sitzungen, Konto mit Reitern, Passwörter/Notizen ab Free (Migration v24)
 
 **Meine Cloud**: „Neuer Ordner“, Brotkrumen-Pfad, Ordner aus Dateipfaden plus leere Ordner (verschlüsselt im

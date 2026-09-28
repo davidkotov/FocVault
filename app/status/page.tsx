@@ -1,5 +1,6 @@
 'use client'
 
+import Wordmark from '@/components/Wordmark'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import LocaleSwitch from '@/components/LocaleSwitch'
@@ -50,7 +51,7 @@ export default function StatusPage() {
             <rect x="15" y="17" width="10" height="9" rx="2" fill="#fff" />
             <path d="M17 17v-2a3 3 0 0 1 6 0v2" stroke="#fff" strokeWidth="2.4" fill="none" />
           </svg>
-          Foc<span style={{ color: '#0090ff' }}>Vault</span>
+          <Wordmark />
         </Link>
         <a className="button small" href="/api/v1/status/rss">
           {m.subscribe}

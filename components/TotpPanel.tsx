@@ -257,7 +257,7 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
             const pct = Math.max(0, Math.min(100, (rem / period) * 100))
             return (
               <div className={`secrow totpcard${copied === s.id ? ' copied' : ''}`} key={s.id}>
-                <SiteAvatar title={s.issuer || s.title} icon={s.icon} size={40} />
+                <SiteAvatar title={s.issuer || s.title} icon={s.icon} host={hostFromName(s.issuer || s.title)} size={40} />
                 <div className="secmain">
                   <div className="sectitle">{s.issuer || s.title}</div>
                   <div className="secmeta">{s.issuer && s.issuer !== s.title ? s.title : 'TOTP'}</div>

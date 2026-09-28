@@ -10,7 +10,7 @@ import { generateTotp, parseOtpauth, type OtpauthData } from '@/lib/totp'
 import QrScanModal from '@/components/QrScanModal'
 import { relativeDay } from '@/lib/i18n/relative'
 import SiteAvatar from '@/components/SiteAvatar'
-import { hostFromUrl, loadSiteIcon } from '@/features/icons/client'
+import { hostFromUrl, knownHost, loadSiteIcon } from '@/features/icons/client'
 import { secretsMessages } from '@/lib/i18n/messages/secrets'
 import { reusedPasswords, strength } from '@/lib/password-health'
 import { checkBreaches } from '@/features/passwords/breach'
@@ -101,13 +101,14 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
   // Website-Icons nachladen (einmal je Host; gespeichert im verschlüsselten Tresor)
   useEffect(() => {
     if (!onPatch || readOnly) return
-    const todo = entries.filter(e => hostFromUrl(e.url) && e.iconHost !== hostFromUrl(e.url)).slice(0, 12)
+    const hostOfEntry = (e: SecretEntry) => hostFromUrl(e.url) || knownHost(e.title)
+    const todo = entries.filter(e => hostOfEntry(e) && e.iconHost !== hostOfEntry(e)).slice(0, 12)
     if (!todo.length) return
     let alive = true
     void (async () => {
       const out: SecretEntry[] = []
       for (const e of todo) {
-        const host = hostFromUrl(e.url)
+        const host = hostOfEntry(e)
         const icon = await loadSiteIcon(host)
         out.push({ ...e, icon, iconHost: host })
       }
@@ -427,7 +428,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
           </div>
           {filtered.map(s => (
             <div className={`secrow${sel?.id === s.id ? ' selected' : ''}`} key={s.id} onClick={() => setSelId(s.id)}>
-              <SiteAvatar title={s.title} icon={s.icon} />
+              <SiteAvatar title={s.title} icon={s.icon} host={hostFromUrl(s.url) || knownHost(s.title)} />
               <div className="secmain">
                 <div className="sectitle">
                   {s.title}
@@ -558,7 +559,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
           ) : sel ? (
             <>
               <div className="pwdhead">
-                <SiteAvatar title={sel.title} icon={sel.icon} size={40} />
+                <SiteAvatar title={sel.title} icon={sel.icon} host={hostFromUrl(sel.url) || knownHost(sel.title)} size={40} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <strong>{sel.title}</strong>
                   <span className="hint">

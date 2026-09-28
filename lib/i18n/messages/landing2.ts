@@ -1,4 +1,5 @@
 const de = {
+  deleted: 'Dein Konto und alle Daten wurden gelöscht. Danke, dass du FocVault genutzt hast.',
   hero: {
     kicker: 'Privacy Cloud · Ende-zu-Ende-verschlüsselt',
     title: 'Deine Daten. Verschlüsselt, bevor sie dein Gerät verlassen.',
@@ -9,6 +10,7 @@ const de = {
   },
   trustbar: ['AES-256-GCM im Browser', 'Zero-Knowledge', 'Speicher in der EU', 'Filecoin-Speicherbeweise', 'revDSG & DSGVO'],
   alps: {
+    viz: { enc: { plain: 'Klartext', cipher: 'Chiffrat' }, nodes: ['Fil One · EU', 'Filecoin · Anbieter A', 'Filecoin · Anbieter B'], steps: ['Zufällige Challenge', 'Beweis vom Anbieter', 'On-Chain geprüft'], next: 'Läuft laufend – Beispielablauf' },
     kicker: 'Sicherheit · Privacy by Design',
     title: 'So sicher wie das Matterhorn. Und genauso unverrückbar.',
     lead: 'Deine Dateien werden verschlüsselt, bevor sie dein Gerät verlassen – und mehrfach gesichert: in der EU und auf Filecoin, mit täglich geprüften Speicherbeweisen.',
@@ -43,6 +45,8 @@ const de = {
     title: 'Jedes Modul aus dem Dashboard – Ende-zu-Ende-verschlüsselt',
     lead: 'Vom privaten Speicher bis zur Firmen-Compliance. Du startest kostenlos und schaltest Module frei, wenn du sie brauchst.',
     groups: { private: 'Privat', family: 'Family', business: 'Business' },
+    compareOpen: 'Alle Funktionen vergleichen',
+    cols: { free: { title: 'Free', sub: 'Kostenlos, 5 GB' }, pro: { title: 'Pro & Family', sub: 'Alles aus Free, plus' }, business: { title: 'Business', sub: 'Alles aus Pro, plus' } },
     items: [
       { i: 'cloud', t: 'Meine Cloud', d: 'Dateien hochladen, Vorschau, Drag & Drop, Mehrfachauswahl – beliebig gross.', p: 'Free' },
       { i: 'send', t: 'Secure Send', d: 'Dateien per Link teilen, mit Ablauf und Download-Limit – Notizen teilen ab Pro.', p: 'Free' },
@@ -155,6 +159,7 @@ const de = {
 }
 
 const en: typeof de = {
+  deleted: 'Your account and all data have been deleted. Thank you for using FocVault.',
   hero: {
     kicker: 'Privacy cloud · end-to-end encrypted',
     title: 'Your data. Encrypted before it leaves your device.',
@@ -165,6 +170,7 @@ const en: typeof de = {
   },
   trustbar: ['AES-256-GCM in the browser', 'Zero knowledge', 'Storage in the EU', 'Filecoin storage proofs', 'Swiss FADP & GDPR'],
   alps: {
+    viz: { enc: { plain: 'Plaintext', cipher: 'Ciphertext' }, nodes: ['Fil One · EU', 'Filecoin · provider A', 'Filecoin · provider B'], steps: ['Random challenge', 'Proof from provider', 'Verified on-chain'], next: 'Runs continuously – example cycle' },
     kicker: 'Security · privacy by design',
     title: 'As solid as the Matterhorn. And just as immovable.',
     lead: 'Your files are encrypted before they leave your device – and stored several times: in the EU and on Filecoin, with storage proofs verified every day.',
@@ -199,6 +205,8 @@ const en: typeof de = {
     title: 'Every module from the dashboard – end-to-end encrypted',
     lead: 'From private storage to company compliance. Start for free and unlock modules when you need them.',
     groups: { private: 'Personal', family: 'Family', business: 'Business' },
+    compareOpen: 'Compare all features',
+    cols: { free: { title: 'Free', sub: 'Free, 5 GB' }, pro: { title: 'Pro & Family', sub: 'Everything in Free, plus' }, business: { title: 'Business', sub: 'Everything in Pro, plus' } },
     items: [
       { i: 'cloud', t: 'My cloud', d: 'Upload, preview, drag & drop, multi-select – any size.', p: 'Free' },
       { i: 'send', t: 'Secure Send', d: 'Share files via link, with expiry and download limit – sharing notes from Pro.', p: 'Free' },

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { SiteFooter, SiteHeader } from '@/components/site/SiteChrome'
 import PricingSection from '@/components/site/PricingSection'
+import { EncryptVisual, ProofVisual, ReplicaVisual } from '@/components/site/BridgeVisuals'
 import { Icon, PlatformIcon, type IconName } from '@/components/site/Icons'
 import { api, type PublicStats } from '@/features/api/client'
 import { useI18n, useMessages } from '@/features/i18n/I18nProvider'
@@ -113,10 +114,23 @@ export default function LandingV2() {
     (group === 'business' && ['Business', 'Enterprise'].includes(p))
   const num = (n: number) => n.toLocaleString(locale === 'en' ? 'en-GB' : 'de-CH')
 
+  const [deleted, setDeleted] = useState(false)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('konto') === 'geloescht') setDeleted(true)
+  }, [])
+
   return (
     <div className="landing v2">
       <SiteHeader />
 
+      {deleted && (
+        <div className="v2deleted" role="status">
+          <Icon name="check" size={15} /> {m.deleted}
+          <button className="linkish" onClick={() => setDeleted(false)} aria-label="OK">
+            ×
+          </button>
+        </div>
+      )}
       <header className="v2hero alpshero">
         <div className="wrap">
           <div className="v2kicker">{m.hero.kicker}</div>
@@ -156,6 +170,13 @@ export default function LandingV2() {
           <div className="v2bridge-facts">
             {m.alps.facts.map((f, i) => (
               <div className="v2bridge-fact" key={f.t}>
+                {i === 0 ? (
+                  <EncryptVisual label={m.alps.viz.enc} />
+                ) : i === 1 ? (
+                  <ReplicaVisual nodes={m.alps.viz.nodes as [string, string, string]} />
+                ) : (
+                  <ProofVisual steps={m.alps.viz.steps as [string, string, string]} next={m.alps.viz.next} />
+                )}
                 <div className="ic">
                   <Icon name={(['lock', 'database', 'proof'] as IconName[])[i]} size={20} />
                 </div>
@@ -186,38 +207,7 @@ export default function LandingV2() {
         </div>
       </section>
 
-      <section className="v2section" id="produkt">
-        <div className="wrap">
-          <div className="v2kicker center">{m.modules.kicker}</div>
-          <h2 className="v2title">{m.modules.title}</h2>
-          <p className="v2sub">{m.modules.lead}</p>
-          <div className="v2filter" role="group">
-            {(['all', 'private', 'family', 'business'] as const).map(g => (
-              <button key={g} className={group === g ? 'active' : ''} aria-pressed={group === g} onClick={() => setGroup(g)}>
-                {g === 'all' ? (locale === 'en' ? 'All' : 'Alle') : m.modules.groups[g]}
-              </button>
-            ))}
-          </div>
-          <div className="v2modules">
-            {m.modules.items
-              .filter(x => inGroup(x.p))
-              .map(x => (
-                <div className="v2module" key={x.t}>
-                  <div className="v2modhead">
-                    <span className="v2modicon">
-                      <Icon name={x.i as IconName} size={20} />
-                    </span>
-                    <span className={`v2plan p-${x.p.toLowerCase()}`}>{x.p}</span>
-                  </div>
-                  <strong>{x.t}</strong>
-                  <p>{x.d}</p>
-                </div>
-              ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="v2section tinted">
+      <section className="v2section tinted" id="produkt">
         <div className="wrap">
           <div className="v2kicker center">{m.security.kicker}</div>
           <h2 className="v2title">{m.security.title}</h2>

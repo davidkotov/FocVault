@@ -449,11 +449,12 @@ export default function SharedVaultsView() {
           readOnly={!canEdit}
           onSave={save}
           onSaveMany={list => void run(() => c.saveSecrets(current.id, list))}
+          onPatch={canEdit ? list => void c.saveSecrets(current.id, list).catch(() => undefined) : undefined}
           onDelete={del}
         />
       )}
       {data && tab === 'notes' && <NotesPanel heading={m.tabs.notes} entries={of('note')} readOnly={!canEdit} onSave={save} onDelete={del} />}
-      {data && tab === 'totp' && <TotpPanel heading={m.tabs.totp} entries={of('totp')} readOnly={!canEdit} onSave={save} onDelete={del} />}
+      {data && tab === 'totp' && <TotpPanel heading={m.tabs.totp} entries={of('totp')} readOnly={!canEdit} onSave={save} onDelete={del} passwords={of('password')} onPatch={canEdit ? list => void c.saveSecrets(current.id, list).catch(() => undefined) : undefined} />}
       {(tab === 'people' || (!!data && tab !== 'audit')) && peopleCard}
 
       {confirm && (

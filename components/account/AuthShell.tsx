@@ -1,5 +1,6 @@
 'use client'
 
+import Wordmark from '@/components/Wordmark'
 import Link from 'next/link'
 import { Icon } from '@/components/site/Icons'
 import type { ReactNode } from 'react'
@@ -55,7 +56,7 @@ export default function AuthShell({ children, wide, foot, aside, kind }: { child
           <div className="authtop">
             <Link href={path('/')} className="authbrand">
               <BrandMark />
-              Foc<span>Vault</span>
+              <Wordmark />
             </Link>
             <LocaleSwitch />
           </div>
@@ -69,7 +70,7 @@ export default function AuthShell({ children, wide, foot, aside, kind }: { child
       <div className="authtop">
         <Link href={path('/')} className="authbrand">
           <BrandMark />
-          Foc<span>Vault</span>
+          <Wordmark />
         </Link>
         <LocaleSwitch />
       </div>
@@ -97,7 +98,7 @@ export function LoadingScreen({ label, error }: { label: string; error?: string 
         <BrandMark />
       </div>
       <div className="loadbrand">
-        Foc<span>Vault</span>
+        <Wordmark />
       </div>
       {error ? <div className="errorbox" style={{ maxWidth: 420 }}>{error}</div> : <div className="loadlabel">{label}</div>}
       <div className="loadbar">

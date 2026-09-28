@@ -25,6 +25,7 @@ import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
 import TeamAdminView from '@/components/account/TeamAdminView'
 import SecurityStatus from '@/components/account/SecurityStatus'
 import SignInCard from '@/components/account/SignInCard'
+import DeleteAccountCard from '@/components/account/DeleteAccountCard'
 import { SafetyCards, SessionsCard } from '@/components/account/AccountSummary'
 import CreditsCard from '@/components/account/CreditsCard'
 import { Icon } from '@/components/site/Icons'
@@ -59,14 +60,14 @@ import { formatBytes, type FileVersion, type SecretEntry, type TierName, type Tr
 const TIER: Record<string, TierName> = { free: 'FREE', pro: 'PRO', family: 'FAMILY', business: 'BUSINESS' }
 const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Business' }
 
-type AccTab = 'overview' | 'credits' | 'passphrase' | 'passkeys' | 'emergency' | 'sessions' | 'team'
+type AccTab = 'overview' | 'credits' | 'passphrase' | 'passkeys' | 'emergency' | 'sessions' | 'team' | 'delete'
 
 /** Untermenü für Konto & Sicherheit: jeder Reiter zeigt seinen eigenen Bereich. */
 function AccountNav({ items, active, onPick }: { items: Array<[AccTab, string, number?]>; active: AccTab; onPick: (t: AccTab) => void }) {
   return (
     <nav className="accnav card pwfolders" aria-label="Konto">
       {items.map(([id, label, n]) => (
-        <button key={id} className={`pwnav${active === id ? ' active' : ''}`} aria-current={active === id ? 'page' : undefined} onClick={() => onPick(id)}>
+        <button key={id} className={`pwnav${active === id ? ' active' : ''}${id === 'delete' ? ' dangernav' : ''}`} aria-current={active === id ? 'page' : undefined} onClick={() => onPick(id)}>
           <span>{label}</span>
           {!!n && <em>{n}</em>}
         </button>
@@ -373,7 +374,7 @@ export default function AppPage() {
     const v = q.get('view')
     if (v === 'plans' || v === 'account' || v === 'send' || v === 'trash') setView(v)
     const tb = q.get('tab')
-    if (tb && ['overview', 'credits', 'passphrase', 'passkeys', 'emergency', 'sessions', 'team'].includes(tb)) setAccTab(tb as AccTab)
+    if (tb && ['overview', 'credits', 'passphrase', 'passkeys', 'emergency', 'sessions', 'team', 'delete'].includes(tb)) setAccTab(tb as AccTab)
     api
       .offer()
       .then(o => {
@@ -1398,7 +1399,8 @@ export default function AppPage() {
                   ['passkeys', t.accnav.passkeys, account.passkeys.length],
                   ['emergency', t.accnav.emergency],
                   ['sessions', t.accnav.sessions, sessionCount],
-                  ['team', t.accnav.team]
+                  ['team', t.accnav.team],
+                  ['delete', t.accnav.delete]
                 ]}
               />
               <div className="accmain">
@@ -1446,6 +1448,7 @@ export default function AppPage() {
               )}
               {accTab === 'sessions' && <SessionsCard onCount={setSessionCount} />}
               {accTab === 'team' && <FamilyPanel freeGb={freeGb} />}
+              {accTab === 'delete' && <DeleteAccountCard onPlans={() => setView('plans')} onTeam={() => setAccTab('team')} />}
               </div>
             </div>
             </>

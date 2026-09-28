@@ -1,5 +1,6 @@
 'use client'
 
+import Wordmark from '@/components/Wordmark'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import LocaleSwitch from '@/components/LocaleSwitch'
@@ -42,7 +43,7 @@ export function SiteHeader() {
         <div className="wrap">
           <Link href={home} className="brand">
             <Mark />
-            Foc<span style={{ color: '#0090ff' }}>Vault</span>
+            <Wordmark />
           </Link>
           <div className="navlinks">
             <a href={`${home}#produkt`}>{t.nav.product}</a>
