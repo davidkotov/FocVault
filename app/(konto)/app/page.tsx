@@ -293,14 +293,20 @@ export default function AppPage() {
     if (status !== 'ready') return
     const token = sessionStorage.getItem('fv_join')
     if (!token) return
+    let stale = false
     api
       .familyInviteInfo(token)
-      .then(i => setJoinInvite({ token, owner: i.ownerLabel, team: i.kind === 'business' }))
+      // späte Antwort nach Annehmen/Ablehnen (Token schon entfernt) öffnet den Dialog nicht erneut
+      .then(i => !stale && sessionStorage.getItem('fv_join') === token && setJoinInvite({ token, owner: i.ownerLabel, team: i.kind === 'business' }))
       .catch(e => {
+        if (stale) return
         sessionStorage.removeItem('fv_join')
         setError(errText(e))
       })
     if (window.location.search.includes('join=')) window.history.replaceState(null, '', window.location.pathname)
+    return () => {
+      stale = true
+    }
   }, [status, errText])
   const em = useMessages(emergencyMessages)
   const [emInvite, setEmInvite] = useState<{ token: string; name: string; wait: number } | null>(null)
@@ -312,7 +318,7 @@ export default function AppPage() {
     if (token) {
       api
         .emergencyInvite(token)
-        .then(i => setEmInvite({ token, name: i.grantorLabel ?? '—', wait: i.waitHours }))
+        .then(i => sessionStorage.getItem('fv_emergency') === token && setEmInvite({ token, name: i.grantorLabel ?? '—', wait: i.waitHours }))
         .catch(e => {
           sessionStorage.removeItem('fv_emergency')
           setError(errText(e))

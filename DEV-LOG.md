@@ -41,6 +41,20 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Neon (Postgres, EU Frankfurt) angebunden, Produktions-Fixes
+
+Neon-Projekt „FocVault“ (`aws-eu-central-1`, Postgres 18): Branch `production` für Vercel, Branch `development` für
+lokale Tests. Alle 24 Migrationen laufen auf Neon (49 Tabellen); gesamte Browser-Testsuite gegen Neon grün.
+**Migrationen** mit `pg_advisory_xact_lock` und erneuter Prüfung – mehrere Vercel-Instanzen starten gleichzeitig.
+**Fix (nur mit echter Netzlatenz sichtbar)**: Eine späte Antwort der Konto-Abfrage beim Start sperrte einen gerade
+entsperrten Tresor wieder; ebenso öffneten späte Antworten den Einladungsdialog (Family/Team/Notfallkontakt) nach dem
+Annehmen erneut. Beide ignorieren nun veraltete Antworten.
+**`vercel.json`**: Funktionen in Frankfurt (`fra1`, neben Neon, Verarbeitung in der EU), täglicher Cron
+`/api/v1/cron/maintenance` (PAYG-Abrechnung, Papierkorb, Filecoin-Sync, Statusprüfung; `CRON_SECRET`).
+
+**Tests:** Vitest 126/126, Playwright 14/14 (lokal gegen Neon-Branch `development`).
+
+
 ### Konto löschen, Landing: Hero wie Anmelden, Live-Karten, Funktionsvergleich bei den Preisen
 
 **Konto löschen** (Reiter in Konto & Sicherheit): Bestätigung mit Passphrase oder Recovery-Wörtern plus getipptem

@@ -718,6 +718,12 @@ export async function migrate(db: Db): Promise<void> {
   for (const m of MIGRATIONS) {
     if (applied.has(m.version)) continue
     await db.tx(async tx => {
+      // Mehrere Server-Instanzen (Vercel) starten gleichzeitig: Sperre je Transaktion, danach erneut prüfen
+      if (db.driver === 'postgres') {
+        await tx.query('SELECT pg_advisory_xact_lock(815274001)')
+        const done = await tx.query('SELECT 1 FROM schema_migrations WHERE version = $1', [m.version])
+        if (done.length) return
+      }
       await tx.exec(m.sql)
       await tx.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2)', [m.version, m.name])
     })

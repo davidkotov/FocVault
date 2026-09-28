@@ -73,18 +73,29 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const savingRef = useRef(false)
   const dirtyRef = useRef(false)
 
+  // Start: Konto laden. Nur solange noch „loading“ gilt – eine späte Antwort darf einen inzwischen
+  // entsperrten Tresor nicht wieder sperren (langsames Netz, doppelte Effekte im Dev-Modus).
   useEffect(() => {
+    let stale = false
     api
       .account()
       .then(view => {
-        accountRef.current = view
-        setAccount(view)
-        setStatus(view ? 'locked' : 'signedOut')
+        if (stale) return
+        setStatus(s => {
+          if (s !== 'loading') return s
+          accountRef.current = view
+          setAccount(view)
+          return view ? 'locked' : 'signedOut'
+        })
       })
       .catch(e => {
+        if (stale) return
         setBootError(errorMessage(e, 'Server nicht erreichbar.'))
-        setStatus('signedOut')
+        setStatus(s => (s === 'loading' ? 'signedOut' : s))
       })
+    return () => {
+      stale = true
+    }
   }, [])
 
   const enter = useCallback(async (view: AccountView, mk: CryptoKey) => {
