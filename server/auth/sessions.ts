@@ -17,17 +17,23 @@ export interface SessionInfo {
   strongAuthAt: number
 }
 
+/**
+ * Neue Session. strongAuth = false (z. B. SSO): gilt nicht als frische starke Anmeldung – sensible Aktionen
+ * verlangen dann erst eine Bestätigung mit Passphrase, Recovery-Kit oder Wallet-Signatur.
+ */
 export async function createSession(
   db: Db,
   accountId: string,
-  userAgent: string | null
+  userAgent: string | null,
+  opts: { strongAuth?: boolean } = {}
 ): Promise<{ token: string; expiresAt: Date; sessionId: string }> {
   const token = randomBytes(32).toString('base64url')
   const sessionId = uuidv7()
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000)
   await db.query(
-    'INSERT INTO sessions (id, account_id, token_hash, expires_at, user_agent) VALUES ($1, $2, $3, $4, $5)',
-    [sessionId, accountId, sha256(token), expiresAt, userAgent ? userAgent.slice(0, 200) : null]
+    `INSERT INTO sessions (id, account_id, token_hash, expires_at, user_agent, strong_auth_at)
+     VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() ELSE to_timestamp(0) END)`,
+    [sessionId, accountId, sha256(token), expiresAt, userAgent ? userAgent.slice(0, 200) : null, opts.strongAuth !== false]
   )
   // Grundlage der Inaktivitätsregel für Free-Konten (Preisbuch: inactiveWarnDays/DeleteDays)
   await db.query('UPDATE accounts SET last_login_at = now() WHERE id = $1', [accountId])

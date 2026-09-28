@@ -123,11 +123,20 @@ const de = {
     domains: 'E-Mail-Domains (kommagetrennt)',
     redirect: 'Redirect-URI (beim Identity-Provider eintragen)',
     enforce: 'SSO erzwingen',
-    enforceHint: 'Passphrase-Anmeldung für diese Domains gesperrt. Der Inhaber bleibt als Notfall-Zugang ausgenommen.',
+    enforceHint: 'Passphrase-Anmeldung für Team-Mitglieder mit diesen Domains gesperrt. Der Inhaber bleibt als Notfall-Zugang ausgenommen.',
     autoJoin: 'Automatisch dem Team beitreten',
-    autoJoinHint: 'Wer sich erstmals per SSO anmeldet, erhält direkt eine Einladung ins Team (sofern Plätze frei sind).',
+    autoJoinHint: 'Wer sich erstmals per SSO anmeldet, erhält eine Einladung ins Team (sofern Plätze frei sind). Bestehende Konten bestätigen den Beitritt mit ihrer eigenen Passphrase.',
     remove: 'SSO entfernen',
-    saved: 'SSO gespeichert.'
+    saved: 'SSO gespeichert.',
+    ownerOnly: 'SSO kann nur der Inhaber des Teams einrichten oder ändern.',
+    domainsTitle: 'Domain-Nachweis',
+    domainsLead: 'Eine Domain wirkt erst, wenn ihr sie per DNS nachweist. Legt dazu diesen TXT-Eintrag an und klickt auf „Prüfen“.',
+    verified: 'verifiziert',
+    unverified: 'nicht verifiziert',
+    txtName: 'Name',
+    txtValue: 'Wert',
+    check: 'Prüfen',
+    domainVerified: 'Domain {domain} verifiziert.'
   },
   notices: {
     passkey: 'Dein Team verlangt einen Passkey. Richte ihn unter „Konto & Sicherheit → Passkeys“ ein.',
@@ -144,6 +153,9 @@ const de = {
     'account.updated': 'Konto geändert (Admin)',
     'auth.login': 'Anmeldung',
     'auth.sso_login': 'Anmeldung per SSO',
+    'auth.sso_join': 'Beitritt per SSO angefragt',
+    'auth.sso_owner_blocked': 'SSO-Anmeldung des Inhabers abgewiesen',
+    'auth.reauth': 'Anmeldung mit Passphrase bestätigt',
     'auth.login_blocked_sso': 'Anmeldung ohne SSO abgewiesen',
     'auth.passphrase_failed': 'Falsche Passphrase',
     'auth.recovery_login': 'Wiederherstellung mit Recovery-Kit',
@@ -172,6 +184,7 @@ const de = {
     'team.recovery_opened': 'Tresor per Notfallzugriff geöffnet',
     'team.sso_configured': 'SSO eingerichtet',
     'team.sso_removed': 'SSO entfernt',
+    'team.sso_domain_verified': 'SSO-Domain verifiziert',
     'family.joined': 'Team beigetreten',
     'family.left': 'Team verlassen',
     'family.removed': 'Aus dem Team entfernt'
@@ -180,7 +193,8 @@ const de = {
     sso: 'Mit Firmen-SSO anmelden',
     ssoEmail: 'Geschäftliche E-Mail',
     ssoGo: 'Weiter zum Firmen-Login',
-    ssoHint: 'Danach entsperrst du deinen Tresor wie gewohnt mit deiner Passphrase.'
+    ssoHint: 'Danach entsperrst du deinen Tresor wie gewohnt mit deiner Passphrase.',
+    ssoJoin: 'Du hast bereits ein FocVault-Konto. Melde dich mit deiner Passphrase an, um dem Team beizutreten.'
   }
 }
 
@@ -309,11 +323,20 @@ const en: typeof de = {
     domains: 'Email domains (comma-separated)',
     redirect: 'Redirect URI (enter at your identity provider)',
     enforce: 'Enforce SSO',
-    enforceHint: 'Passphrase sign-in is blocked for these domains. The owner stays exempt as a break-glass account.',
+    enforceHint: 'Passphrase sign-in is blocked for team members with these domains. The owner stays exempt as a break-glass account.',
     autoJoin: 'Join the team automatically',
-    autoJoinHint: 'Anyone signing in via SSO for the first time gets an invitation to the team (if seats are free).',
+    autoJoinHint: 'Anyone signing in via SSO for the first time gets an invitation to the team (if seats are free). Existing accounts confirm joining with their own passphrase.',
     remove: 'Remove SSO',
-    saved: 'SSO saved.'
+    saved: 'SSO saved.',
+    ownerOnly: 'Only the team owner can set up or change SSO.',
+    domainsTitle: 'Domain verification',
+    domainsLead: 'A domain only takes effect once you prove ownership via DNS. Create this TXT record and click “Check”.',
+    verified: 'verified',
+    unverified: 'not verified',
+    txtName: 'Name',
+    txtValue: 'Value',
+    check: 'Check',
+    domainVerified: 'Domain {domain} verified.'
   },
   notices: {
     passkey: 'Your team requires a passkey. Set one up under “Account & security → Passkeys”.',
@@ -330,6 +353,9 @@ const en: typeof de = {
     'account.updated': 'Account changed (admin)',
     'auth.login': 'Sign-in',
     'auth.sso_login': 'Sign-in via SSO',
+    'auth.sso_join': 'Join requested via SSO',
+    'auth.sso_owner_blocked': 'Owner SSO sign-in rejected',
+    'auth.reauth': 'Sign-in confirmed with passphrase',
     'auth.login_blocked_sso': 'Sign-in without SSO rejected',
     'auth.passphrase_failed': 'Wrong passphrase',
     'auth.recovery_login': 'Recovery with recovery kit',
@@ -358,6 +384,7 @@ const en: typeof de = {
     'team.recovery_opened': 'Vault opened via emergency access',
     'team.sso_configured': 'SSO configured',
     'team.sso_removed': 'SSO removed',
+    'team.sso_domain_verified': 'SSO domain verified',
     'family.joined': 'Joined team',
     'family.left': 'Left team',
     'family.removed': 'Removed from team'
@@ -366,7 +393,8 @@ const en: typeof de = {
     sso: 'Sign in with company SSO',
     ssoEmail: 'Work email',
     ssoGo: 'Continue to company sign-in',
-    ssoHint: 'Afterwards you unlock your vault with your passphrase as usual.'
+    ssoHint: 'Afterwards you unlock your vault with your passphrase as usual.',
+    ssoJoin: 'You already have a FocVault account. Sign in with your passphrase to join the team.'
   }
 }
 

@@ -501,6 +501,8 @@ export default function TeamAdminView({ onInvite }: { onInvite?: () => void } = 
           {view.tier !== 'enterprise' ? (
             <div className="notice">{m.sso.enterpriseOnly}</div>
           ) : (
+            <>
+            {view.role !== 'owner' && <div className="notice">{m.sso.ownerOnly}</div>}
             <form
               className="ssoform"
               onSubmit={e => {
@@ -519,6 +521,7 @@ export default function TeamAdminView({ onInvite }: { onInvite?: () => void } = 
                 }, m.sso.saved)
               }}
             >
+              <fieldset disabled={view.role !== 'owner'} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'contents' }}>
               <label>
                 {m.sso.issuer}
                 <input value={ssoForm.issuer} onChange={e => setSsoForm({ ...ssoForm, issuer: e.target.value })} placeholder="https://accounts.google.com" />
@@ -569,7 +572,56 @@ export default function TeamAdminView({ onInvite }: { onInvite?: () => void } = 
                   </button>
                 )}
               </div>
+              </fieldset>
             </form>
+            {sso && sso.domainStatus.length > 0 && (
+              <div className="ssodomains" style={{ marginTop: 20 }}>
+                <h4>{m.sso.domainsTitle}</h4>
+                <p className="hint">{m.sso.domainsLead}</p>
+                <table className="datatable">
+                  <tbody>
+                    {sso.domainStatus.map(d => (
+                      <tr key={d.domain}>
+                        <td>
+                          <strong>{d.domain}</strong>
+                          <div className="dim">{d.verified ? m.sso.verified : m.sso.unverified}</div>
+                        </td>
+                        <td>
+                          {!d.verified && (
+                            <>
+                              <div className="hint">
+                                {m.sso.txtName}: <code>{d.txtName}</code>
+                              </div>
+                              <div className="hint">
+                                {m.sso.txtValue}: <code>{d.txtValue}</code>
+                              </div>
+                            </>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {!d.verified && view.role === 'owner' && (
+                            <button
+                              type="button"
+                              className="small"
+                              disabled={busy}
+                              onClick={() =>
+                                void run(async () => {
+                                  const r = await api.verifySsoDomain(d.domain)
+                                  setSso(r.config)
+                                }, fmt(m.sso.domainVerified, { domain: d.domain }))
+                              }
+                            >
+                              {m.sso.check}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            </>
           )}
         </>
       )}

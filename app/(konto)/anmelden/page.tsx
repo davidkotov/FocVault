@@ -31,12 +31,21 @@ export default function LoginPage() {
   const sm = useMessages(teamAdminMessages).login
   const [sso, setSso] = useState(false)
   const [ssoEmail, setSsoEmail] = useState('')
+  const [ssoJoin, setSsoJoin] = useState(false)
 
   useEffect(() => {
-    const e = new URLSearchParams(window.location.search).get('sso_error')
+    const q = new URLSearchParams(window.location.search)
+    const e = q.get('sso_error')
     if (e) {
       setError(e)
       setSso(true)
+    }
+    // SSO-Beitritt für ein bestehendes Konto: Einladung merken, Beitritt nach Anmeldung mit eigener Passphrase
+    const join = q.get('join')
+    if (join && /^[A-Za-z0-9_-]{20,64}$/.test(join)) {
+      sessionStorage.setItem('fv_join', join)
+      setSsoJoin(true)
+      window.history.replaceState(null, '', window.location.pathname)
     }
   }, [])
 
@@ -84,6 +93,7 @@ export default function LoginPage() {
         }}
       >
         {error && <div className="errorbox">{error}</div>}
+        {ssoJoin && !error && <div className="notice">{sm.ssoJoin}</div>}
         <div className="field">
           <label htmlFor="email">{a.email}</label>
           <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />

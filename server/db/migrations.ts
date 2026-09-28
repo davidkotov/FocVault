@@ -702,6 +702,29 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       -- Recovery-Kit geprüft (Nutzer hat die 24 Wörter erfolgreich eingegeben)
       ALTER TABLE accounts ADD COLUMN recovery_checked_at timestamptz;
     `
+  },
+  {
+    version: 25,
+    name: 'sso_domain_verification',
+    sql: `
+      -- SSO-Domains erst nach DNS-TXT-Nachweis wirksam; eine verifizierte Domain gehört genau einem Team
+      CREATE TABLE team_sso_domains (
+        owner_account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        domain text NOT NULL,
+        token text NOT NULL,
+        verified_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (owner_account_id, domain)
+      );
+      CREATE UNIQUE INDEX team_sso_domains_verified ON team_sso_domains (domain) WHERE verified_at IS NOT NULL;
+      -- bisher eingetragene Domains: übernommen, aber unverifiziert
+      INSERT INTO team_sso_domains (owner_account_id, domain, token)
+        SELECT s.owner_account_id, d, replace(gen_random_uuid()::text, '-', '')
+          FROM team_sso s, unnest(s.domains) AS d
+        ON CONFLICT DO NOTHING;
+      -- Login-CSRF: State ist an den Browser gebunden (Hash des Cookie-Werts)
+      ALTER TABLE sso_states ADD COLUMN browser_hash bytea;
+    `
   }
 ]
 

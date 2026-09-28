@@ -31,6 +31,13 @@ export async function groupSeats(db: Db, ownerId: string): Promise<number> {
 }
 const hash = (token: string) => createHash('sha256').update(token).digest()
 
+/** Freier Platz für ein weiteres Mitglied? (Plätze zählen inklusive Inhaber; offene Einladungen zählen hier nicht.) */
+export async function assertFreeSeat(db: Db, ownerId: string): Promise<void> {
+  const seats = await groupSeats(db, ownerId)
+  const n = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM family_members WHERE owner_account_id = $1', [ownerId])
+  if (Number(n[0]?.n ?? 0) >= seats - 1) throw new ApiError('BAD_REQUEST', `Alle ${seats} Plätze sind belegt. Bitte beim Inhaber weitere Plätze anfragen.`)
+}
+
 export interface FamilyPool {
   ownerId: string
   memberIds: string[]
@@ -230,8 +237,10 @@ export async function joinFamily(deps: Deps, session: SessionInfo, token: string
     if (me[0]?.plan !== 'free' || me[0]?.stripe_subscription_id) {
       throw new ApiError('BAD_REQUEST', 'Bitte zuerst dein eigenes Abo kündigen – danach kannst du beitreten.')
     }
-    const owner = await tx.query<{ plan: string }>('SELECT plan FROM accounts WHERE id = $1', [ownerId])
+    // Zeile des Inhabers sperren: gleichzeitige Beitritte zählen die Plätze nacheinander
+    const owner = await tx.query<{ plan: string }>('SELECT plan FROM accounts WHERE id = $1 FOR UPDATE', [ownerId])
     if (!GROUP_PLANS.has(owner[0]?.plan ?? '')) throw new ApiError('GONE', 'Diese Einladung gehört zu keinem aktiven Abo mehr.')
+    await assertFreeSeat(tx, ownerId)
     await tx.query(`INSERT INTO family_members (account_id, owner_account_id) VALUES ($1, $2)`, [session.accountId, ownerId])
     await tx.query(`UPDATE accounts SET plan = $2, payg_enabled = false WHERE id = $1`, [session.accountId, owner[0].plan])
     await tx.query(`UPDATE family_invites SET used_at = now(), used_by = $2 WHERE id = $1`, [inv[0].id, session.accountId])

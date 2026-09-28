@@ -212,10 +212,18 @@ function ChangePassphraseCard() {
     try {
       const env = account.envelopes.find(e => e.kekType === 'passphrase')
       if (!env) throw new Error('passphrase envelope missing')
-      const { kek } = await deriveFromPassphrase(current, account.kdf)
+      const { kek, authKey } = await deriveFromPassphrase(current, account.kdf)
       const raw = await unwrapMasterKeyRaw(env, kek)
       try {
-        await api.setPassphrase(await buildPassphraseChange(raw, next))
+        const change = await buildPassphraseChange(raw, next)
+        try {
+          await api.setPassphrase(change)
+        } catch (e) {
+          // z. B. nach SSO-Anmeldung: Session zuerst mit der aktuellen Passphrase bestätigen
+          if (!(e instanceof ApiClientError && e.code === 'REAUTH_REQUIRED')) throw e
+          await api.reauth(authKey)
+          await api.setPassphrase(change)
+        }
       } finally {
         raw.fill(0)
       }

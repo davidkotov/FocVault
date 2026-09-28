@@ -191,6 +191,30 @@ export async function recoveryLogin(
   return { view: await accountView(deps, accountId, ['recovery']), ...session }
 }
 
+/**
+ * Starke Anmeldung in der laufenden Session nachholen (z. B. nach SSO): Passphrase prüfen und die
+ * Session als frisch bestätigt markieren. Nötig vor sensiblen Aktionen wie „Passphrase ändern“.
+ */
+export async function reauthWithPassphrase(deps: Deps, session: SessionInfo, authKey: string, meta: RequestMeta): Promise<void> {
+  rateLimit(`auth:reauth:account:${session.accountId}`, 10, AUTH_WINDOW_MS)
+  rateLimit(`auth:ip:${meta.ip}`, ipLimit(60), AUTH_WINDOW_MS)
+  const rows = await deps.db.query<{ hash: Uint8Array; salt: Uint8Array; params: SecretHashParams }>(
+    `SELECT hash, salt, params FROM auth_secrets WHERE account_id = $1 AND kind = 'passphrase'`,
+    [session.accountId]
+  )
+  const row = rows[0]
+  if (!row) {
+    await burnVerification()
+    throw new ApiError('INVALID_CREDENTIALS', 'Die Passphrase ist falsch.')
+  }
+  if (!(await verifySecret(b64uDecode(authKey), row.hash, row.salt, row.params))) {
+    await audit(deps.db, session.accountId, 'user', 'auth.passphrase_failed')
+    throw new ApiError('INVALID_CREDENTIALS', 'Die Passphrase ist falsch.')
+  }
+  await deps.db.query('UPDATE sessions SET strong_auth_at = now() WHERE id = $1', [session.sessionId])
+  await audit(deps.db, session.accountId, 'user', 'auth.reauth')
+}
+
 export async function changePassphrase(
   deps: Deps,
   session: SessionInfo,

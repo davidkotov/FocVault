@@ -1,6 +1,7 @@
-import { lookup as dnsLookup, type LookupAddress } from 'node:dns'
 import { request } from 'node:https'
-import { isIP } from 'node:net'
+import { safeLookup, validHost } from '../net/safe-fetch'
+
+export { isPrivateIp, validHost } from '../net/safe-fetch'
 
 /**
  * Website-Icons für Passwort- und 2FA-Einträge.
@@ -8,46 +9,10 @@ import { isIP } from 'node:net'
  * Schutz gegen SSRF: nur öffentliche Hosts, jede DNS-Auflösung (auch bei Weiterleitungen) wird geprüft.
  */
 
-const HOST_RE = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i
 const MAX_HTML = 256 * 1024
 const MAX_ICON = 100 * 1024
 const TIMEOUT = 4000
 const cache = new Map<string, { type: string; body: Buffer } | null>()
-
-export function validHost(host: string): boolean {
-  return HOST_RE.test(host) && !/(^|\.)(localhost|local|internal|lan|home|corp)$/i.test(host)
-}
-
-export function isPrivateIp(ip: string): boolean {
-  const v = isIP(ip)
-  if (v === 4) {
-    const [a, b] = ip.split('.').map(Number)
-    return (
-      a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19)) || a >= 224
-    )
-  }
-  if (v === 6) {
-    const x = ip.toLowerCase()
-    if (x === '::' || x === '::1') return true
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(x)
-    if (mapped) return isPrivateIp(mapped[1])
-    return /^f[cd]/.test(x) || /^fe[89ab]/.test(x) || x.startsWith('ff')
-  }
-  return true
-}
-
-/** DNS-Auflösung, die private Adressen verweigert (wird beim Verbindungsaufbau benutzt → kein DNS-Rebinding). */
-function safeLookup(hostname: string, options: object, cb: (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void) {
-  dnsLookup(hostname, { all: true }, (err, addrs) => {
-    if (err) return cb(err, '')
-    const list = addrs as LookupAddress[]
-    if (!list.length || list.some(a => isPrivateIp(a.address))) return cb(Object.assign(new Error('blocked address'), { code: 'EBLOCKED' }), '')
-    const all = (options as { all?: boolean }).all
-    if (all) return cb(null, list)
-    cb(null, list[0].address, list[0].family)
-  })
-}
 
 function get(url: URL, max: number, hops = 0): Promise<{ type: string; body: Buffer; url: URL }> {
   return new Promise((resolve, reject) => {

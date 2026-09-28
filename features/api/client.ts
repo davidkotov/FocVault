@@ -137,6 +137,8 @@ export const api = {
 
   setPassphrase: (input: { authKey: string; kdf: KdfParams; envelope: KeyEnvelope }) =>
     call<AccountView>('PUT', '/account/passphrase', input),
+  /** Session mit der Passphrase erneut bestätigen (z. B. nach SSO) */
+  reauth: (authKey: string) => call<{ ok: true }>('POST', '/account/reauth', { authKey }),
 
   async getIndex(): Promise<{ version: number; body: Uint8Array<ArrayBuffer> } | null> {
     const res = await send('/vault/index', { method: 'GET' })
@@ -185,6 +187,7 @@ export const api = {
   setSso: (c: { issuer: string; clientId: string; clientSecret?: string; domains: string[]; enforce: boolean; autoJoin: boolean }) =>
     call<{ config: SsoConfigView }>('PUT', '/team/sso', c),
   deleteSso: () => call<{ ok: true }>('DELETE', '/team/sso'),
+  verifySsoDomain: (domain: string) => call<{ config: SsoConfigView }>('POST', '/team/sso/verify', { domain }),
   emergency: () => call<EmergencyOverview>('GET', '/emergency'),
   createEmergency: (waitHours: number) => call<{ id: string; token: string }>('POST', '/emergency', { waitHours }),
   emergencyInvite: (token: string) => call<{ grantorLabel: string | null; waitHours: number }>('GET', `/emergency/invite/${encodeURIComponent(token)}`),
