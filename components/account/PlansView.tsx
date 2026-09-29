@@ -175,21 +175,21 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
             return (
               <>
                 <div className={`planbar${pct >= 100 ? ' full' : ''}`}>
-                  <b style={{ width: w(files), background: '#0b1220' }} />
-                  <b style={{ width: w(ver), background: '#5b6475' }} />
-                  <b style={{ width: w(trash), background: '#8a93a3' }} />
+                  <b style={{ width: w(files), background: 'var(--dk-bar-1, #0b1220)' }} />
+                  <b style={{ width: w(ver), background: 'var(--dk-bar-2, #5b6475)' }} />
+                  <b style={{ width: w(trash), background: 'var(--dk-bar-3, #8a93a3)' }} />
                 </div>
                 <div className="planlegend">
                   <span>
-                    <i style={{ background: '#0b1220' }} />
+                    <i style={{ background: 'var(--dk-bar-1, #0b1220)' }} />
                     {m.hero.files} {formatBytes(files)}
                   </span>
                   <span>
-                    <i style={{ background: '#5b6475' }} />
+                    <i style={{ background: 'var(--dk-bar-2, #5b6475)' }} />
                     {m.hero.versions} {formatBytes(ver)}
                   </span>
                   <span>
-                    <i style={{ background: '#8a93a3' }} />
+                    <i style={{ background: 'var(--dk-bar-3, #8a93a3)' }} />
                     {m.hero.trash} {formatBytes(trash)}
                   </span>
                 </div>

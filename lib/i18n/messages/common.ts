@@ -6,6 +6,7 @@ const de = {
   back: 'Zurück',
   next: 'Weiter',
   save: 'Speichern',
+  theme: { toDark: 'Dunkles Design', toLight: 'Helles Design' },
   testEnv: { label: 'Testumgebung', hint: 'Lokale Testdaten, keine Produktionsdatenbank' },
   errors: {
     NETWORK: 'Keine Verbindung zum Server.',
@@ -48,6 +49,7 @@ const en: typeof de = {
   back: 'Back',
   next: 'Next',
   save: 'Save',
+  theme: { toDark: 'Dark mode', toLight: 'Light mode' },
   testEnv: { label: 'Test environment', hint: 'Local test data, not the production database' },
   errors: {
     NETWORK: 'No connection to the server.',

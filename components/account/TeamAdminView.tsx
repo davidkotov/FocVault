@@ -191,7 +191,7 @@ export default function TeamAdminView({ onInvite }: { onInvite?: () => void } = 
           {formatBytes(account.usedBytes)} / {formatBytes(account.quotaBytes)}
         </div>
         <div className="planbar" style={{ marginTop: 10 }}>
-          <b style={{ width: `${account.quotaBytes ? Math.min(100, (account.usedBytes / account.quotaBytes) * 100) : 0}%`, background: '#0b1220' }} />
+          <b style={{ width: `${account.quotaBytes ? Math.min(100, (account.usedBytes / account.quotaBytes) * 100) : 0}%`, background: 'var(--dk-bar-1, #0b1220)' }} />
         </div>
       </div>
     </div>

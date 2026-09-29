@@ -34,9 +34,9 @@ export default function SecurityStatus({ onAction }: { onAction: (target: 'passk
   return (
     <div className="card secstatus">
       <svg width="64" height="64" viewBox="0 0 36 36" aria-hidden="true">
-        <circle cx="18" cy="18" r="15.5" fill="none" stroke="#eef0f4" strokeWidth="4" />
+        <circle cx="18" cy="18" r="15.5" fill="none" style={{ stroke: 'var(--dk-surface-3, #eef0f4)' }} strokeWidth="4" />
         <circle cx="18" cy="18" r="15.5" fill="none" stroke={color} strokeWidth="4" strokeDasharray={`${pct * 97.4} 100`} transform="rotate(-90 18 18)" strokeLinecap="round" />
-        <text x="18" y="21" textAnchor="middle" fontSize="9" fontWeight="700" fill="#0b1220">
+        <text x="18" y="21" textAnchor="middle" fontSize="9" fontWeight="700" style={{ fill: 'var(--dk-fg-1, #0b1220)' }}>
           {done}/{checks.length}
         </text>
       </svg>

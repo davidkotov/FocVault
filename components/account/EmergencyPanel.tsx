@@ -111,7 +111,7 @@ export default function EmergencyPanel({ onOpen, onUpgrade }: { onOpen: (contact
                 <Steps at={stepOf(c)} />
                 {c.status === 'accepted' && !!c.granteePublicKey && !!c.granteeId && (
                   <>
-                  <p className="hint" style={{ color: '#9a5b00' }}>{m.confirmWarn}</p>
+                  <p className="hint" style={{ color: 'var(--dk-yellow-fg, #9a5b00)' }}>{m.confirmWarn}</p>
                   <form
                     className="row emconfirm"
                     onSubmit={e => {

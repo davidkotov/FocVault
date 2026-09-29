@@ -633,7 +633,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
                   <span className="k">{m.strength}</span>
                   <div>
                     <div className="pwstrength">
-                      <b style={{ width: `${((strength(sel.password) + 1) / 5) * 100}%`, background: strength(sel.password) >= 3 ? '#148a52' : strength(sel.password) >= 2 ? '#b07a00' : '#c43b3b' }} />
+                      <b style={{ width: `${((strength(sel.password) + 1) / 5) * 100}%`, background: strength(sel.password) >= 3 ? 'var(--dk-green-fg, #148a52)' : strength(sel.password) >= 2 ? 'var(--dk-yellow-fg, #b07a00)' : 'var(--dk-red-fg, #c43b3b)' }} />
                     </div>
                     <span className="hint">
                       {m.strengths[strength(sel.password)]} · {fmt(m.charCount, { n: sel.password.length })}
