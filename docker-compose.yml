@@ -1,0 +1,43 @@
+# Lokaler Production-Betrieb: docker compose up --build → http://localhost:3000/de
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: focvault
+      POSTGRES_PASSWORD: focvault
+      POSTGRES_DB: focvault
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U focvault"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_REOWN_PROJECT_ID: ${NEXT_PUBLIC_REOWN_PROJECT_ID:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:3000"
+      - "${S3_HOST_PORT:-9100}:9000"
+    env_file:
+      - path: .env.docker
+        required: false
+    environment:
+      DATABASE_URL: postgres://focvault:focvault@db:5432/focvault
+      SERVER_SECRET: ${SERVER_SECRET:?SERVER_SECRET setzen (openssl rand -hex 32), z. B. in .env}
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      # Ohne Fil One: Dateien lokal im Volume
+      ALLOW_LOCAL_STORAGE: "1"
+      S3_API_PORT: "9000"
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+    volumes:
+      - appdata:/data
+
+volumes:
+  pgdata:
+  appdata:
