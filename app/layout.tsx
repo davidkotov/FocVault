@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
 import './globals.css'
 import { Providers } from './providers'
+import { TestEnvBadge } from '@/components/TestEnvBadge'
 import { isLocale, DEFAULT_LOCALE } from '@/lib/i18n/config'
 import type { Currency } from '@/lib/pricing'
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang={locale}>
       <body>
+        <TestEnvBadge locale={locale} />
         <Providers locale={locale} currency={currency}>
           {children}
         </Providers>

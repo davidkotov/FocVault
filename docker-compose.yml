@@ -1,0 +1,45 @@
+# Lokale Testumgebung (Production-Build, eigene Postgres, lokaler Datei-Storage):
+#   docker compose --env-file .env.local up --build -d   →   http://localhost:3000/de
+# Konfiguration kommt aus .env.local (Vorlage: .env.local.example). --env-file sorgt dafür, dass
+# auch der Build (NEXT_PUBLIC_*) .env.local statt .env liest.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: focvault
+      POSTGRES_PASSWORD: focvault
+      POSTGRES_DB: focvault
+    # Nur vom Mac aus erreichbar (für `npm run dev` mit .env.local)
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U focvault"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_REOWN_PROJECT_ID: ${NEXT_PUBLIC_REOWN_PROJECT_ID:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:3000"
+      - "${S3_HOST_PORT:-9100}:9000"
+    env_file:
+      - .env.local
+    # Container-spezifisch, überschreibt .env.local
+    environment:
+      DATABASE_URL: postgres://focvault:focvault@db:5432/focvault
+      S3_API_PORT: "9000"
+      S3_PUBLIC_URL: http://localhost:${S3_HOST_PORT:-9100}
+    volumes:
+      - appdata:/data
+
+volumes:
+  pgdata:
+  appdata:

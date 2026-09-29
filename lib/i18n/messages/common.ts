@@ -6,6 +6,7 @@ const de = {
   back: 'Zurück',
   next: 'Weiter',
   save: 'Speichern',
+  testEnv: { label: 'Testumgebung', hint: 'Lokale Testdaten, keine Produktionsdatenbank' },
   errors: {
     NETWORK: 'Keine Verbindung zum Server.',
     UNAUTHENTICATED: 'Bitte melde dich an.',
@@ -47,6 +48,7 @@ const en: typeof de = {
   back: 'Back',
   next: 'Next',
   save: 'Save',
+  testEnv: { label: 'Test environment', hint: 'Local test data, not the production database' },
   errors: {
     NETWORK: 'No connection to the server.',
     UNAUTHENTICATED: 'Please sign in.',

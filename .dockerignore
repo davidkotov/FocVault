@@ -1,0 +1,12 @@
+node_modules
+.next
+.data
+bin
+.git
+.github
+.env*
+test-results
+playwright-report
+e2e
+*.md
+.DS_Store
