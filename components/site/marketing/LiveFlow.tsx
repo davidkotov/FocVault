@@ -118,9 +118,9 @@ export default function LiveFlow({ m }: { m: M['alps'] }) {
             <div className="v2files three">
               {(
                 [
-                  ['file', 'Vertrag_Mieter.pdf', '#e8f3ff'],
-                  ['image', 'Ferien_Zermatt.jpg', '#fdecec'],
-                  ['archive', 'Backup_Server.tar', '#eaf8ef']
+                  ['file', 'Vertrag_Mieter.pdf', 'var(--dk-blue-soft, #e8f3ff)'],
+                  ['image', 'Ferien_Zermatt.jpg', 'var(--dk-red-soft, #fdecec)'],
+                  ['archive', 'Backup_Server.tar', 'var(--dk-green-soft, #eaf8ef)']
                 ] as Array<[IconName, string, string]>
               ).map(([i, f, c]) => (
                 <div className="v2file" key={f}>

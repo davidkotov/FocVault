@@ -4,6 +4,7 @@ import Wordmark from '@/components/Wordmark'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import LocaleSwitch from '@/components/LocaleSwitch'
+import { ThemeToggle } from '@/features/theme/ThemeToggle'
 import { api, type StatusOverview } from '@/features/api/client'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { siteMessages } from '@/lib/i18n/messages/site'
@@ -53,9 +54,12 @@ export default function StatusPage() {
           </svg>
           <Wordmark />
         </Link>
-        <a className="button small" href="/api/v1/status/rss">
-          {m.subscribe}
-        </a>
+        <span className="authtopright">
+          <ThemeToggle />
+          <a className="button small" href="/api/v1/status/rss">
+            {m.subscribe}
+          </a>
+        </span>
       </header>
 
       <main className="statuscard" id="main">

@@ -25,10 +25,10 @@ function DashboardPreview() {
     ['admin', 'Admin-Konsole']
   ]
   const files: Array<[IconName, string, string, string]> = [
-    ['file', 'Vertrag_Mieter.pdf', '1.2 MB', '#e8f3ff'],
-    ['image', 'Ferien_Zermatt.jpg', '4.8 MB', '#fdecec'],
-    ['archive', 'Backup_Server.tar', '2.3 GB', '#eaf8ef'],
-    ['note', 'Steuern_2026.xlsx', '860 KB', '#fff4e0']
+    ['file', 'Vertrag_Mieter.pdf', '1.2 MB', 'var(--dk-blue-soft, #e8f3ff)'],
+    ['image', 'Ferien_Zermatt.jpg', '4.8 MB', 'var(--dk-red-soft, #fdecec)'],
+    ['archive', 'Backup_Server.tar', '2.3 GB', 'var(--dk-green-soft, #eaf8ef)'],
+    ['note', 'Steuern_2026.xlsx', '860 KB', 'var(--dk-yellow-soft, #fff4e0)']
   ]
   return (
     <div className="v2preview" aria-hidden="true">

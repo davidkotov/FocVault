@@ -27,10 +27,10 @@
   --radius: 14px;
 }
 
-/* ---------- Dunkles Design (nur App & Admin: .apptheme) ----------
+/* ---------- Dunkles Design (ganze Seite, Umschalter in den Kopfzeilen) ----------
  * Farben im Rest der Datei stehen als var(--dk-…, <helle Farbe>): ohne Dunkelmodus gilt der
  * Fallback, im Dunkelmodus die Werte hier. Bewusst nicht ganz schwarz, sondern Schiefergrau. */
-:root[data-theme='dark'] .apptheme {
+:root[data-theme='dark'] {
   --bg: #1d2129;
   --card: #252a34;
   --card-soft: #21252e;
@@ -94,10 +94,9 @@
   color: var(--text);
 }
 
-:root[data-theme='dark']:has(.apptheme),
-:root[data-theme='dark']:has(.apptheme) body {
-  color-scheme: dark;
-  background: #1d2129;
+:root[data-theme='dark'] body {
+  background: var(--bg);
+  color: var(--text);
 }
 
 * {
@@ -132,8 +131,9 @@ a {
 
 /* ---------- shared widgets (used across app + landing) ---------- */
 
-.apptheme { display: contents; }
 .themetoggle { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0 !important; }
+.utilbar .themetoggle { width: 28px; height: 28px; }
+.authtopright { display: inline-flex; align-items: center; gap: 8px; }
 
 /* Leiste „Testumgebung“ (APP_ENV=test) über jeder Seite, Badge oben links */
 .testenvbar {
@@ -1807,7 +1807,7 @@ select {
   position: relative;
   border-radius: 11px;
   overflow: hidden;
-  background: var(--dk-fill, #000);
+  background: #000;
   aspect-ratio: 1 / 1;
   display: flex;
   align-items: center;
@@ -2225,7 +2225,7 @@ button.filetile:disabled { opacity: 1; cursor: default; }
 .previewhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .previewtitle { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .previewtitle strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.previewbody { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--dk-fill, #0f1420); }
+.previewbody { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #0f1420; }
 .previewbody img, .previewbody video { max-width: 100%; max-height: 100%; object-fit: contain; }
 .previewbody iframe { width: 100%; height: 100%; border: none; background: var(--dk-surface, #fff); }
 .previewbody audio { width: min(520px, 90%); }
@@ -2494,7 +2494,7 @@ button.outline:hover:not(:disabled) { background: var(--accent-soft); }
 .docscontent article h2 { font-size: 20px; margin: 30px 0 10px; }
 .docscontent article p, .docscontent article li { font-size: 15px; line-height: 1.7; color: var(--text); }
 .docscontent article ul, .docscontent article ol { padding-left: 22px; }
-.docscontent pre { background: var(--dk-fill, #0f1420); color: #e6edf7; border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+.docscontent pre { background: #0f1420; color: #e6edf7; border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
 .docnote { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 14px; border-radius: 0 10px 10px 0; font-size: 14px; margin: 16px 0; }
 .docsback { font-size: 13px; color: var(--accent-dark); text-decoration: none; display: inline-block; margin-bottom: 18px; }
 .doccards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
@@ -2587,7 +2587,7 @@ button.outline:hover:not(:disabled) { background: var(--accent-soft); }
 
 /* Alpen */
 .v2alps { position: relative; min-height: 1000px; color: #fff; overflow: hidden; isolation: isolate; }
-.v2alps::before { content: ''; position: absolute; inset: 0; z-index: -2; background: url('/matterhorn-1920.jpg') calc(50% + 260px) -260px / 1944px auto no-repeat, var(--dk-fill, #0b1322); animation: v2drift 36s ease-in-out infinite alternate; }
+.v2alps::before { content: ''; position: absolute; inset: 0; z-index: -2; background: url('/matterhorn-1920.jpg') calc(50% + 260px) -260px / 1944px auto no-repeat, #0b1322; animation: v2drift 36s ease-in-out infinite alternate; }
 @media (min-width: 1600px) { .v2alps::before { background-image: url('/matterhorn.jpg'); background-size: 2400px auto; background-position: calc(50% + 320px) -330px; } }
 .v2alps::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(8, 13, 26, 0.92) 0%, rgba(8, 13, 26, 0.55) 34%, rgba(var(--dk-tint-rgb, 8, 13, 26), 0) 58%), linear-gradient(180deg, var(--dk-surface, #fff) 0%, rgba(255, 255, 255, 0) 7%, rgba(var(--dk-tint-rgb, 8, 13, 26), 0) 78%, rgba(8, 13, 26, 0.92) 100%); }
 @keyframes v2drift { from { transform: scale(1.02); } to { transform: scale(1.07) translateX(-1%); } }
@@ -2651,7 +2651,7 @@ button.outline:hover:not(:disabled) { background: var(--accent-soft); }
 .v2plan { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: var(--dk-surface-2, #f2f4f7); color: var(--dk-fg-3, #5b6475); }
 .v2plan.p-pro { background: var(--dk-blue-soft, #eef6ff); color: var(--dk-blue-fg, #0070cc); }
 .v2plan.p-family { background: var(--dk-purple-soft, #f3ecff); color: var(--dk-purple-fg, #6b3fd1); }
-.v2plan.p-business, .v2plan.p-enterprise { background: var(--dk-fill, #0b1220); color: #fff; }
+.v2plan.p-business, .v2plan.p-enterprise { background: #0b1220; color: #fff; }
 .v2plan.p-free, .v2plan.p-alle, .v2plan.p-all { background: var(--dk-green-soft, #eaf8ef); color: var(--dk-green-fg, #148a52); }
 .v2flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; position: relative; }
 .v2flowstep { position: relative; text-align: center; padding: 26px 18px; border: 1px solid var(--dk-line, #e8ebf0); border-radius: 14px; background: var(--dk-surface, #fff); }
@@ -2687,13 +2687,13 @@ button.outline:hover:not(:disabled) { background: var(--accent-soft); }
 .v2store:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15, 20, 32, 0.1); }
 .v2teamteaser { display: flex; justify-content: space-between; align-items: center; gap: 30px; }
 .v2teamteaser .v2sub { margin-bottom: 0; }
-.v2final { background: var(--dk-fill, #0b1220); color: #fff; padding: 100px 0; text-align: center; position: relative; overflow: hidden; }
+.v2final { background: #0b1220; color: #fff; padding: 100px 0; text-align: center; position: relative; overflow: hidden; }
 .v2final::before { content: ''; position: absolute; inset: 0; background: url('/matterhorn-1920.jpg') center 30% / cover no-repeat; opacity: 0.18; }
 .v2final .wrap { position: relative; }
 .v2final h2 { font-size: 40px; letter-spacing: -0.02em; margin: 0 0 12px; }
 .v2final p { color: rgba(255, 255, 255, 0.7); margin: 0 0 28px; }
-.v2final button.light { background: var(--dk-surface, #fff); color: var(--dk-fg-1, #0b1220); border: 0; }
-.v2final button.ghost { background: transparent; color: #fff; border: 1px solid rgba(var(--dk-glass-rgb, 255, 255, 255), 0.35); }
+.v2final button.light { background: #fff; color: #0b1220; border: 0; }
+.v2final button.ghost { background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); }
 .button .sicon { vertical-align: -3px; }
 @media (max-width: 980px) {
   .v2hero h1 { font-size: 40px; }
@@ -2716,16 +2716,16 @@ button.outline:hover:not(:disabled) { background: var(--accent-soft); }
 @media (max-width: 760px) { .v2stores { grid-template-columns: 1fr 1fr; } }
 
 /* ================= /sicherheit ================= */
-.sechero { background: var(--dk-fill, #0b1220); color: #fff; padding: 110px 0 90px; position: relative; overflow: hidden; }
+.sechero { background: #0b1220; color: #fff; padding: 110px 0 90px; position: relative; overflow: hidden; }
 .sechero::before { content: ''; position: absolute; inset: 0; background: url('/matterhorn-1920.jpg') calc(50% + 300px) 30% / cover no-repeat; opacity: 0.35; }
-.sechero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, var(--dk-fill, #0b1220) 20%, rgba(11, 18, 32, 0.4) 70%, rgba(11, 18, 32, 0.2)); }
+.sechero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #0b1220 20%, rgba(11, 18, 32, 0.4) 70%, rgba(11, 18, 32, 0.2)); }
 .sechero .wrap { position: relative; z-index: 1; }
 .sechero h1 { font-size: 54px; line-height: 1.05; letter-spacing: -0.03em; max-width: 720px; margin: 0 0 20px; }
 .sechero p { font-size: 18px; color: rgba(255, 255, 255, 0.75); max-width: 600px; line-height: 1.6; margin: 0; }
 .sectry { display: grid; grid-template-columns: 1fr 70px 1fr; gap: 0; align-items: stretch; }
 .secpane { border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
 .secpane.you { border: 1px solid var(--dk-line, #e3e7ee); background: var(--dk-surface, #fff); }
-.secpane.server { background: var(--dk-fill, #0b1220); color: #e6edf7; }
+.secpane.server { background: #0b1220; color: #e6edf7; }
 .secpanehead { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
 .secpane textarea { font-size: 16px; min-height: 130px; resize: vertical; }
 .secct { margin: 0; min-height: 130px; font-family: var(--mono); font-size: 13px; line-height: 1.6; color: #7ee0a8; word-break: break-all; white-space: pre-wrap; background: rgba(255, 255, 255, 0.04); border-radius: 10px; padding: 12px; }
@@ -2785,7 +2785,7 @@ button.outline:hover:not(:disabled) { background: var(--accent-soft); }
 .secsees { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .secsees strong { display: flex !important; align-items: center; gap: 8px; }
 .secsees ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.9; color: var(--text-dim); }
-.v2card.dark { background: var(--dk-fill, #0b1220); border-color: var(--dk-fill, #0b1220); color: #fff; }
+.v2card.dark { background: #0b1220; border-color: #0b1220; color: #fff; }
 .v2card.dark strong { color: #fff; }
 .v2card.dark ul { color: rgba(255, 255, 255, 0.75); }
 .narrowtable { max-width: 860px; margin: 0 auto; }
@@ -3003,7 +3003,7 @@ button.kpi { display: block; }
 
 /* ---------- Entsperren (geteilt) ---------- */
 .authsplit { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, 560px); background: var(--dk-surface, #fff); }
-.authaside { position: relative; overflow: hidden; background: var(--dk-fill, #0b1220); color: #fff; display: flex; align-items: flex-end; padding: 56px; isolation: isolate; }
+.authaside { position: relative; overflow: hidden; background: #0b1220; color: #fff; display: flex; align-items: flex-end; padding: 56px; isolation: isolate; }
 .authaside::before { content: ''; position: absolute; inset: 0; z-index: -2; background: url('/matterhorn-1920.jpg') 60% 30% / cover no-repeat; }
 .authaside::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(11, 18, 32, 0.2) 0%, rgba(11, 18, 32, 0.55) 45%, rgba(11, 18, 32, 0.95) 100%); }
 .unlockaside { max-width: 460px; }
@@ -3299,7 +3299,7 @@ select.smallselect { width: auto; min-width: 72px; }
 .snipTabs { display: flex; gap: 4px; flex-wrap: wrap; }
 .snipTabs button { border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 4px 10px; border-radius: 999px !important; font-size: 12.5px; color: var(--dk-fg-3, #5b6475); }
 .snipTabs button.active { background: var(--dk-surface-3, #eef0f4) !important; color: var(--dk-fg-1, #0b1220); font-weight: 600; }
-.apicode { background: var(--dk-fill, #0b1220); color: #e6ebf2; border-radius: 12px; padding: 14px 16px; font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-all; margin: 0; max-height: 220px; overflow: auto; }
+.apicode { background: #0b1220; color: #e6ebf2; border-radius: 12px; padding: 14px 16px; font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-all; margin: 0; max-height: 220px; overflow: auto; }
 .apiusage { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 10px; }
 .apiusage-total { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
 .apiusage-total b { font-size: 26px; color: var(--dk-fg-1, #0b1220); }
@@ -3413,7 +3413,7 @@ select.smallselect { width: auto; min-width: 72px; }
 /* ---------- Einladungen ---------- */
 .invitemodal { width: min(480px, calc(100vw - 32px)); background: var(--dk-surface, #fff); border-radius: 18px; overflow: hidden; box-shadow: 0 30px 80px rgba(15, 20, 32, 0.28); animation: invitein 0.22s ease both; }
 @keyframes invitein { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
-.invitehero { position: relative; padding: 28px 28px 22px; background: linear-gradient(160deg, var(--dk-fill, #0b1220) 0%, var(--dk-fill, #16233b) 60%, #1c3a66 100%); color: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.invitehero { position: relative; padding: 28px 28px 22px; background: linear-gradient(160deg, #0b1220 0%, #16233b 60%, #1c3a66 100%); color: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .invitehero::after { content: ''; position: absolute; inset: auto 0 0 0; height: 60px; background: url('/matterhorn.jpg') center 70% / cover; opacity: 0.12; pointer-events: none; }
 .invitebadge { width: 56px; height: 56px; border-radius: 16px; background: rgba(255, 255, 255, 0.12); display: grid; place-items: center; color: #fff; }
 .inviteeyebrow { font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #9cc8ff; font-weight: 600; }
@@ -3533,17 +3533,17 @@ select.rolepill { width: auto; height: 30px; border-radius: 999px; padding: 0 28
 
 /* ---------- Landing: Alpen im Hero, Sicherheitsabschnitt einspaltig ---------- */
 .v2hero.alpshero { position: relative; isolation: isolate; overflow: hidden; background: none; }
-.v2hero.alpshero::before { content: ''; position: absolute; inset: 0; z-index: -2; background: url('/matterhorn-1920.jpg') center -120px / cover no-repeat, var(--dk-blue-soft, #eaf2fb); }
+.v2hero.alpshero::before { content: ''; position: absolute; inset: 0; z-index: -2; background: url('/matterhorn-1920.jpg') center -120px / cover no-repeat, #eaf2fb; }
 @media (min-width: 1600px) { .v2hero.alpshero::before { background-image: url('/matterhorn.jpg'); } }
-.v2hero.alpshero::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(var(--dk-glass-rgb, 255, 255, 255), 0.88) 0%, rgba(var(--dk-glass-rgb, 255, 255, 255), 0.72) 30%, rgba(var(--dk-glass-rgb, 255, 255, 255), 0.55) 52%, rgba(var(--dk-glass-rgb, 255, 255, 255), 0.9) 78%, var(--dk-surface, #fff) 100%); }
-.v2hero.alpshero .v2lead, .v2hero.alpshero .v2trust { color: var(--dk-fg-2, #3b4353); }
+.v2hero.alpshero::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.72) 30%, rgba(255, 255, 255, 0.55) 52%, rgba(255, 255, 255, 0.9) 78%, #fff 100%); }
+.v2hero.alpshero .v2lead, .v2hero.alpshero .v2trust { color: #3b4353; }
 .v2alps.single { min-height: 0; }
 .v2alps.single .wrap { grid-template-columns: minmax(0, 640px); }
 /* Hero: weniger Nebel, Alpen erkennbar */
-.v2hero.alpshero::after { background: linear-gradient(180deg, rgba(var(--dk-glass-rgb, 255, 255, 255), 0.72) 0%, rgba(var(--dk-glass-rgb, 255, 255, 255), 0.42) 28%, rgba(255, 255, 255, 0.18) 50%, rgba(var(--dk-glass-rgb, 255, 255, 255), 0.55) 74%, var(--dk-surface, #fff) 96%); }
+.v2hero.alpshero::after { background: linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.42) 28%, rgba(255, 255, 255, 0.18) 50%, rgba(255, 255, 255, 0.55) 74%, #fff 96%); }
 .v2hero.alpshero .v2kicker, .v2hero.alpshero h1 { text-shadow: 0 1px 18px rgba(255, 255, 255, 0.7); }
-.v2hero.alpshero .v2lead { color: var(--dk-fg-1, #1f2735); text-shadow: 0 1px 14px rgba(255, 255, 255, 0.85); }
-.v2hero.alpshero .v2trust { color: var(--dk-fg-1, #1f2735); }
+.v2hero.alpshero .v2lead { color: #1f2735; text-shadow: 0 1px 14px rgba(255, 255, 255, 0.85); }
+.v2hero.alpshero .v2trust { color: #1f2735; }
 /* Abschnitt 2: heller Übergang zwischen Hero und Produkt */
 .v2bridge { padding: 96px 0 88px; background: linear-gradient(180deg, var(--dk-surface, #fff) 0%, var(--dk-surface-2, #f3f7fc) 45%, var(--dk-surface, #fff) 100%); }
 .v2bridge-head { max-width: 760px; margin: 0 auto 44px; text-align: center; }
@@ -3562,22 +3562,23 @@ select.rolepill { width: auto; height: 30px; border-radius: 999px; padding: 0 28
 .v2hero.alpshero .v2kicker, .v2hero.alpshero h1 { text-shadow: none; }
 .v2hero.alpshero .v2lead { text-shadow: 0 0 1px rgba(255, 255, 255, 0.6); }
 /* Hero wie Anmelden: Matterhorn klar sichtbar, blauer Ton, weisse Schrift */
-.v2hero.alpshero { background: var(--dk-surface, #fff); }
-.v2hero.alpshero::before { inset: 0 0 180px 0; background: url('/matterhorn-1920.jpg') 60% 35% / cover no-repeat, var(--dk-fill, #0b1220); }
+.v2hero.alpshero { background: #fff; }
+.v2hero.alpshero::before { inset: 0 0 180px 0; background: url('/matterhorn-1920.jpg') 60% 35% / cover no-repeat, #0b1220; }
 @media (min-width: 1600px) { .v2hero.alpshero::before { background-image: url('/matterhorn.jpg'); } }
 .v2hero.alpshero::after { inset: 0 0 180px 0; background: linear-gradient(180deg, rgba(11, 18, 32, 0.55) 0%, rgba(11, 18, 32, 0.35) 38%, rgba(11, 18, 32, 0.6) 72%, rgba(11, 18, 32, 0.92) 100%), linear-gradient(90deg, rgba(0, 60, 130, 0.25), rgba(0, 60, 130, 0) 60%); }
 .v2hero.alpshero .v2kicker { color: #8fc9ff; text-shadow: none; }
 .v2hero.alpshero h1 { color: #fff; text-shadow: 0 2px 30px rgba(11, 18, 32, 0.35); }
 .v2hero.alpshero .v2lead { color: rgba(255, 255, 255, 0.86); text-shadow: none; }
 .v2hero.alpshero .v2trust { color: rgba(255, 255, 255, 0.72); }
-.v2hero.alpshero .v2ctas button:not(.primary) { background: rgba(255, 255, 255, 0.1) !important; color: #fff !important; border-color: rgba(var(--dk-glass-rgb, 255, 255, 255), 0.45) !important; backdrop-filter: blur(6px); }
+.v2hero.alpshero .v2ctas button:not(.primary) { background: rgba(255, 255, 255, 0.1) !important; color: #fff !important; border-color: rgba(255, 255, 255, 0.45) !important; backdrop-filter: blur(6px); }
 .v2hero.alpshero .v2ctas button:not(.primary):hover { background: rgba(255, 255, 255, 0.18) !important; }
-.v2hero.alpshero .v2ctas button.primary { background: var(--dk-surface, #fff) !important; }
+.v2hero.alpshero .v2ctas button.primary { background: #fff !important; color: #0f1420; }
+.v2hero.alpshero .v2ctas button.primary:hover:not(:disabled) { color: #0074d1; }
 @media (max-width: 900px) { .v2hero.alpshero::before, .v2hero.alpshero::after { inset: 0 0 90px 0; } }
 /* Hero: Bild füllt den ganzen Abschnitt, 4K-tauglich */
 .v2hero.alpshero::before, .v2hero.alpshero::after { inset: 0; }
 .v2hero.alpshero::before {
-  background-color: var(--dk-fill, #0b1220);
+  background-color: #0b1220;
   background-image: url('/matterhorn-1920.jpg');
   background-image: image-set(url('/matterhorn-1920.jpg') 1x, url('/matterhorn.jpg') 2x);
   background-size: cover;
@@ -3643,7 +3644,7 @@ select.rolepill { width: auto; height: 30px; border-radius: 999px; padding: 0 28
 .v2modcol-head b { font-size: 16px; color: var(--dk-fg-1, #0b1220); }
 .v2modcol-head span { font-size: 12.5px; color: var(--dk-fg-4, #8a93a3); }
 .v2modcol.c-pro .v2modcol-head { background: var(--dk-surface-2, #f2f8ff); }
-.v2modcol.c-business .v2modcol-head { background: var(--dk-fill, #0b1220); border-bottom-color: var(--dk-fill, #0b1220); }
+.v2modcol.c-business .v2modcol-head { background: #0b1220; border-bottom-color: #0b1220; }
 .v2modcol.c-business .v2modcol-head b { color: #fff; }
 .v2modcol.c-business .v2modcol-head span { color: rgba(255, 255, 255, 0.6); }
 .v2modcol ul { list-style: none; margin: 0; padding: 6px 0; }
