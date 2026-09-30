@@ -19,6 +19,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# local env files (.env, .env.local, .env.vercel-production, …) – nur die Vorlage wird committet
+.env*
+!.env.local.example
 # local env files
 .env
 .env.docker

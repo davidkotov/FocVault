@@ -228,7 +228,7 @@ export default function StorageApiView() {
               <div className="apiusage-row" key={bk.name}>
                 <span>{bk.name}</span>
                 <div className="planbar">
-                  <b style={{ width: `${totalBytes ? Math.max(2, (bk.bytes / totalBytes) * 100) : 0}%`, background: '#0b1220' }} />
+                  <b style={{ width: `${totalBytes ? Math.max(2, (bk.bytes / totalBytes) * 100) : 0}%`, background: 'var(--dk-bar-1, #0b1220)' }} />
                 </div>
                 <span className="dim">{formatBytes(bk.bytes)}</span>
               </div>

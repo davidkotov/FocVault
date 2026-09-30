@@ -14,6 +14,7 @@ import SupportPanel from '@/components/admin/SupportPanel'
 import StatusPanel from '@/components/admin/StatusPanel'
 import { useAccount } from '@/features/account/AccountProvider'
 import { useI18n } from '@/features/i18n/I18nProvider'
+import { ThemeToggle } from '@/features/theme/ThemeToggle'
 import { api, errorMessage, type EconomicsReport } from '@/features/api/client'
 import type { AdminStats } from '@/lib/api-types'
 import { chf } from '@/lib/pricing'
@@ -128,6 +129,7 @@ export default function AdminPage() {
                 {!stats.environment.production && <span className="badge err">Entwicklung</span>}
               </span>
             )}
+            <ThemeToggle />
             <button className="small" onClick={() => void load()}>
               Aktualisieren
             </button>

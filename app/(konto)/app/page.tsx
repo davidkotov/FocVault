@@ -957,9 +957,9 @@ export default function AppPage() {
                       </div>
                       <div className="v">{formatBytes(account.usedBytes)}</div>
                       <div className="kbar">
-                        <b style={{ width: `${pct(Math.max(0, account.usedBytes - trashBytes - verBytes))}%`, background: '#0b1220' }} />
-                        <b style={{ width: `${pct(verBytes)}%`, background: '#8a93a3' }} />
-                        <b style={{ width: `${pct(trashBytes)}%`, background: '#cfd6e0' }} />
+                        <b style={{ width: `${pct(Math.max(0, account.usedBytes - trashBytes - verBytes))}%`, background: 'var(--dk-bar-1, #0b1220)' }} />
+                        <b style={{ width: `${pct(verBytes)}%`, background: 'var(--dk-bar-2, #8a93a3)' }} />
+                        <b style={{ width: `${pct(trashBytes)}%`, background: 'var(--dk-bar-3, #cfd6e0)' }} />
                       </div>
                       <div className="s">{fmt(t.kpi.usedOf, { quota: formatBytes(account.quotaBytes) })}</div>
                     </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '@/components/site/Icons'
+import { ThemeToggle } from '@/features/theme/ThemeToggle'
 
 export interface SearchHit {
   id: string
@@ -104,6 +105,7 @@ export default function Topbar({ title, search, onSearchChange, showSearch = tru
         </svg>
         {m.nav.unlocked}
       </span>
+      <ThemeToggle />
       {right}
     </div>
   )

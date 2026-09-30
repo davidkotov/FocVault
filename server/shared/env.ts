@@ -11,6 +11,22 @@ export function dataDir(): string {
   return dir
 }
 
+/** Lokale Testumgebung (APP_ENV=test, z. B. Docker mit .env.local): Badge „Testumgebung“ oben links. */
+export function isTestEnv(): boolean {
+  return process.env.APP_ENV === 'test'
+}
+
+/** Host der Datenbank ohne Zugangsdaten, für Hinweise in der Oberfläche. */
+export function databaseHost(): string {
+  const url = process.env.DATABASE_URL
+  if (!url) return 'PGlite (lokal)'
+  try {
+    return new URL(url).host
+  } catch {
+    return 'Postgres'
+  }
+}
+
 let secretCache: Buffer | null = null
 
 /**

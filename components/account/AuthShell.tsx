@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Icon } from '@/components/site/Icons'
 import type { ReactNode } from 'react'
 import LocaleSwitch from '@/components/LocaleSwitch'
+import { ThemeToggle } from '@/features/theme/ThemeToggle'
 import { useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { authMessages } from '@/lib/i18n/messages/auth'
 
@@ -58,7 +59,10 @@ export default function AuthShell({ children, wide, foot, aside, kind }: { child
               <BrandMark />
               <Wordmark />
             </Link>
-            <LocaleSwitch />
+            <span className="authtopright">
+              <ThemeToggle />
+              <LocaleSwitch />
+            </span>
           </div>
           <div className={`authcard${wide ? ' wide' : ''}`}>{children}</div>
           <p className="authfoot">{foot ?? m.shellFoot}</p>
@@ -72,7 +76,10 @@ export default function AuthShell({ children, wide, foot, aside, kind }: { child
           <BrandMark />
           <Wordmark />
         </Link>
-        <LocaleSwitch />
+        <span className="authtopright">
+          <ThemeToggle />
+          <LocaleSwitch />
+        </span>
       </div>
       <div className={`authcard ${wide ? 'wide' : ''}`}>{children}</div>
       <p className="authfoot">{foot ?? m.shellFoot}</p>

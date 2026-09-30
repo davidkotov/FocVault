@@ -93,7 +93,7 @@ const de: Record<LegalKey, LegalDoc> = {
       },
       {
         h: '5. Cookies und lokale Speicherung',
-        b: ['Wir verwenden nur technisch notwendige Cookies: Sitzung (Anmeldung), Sprache und Währung. Ein Einwilligungsbanner ist dafür nicht erforderlich. Verschlüsselte Tresor-Daten können zur Beschleunigung lokal im Browser zwischengespeichert werden.']
+        b: ['Wir verwenden nur technisch notwendige Cookies: Sitzung (Anmeldung), Sprache, Währung und helles/dunkles Design. Ein Einwilligungsbanner ist dafür nicht erforderlich. Verschlüsselte Tresor-Daten können zur Beschleunigung lokal im Browser zwischengespeichert werden.']
       },
       { h: '6. Empfänger und Auftragsverarbeiter', b: ['Wir setzen folgende Dienstleister ein, jeweils mit Vertrag zur Auftragsverarbeitung:', SUBPROCESSORS_DE] },
       {
@@ -254,7 +254,7 @@ const en: Record<LegalKey, LegalDoc> = {
           'We do not advertise, sell data or use trackers in the app.'
         ]
       },
-      { h: '5. Cookies and local storage', b: ['We only use technically necessary cookies: session (sign-in), language and currency. No consent banner is required for these. Encrypted vault data may be cached locally in the browser for speed.'] },
+      { h: '5. Cookies and local storage', b: ['We only use technically necessary cookies: session (sign-in), language, currency and light/dark mode. No consent banner is required for these. Encrypted vault data may be cached locally in the browser for speed.'] },
       { h: '6. Recipients and processors', b: ['We use the following providers, each under a data processing agreement:', SUBPROCESSORS_EN] },
       { h: '7. Transfers abroad', b: ['Your encrypted files are stored in the EU. Payments via Stripe may involve transfers to the USA, based on the EU standard contractual clauses and the EU-U.S. and Swiss-U.S. Data Privacy Framework.'] },
       {

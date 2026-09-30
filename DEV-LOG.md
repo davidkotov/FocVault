@@ -41,6 +41,31 @@ damit der Partner (`davidkotov`) die Änderungen nachvollziehen kann.
 
 > Neueste Einträge oben. Wird vor jedem Push gepflegt.
 
+### Docker-Testumgebung, Badge „Testumgebung“, dunkles Design
+
+**Docker (lokal, Production-Build):** `Dockerfile`, `.dockerignore` und `docker-compose.yml` (App + eigene Postgres,
+Datei-Storage im Volume). Start: `docker compose --env-file .env.local up --build -d` → http://localhost:3000/de.
+Konfiguration nur aus `.env.local` (Vorlage `.env.local.example`), `APP_ORIGIN` fest auf localhost, Postgres für
+`npm run dev` auf `127.0.0.1:5433`. `.gitignore` schliesst jetzt alle `.env*` ausser der Vorlage aus.
+**Badge „Testumgebung“** (`APP_ENV=test`): Leiste oben auf jeder Seite mit Datenbank-Host, im normalen Fluss statt
+fixiert, damit sie keine Navigation verdeckt (`components/TestEnvBadge.tsx`).
+**Dunkles Design** für die ganze Seite: App (inkl. Sperrbildschirm), Admin-Konsole, Landing, Sicherheit, Support,
+Doku, Status, Rechtliches, Team, Anmeldung/Registrierung/Wiederherstellen und Secure Send. Umschalter (Sonne/Mond)
+in allen Kopfzeilen (App-Topbar, Admin, Website-Leiste, Anmelde-Seiten, Statusseite); Wahl im Cookie `fv_theme`, vom
+Server gerendert (kein Aufblitzen). Farbton Schiefergrau statt Schwarz. Alle festen Farben in `globals.css` stehen
+als `var(--dk-…, <helle Farbe>)` – ohne Dunkelmodus gilt der Fallback, das helle Design bleibt pixelgleich; die Werte
+stehen einmal unter `:root[data-theme='dark']`. Flächen, die schon im hellen Design dunkel sind (Hero mit Matterhorn,
+Abschluss-CTA, Sicherheits-Hero, Server-Panel, Code-Blöcke, Business-Karten, Bildseite der Anmeldung), bleiben in
+beiden Designs gleich. Datenschutz: Cookie-Abschnitt um „helles/dunkles Design“ ergänzt.
+**Fil One CORS (E11):** Preflight `PUT` von `http://localhost:3000` und `https://foc-vault.vercel.app` → 204 mit
+passendem `Access-Control-Allow-Origin`, `GET` mit `Expose-Headers` (u. a. `ETag`, `Content-Range`) – direkte
+Browser-Uploads (`FILONE_BROWSER_DIRECT=true`) sollten gehen; vollständiger signierter Upload noch zu testen.
+Wichtig für Vercel: Proxy-Uploads (32 MiB) liegen über dem 4.5-MB-Limit der Funktionen.
+
+**Tests:** Vitest 149/149, Typecheck grün; Dunkelmodus per Screenshots aller App-Ansichten, Admin-Reiter und
+öffentlichen Seiten geprüft (Desktop und Handy).
+
+
 ### Neon (Postgres, EU Frankfurt) angebunden, Produktions-Fixes
 
 Neon-Projekt „FocVault“ (`aws-eu-central-1`, Postgres 18): Branch `production` für Vercel, Branch `development` für

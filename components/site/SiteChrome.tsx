@@ -4,6 +4,7 @@ import Wordmark from '@/components/Wordmark'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import LocaleSwitch from '@/components/LocaleSwitch'
+import { ThemeToggle } from '@/features/theme/ThemeToggle'
 import { Icon } from '@/components/site/Icons'
 import { useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { landingMessages } from '@/lib/i18n/messages/landing'
@@ -35,6 +36,7 @@ export function SiteHeader() {
             <Link href={path('/status')}>{t.util.status}</Link>
           </div>
           <div className="utilright">
+            <ThemeToggle />
             <LocaleSwitch showCurrency />
           </div>
         </div>

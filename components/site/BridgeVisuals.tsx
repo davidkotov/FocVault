@@ -108,9 +108,9 @@ export function ProofVisual({ steps, next }: { steps: [string, string, string]; 
   return (
     <div className="bv bv-proof" aria-hidden="true">
       <svg viewBox="0 0 44 44" className="bv-ring">
-        <circle cx="22" cy="22" r="18" fill="none" stroke="#e3eaf3" strokeWidth="3" />
+        <circle cx="22" cy="22" r="18" fill="none" style={{ stroke: 'var(--dk-surface-3, #e3eaf3)' }} strokeWidth="3" />
         <circle cx="22" cy="22" r="18" fill="none" stroke="#0090ff" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${pct * 113} 113`} transform="rotate(-90 22 22)" />
-        <path d="M15 22.5l4.5 4.5L29 17" fill="none" stroke={phase === 2 ? '#148a52' : '#c9d3df'} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M15 22.5l4.5 4.5L29 17" fill="none" style={{ stroke: phase === 2 ? 'var(--dk-green-fg, #148a52)' : 'var(--dk-line-strong, #c9d3df)' }} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       <ol>
         {steps.map((s, k) => (
