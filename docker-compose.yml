@@ -2,6 +2,7 @@
 #   docker compose --env-file .env.local up --build -d   →   http://localhost:3000/de
 # Konfiguration kommt aus .env.local (Vorlage: .env.local.example). --env-file sorgt dafür, dass
 # auch der Build (NEXT_PUBLIC_*) .env.local statt .env liest.
+# Lokaler Production-Betrieb: docker compose up --build → http://localhost:3000/de
 services:
   db:
     image: postgres:16-alpine
@@ -37,6 +38,16 @@ services:
       DATABASE_URL: postgres://focvault:focvault@db:5432/focvault
       S3_API_PORT: "9000"
       S3_PUBLIC_URL: http://localhost:${S3_HOST_PORT:-9100}
+      - path: .env.docker
+        required: false
+    environment:
+      DATABASE_URL: postgres://focvault:focvault@db:5432/focvault
+      SERVER_SECRET: ${SERVER_SECRET:?SERVER_SECRET setzen (openssl rand -hex 32), z. B. in .env}
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      # Ohne Fil One: Dateien lokal im Volume
+      ALLOW_LOCAL_STORAGE: "1"
+      S3_API_PORT: "9000"
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     volumes:
       - appdata:/data
 
