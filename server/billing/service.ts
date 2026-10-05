@@ -25,6 +25,7 @@ import { usedBytes } from '../accounts/plans'
 import { creditBalance } from '../credits/service'
 import { getPricing, getTreasury } from './settings'
 import { quotaFor } from './quota'
+import { superSafeBilling, syncSuperSafe } from './super-safe'
 import { isFamilyMember, pooledUsedBytes, syncFamilyAfterPlanChange } from '../family/service'
 import { stripeGateway } from '../stripe/gateway'
 import {
@@ -82,12 +83,13 @@ export interface PublicOffer {
   trashDays: number
   versions: PricingConfig['versions']
   business: PricingConfig['business']
+  superSafe: PricingConfig['superSafe']
   purchasesEnabled: boolean
 }
 
 export async function offer(deps: Deps): Promise<PublicOffer> {
   const p = await getPricing(deps.db)
-  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, businessAddons: p.businessAddons, trashDays: p.trashDays, versions: p.versions, business: p.business, purchasesEnabled: purchasesEnabled() }
+  return { free: p.free, payg: p.payg, plans: p.plans, addons: p.addons, businessAddons: p.businessAddons, trashDays: p.trashDays, versions: p.versions, business: p.business, superSafe: p.superSafe, purchasesEnabled: purchasesEnabled() }
 }
 
 /** Währung wählen (nur solange kein Abo/Zusatzspeicher läuft – sonst Wechsel beim Planwechsel). */
@@ -175,6 +177,7 @@ export async function changePlan(
   if (gw) {
     const url = await stripeChangePlan(deps, gw, session, input, ctx)
     await syncFamilyAfterPlanChange(deps.db, session.accountId)
+    await syncSuperSafe(deps, session.accountId)
     return url ? { redirectUrl: url } : {}
   }
   assertPurchasesAllowed()
@@ -227,6 +230,8 @@ export async function changePlan(
     })
   }
   await syncFamilyAfterPlanChange(deps.db, account.id)
+  // Super Safe: Menge folgt der neuen Quota, endet mit Free
+  await syncSuperSafe(deps, account.id)
   await audit(deps.db, account.id, 'user', 'billing.plan_changed', { ...input })
   return {}
 }
@@ -264,6 +269,7 @@ export async function buyAddon(deps: Deps, session: SessionInfo, packId: string)
     const sub = await deps.db.query<{ s: string | null }>('SELECT stripe_subscription_id AS s FROM accounts WHERE id = $1', [account.id])
     if (sub[0]?.s || isProd) {
       await stripeBuyAddon(deps, gw, session, packId)
+      await syncSuperSafe(deps, account.id)
       return {}
     }
   }
@@ -275,6 +281,7 @@ export async function buyAddon(deps: Deps, session: SessionInfo, packId: string)
     [uuidv7(), account.id, pack.id, pack.gb * GB, price, account.currency, account.billing_interval]
   )
   await audit(deps.db, account.id, 'user', 'billing.addon_added', { pack: pack.id, gb: pack.gb, price, currency: account.currency })
+  await syncSuperSafe(deps, account.id)
   return {}
 }
 
@@ -301,6 +308,7 @@ export async function cancelAddon(deps: Deps, session: SessionInfo, addonId: str
   if (gw) await stripeRemoveAddonItem(gw, addon.stripe_item_id)
   await deps.db.query(`UPDATE account_addons SET status = 'cancelled', cancelled_at = now() WHERE id = $1`, [addonId])
   await audit(deps.db, account.id, actor, 'billing.addon_cancelled', { gb: Number(addon.bytes) / GB })
+  await syncSuperSafe(deps, account.id)
 }
 
 export async function setPayg(
@@ -363,6 +371,7 @@ export async function adminGrantAddon(
     [uuidv7(), accountId, input.gb * GB, input.price, account.currency, account.billing_interval, input.note ?? null]
   )
   await audit(deps.db, accountId, 'admin', 'billing.addon_granted', { gb: input.gb, price: input.price, by: admin.accountId })
+  await syncSuperSafe(deps, accountId)
 }
 
 export async function adminUpdateAccount(
@@ -394,6 +403,7 @@ export async function adminUpdateAccount(
     ]
   )
   await syncFamilyAfterPlanChange(deps.db, accountId)
+  await syncSuperSafe(deps, accountId)
   await audit(deps.db, accountId, 'admin', 'account.updated', { ...input, by: admin.accountId })
 }
 
@@ -430,6 +440,8 @@ export async function accountBilling(deps: Deps, accountId: string, stored: numb
   const addonsMonthly = addons.reduce((n, a) => n + Number(a.price) / (a.billing_interval === 'year' ? 12 : 1), 0)
   const est = paygEstimate(pricing, stored, cur)
   const paygMonthly = account.plan === 'free' && account.payg_enabled ? est.amount : 0
+  const superSafe = await superSafeBilling(deps.db, account, q.quotaBytes, member, pricing)
+  const superSafeMonthly = superSafe.active && !superSafe.inherited ? superSafe.price / (superSafe.interval === 'year' ? 12 : 1) : 0
   const sub = await deps.db.query<{
     stripe_customer_id: string | null
     stripe_subscription_id: string | null
@@ -468,7 +480,7 @@ export async function accountBilling(deps: Deps, accountId: string, stored: numb
       charged: est.charged,
       proBreakEvenGb: est.proBreakEvenGb
     },
-    monthlyTotal: round2(planMonthly + (account.plan === 'free' ? 0 : addonsMonthly) + paygMonthly),
+    monthlyTotal: round2(planMonthly + (account.plan === 'free' ? 0 : addonsMonthly + superSafeMonthly) + paygMonthly),
     subscription: {
       provider: sub[0]?.stripe_subscription_id ? 'stripe' : 'manual',
       status: sub[0]?.subscription_status ?? null,
@@ -477,7 +489,8 @@ export async function accountBilling(deps: Deps, accountId: string, stored: numb
       hasPaymentAccount: !!sub[0]?.stripe_customer_id
     },
     stripe: !!stripeGateway(),
-    business: tier ? { tier, seats: account.seats ?? included, includedSeats: included, extraSeats, member } : null
+    business: tier ? { tier, seats: account.seats ?? included, includedSeats: included, extraSeats, member } : null,
+    superSafe
   }
 }
 
@@ -627,6 +640,7 @@ export interface AdminAccountListRow {
   addonsMonthly: number
   paygEnabled: boolean
   paygCapGb: number | null
+  superSafe: boolean
   lastLoginAt: string | null
   createdAt: string
 }
@@ -657,6 +671,7 @@ export async function adminListAccounts(
     addons_monthly: number
     payg_enabled: boolean
     payg_cap_gb: number | null
+    super_safe: boolean
     last_login_at: Date | null
     created_at: Date
   }>(
@@ -666,7 +681,8 @@ export async function adminListAccounts(
             COALESCE((SELECT SUM(o.cipher_bytes) FROM objects o WHERE o.owner_account_id = a.id AND o.state IN ('stored', 'version', 'trashed')), 0)::float8 AS stored,
             COALESCE((SELECT SUM(ad.bytes) FROM account_addons ad WHERE ad.account_id = a.id AND ad.status = 'active'), 0)::float8 AS addons_bytes,
             COALESCE((SELECT SUM(CASE WHEN ad.billing_interval = 'year' THEN ad.price / 12 ELSE ad.price END)
-                        FROM account_addons ad WHERE ad.account_id = a.id AND ad.status = 'active'), 0)::float8 AS addons_monthly
+                        FROM account_addons ad WHERE ad.account_id = a.id AND ad.status = 'active'), 0)::float8 AS addons_monthly,
+            EXISTS (SELECT 1 FROM account_super_safe s WHERE s.account_id = a.id AND s.status = 'active') AS super_safe
        FROM accounts a ${where}
       ORDER BY a.created_at DESC
       LIMIT ${Math.min(Math.max(1, limit), 200)} OFFSET ${Math.max(0, Math.floor(offset))}`,
@@ -689,6 +705,7 @@ export async function adminListAccounts(
       addonsMonthly: round2(Number(r.addons_monthly)),
       paygEnabled: r.payg_enabled,
       paygCapGb: r.payg_cap_gb,
+      superSafe: !!r.super_safe,
       lastLoginAt: r.last_login_at ? new Date(r.last_login_at).toISOString() : null,
       createdAt: new Date(r.created_at).toISOString()
     }))

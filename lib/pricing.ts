@@ -62,6 +62,11 @@ export interface PricingConfig {
    * (USDFC, PDP-geprüft) oder beides (Fil One als schnelle Kopie + FOC als geprüfte Kopie).
    */
   storage: { backend: StorageBackend; focUsdPerTibMonthPerCopy: number; focCopies: number }
+  /**
+   * Super Safe (nur Abos): mehr Filecoin-Kopien (copies statt der Standard-Kopien),
+   * Preis je TB der Gesamtquota (Plan + Zusatzspeicher, aufgerundet) und Intervall.
+   */
+  superSafe: { enabled: boolean; copies: number; perTb: { monthly: Money; yearly: Money } }
   /** Speicher-API für Entwickler (später): Preis pro GB/Monat, Download über Inklusivmenge. */
   api: { perGbMonth: Money; egressPerGb: Money; includedEgressRatio: number; minMonthly: Money }
 }
@@ -133,6 +138,11 @@ export const DEFAULT_PRICING: PricingConfig = {
   trashDays: 30,
   versions: { days: 30, max: 10 },
   storage: { backend: 'filone', focUsdPerTibMonthPerCopy: 2.5, focCopies: 2 },
+  superSafe: {
+    enabled: true,
+    copies: 5,
+    perTb: { monthly: { CHF: 2.9, EUR: 2.99, USD: 2.99 }, yearly: { CHF: 29, EUR: 29.9, USD: 29.9 } }
+  },
   api: {
     perGbMonth: { CHF: 0.015, EUR: 0.015, USD: 0.016 },
     egressPerGb: { CHF: 0.01, EUR: 0.01, USD: 0.01 },
@@ -163,6 +173,16 @@ export function monthlyEquivalent(item: { monthly: Money; yearly: Money }, inter
 export function yearlySavingsPct(item: { monthly: Money; yearly: Money }, currency: Currency): number {
   const twelve = item.monthly[currency] * 12
   return twelve > 0 ? Math.round((1 - item.yearly[currency] / twelve) * 100) : 0
+}
+
+/** Super Safe: abgerechnete TB = Gesamtquota in TB, aufgerundet, mindestens 1. */
+export function superSafeTb(quotaGb: number): number {
+  return Math.max(1, Math.ceil(Math.round(quotaGb) / 1000))
+}
+
+/** Super-Safe-Preis pro Intervall für eine Quota (GB). */
+export function superSafePrice(p: PricingConfig, quotaGb: number, interval: Interval, currency: Currency): number {
+  return round2(superSafeTb(quotaGb) * priceOf(p.superSafe.perTb, interval, currency))
 }
 
 /** GB (10^9) pro TiB (2^40) – FOC rechnet in TiB, wir in GB. */

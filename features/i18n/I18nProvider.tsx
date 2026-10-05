@@ -2,8 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { CURRENCY_COOKIE, LOCALE_COOKIE, localizedPath, type Locale } from '@/lib/i18n/config'
-import { money, type Currency } from '@/lib/pricing'
+import { CURRENCY_COOKIE, DISPLAY_CURRENCY_COOKIE, LOCALE_COOKIE, REGION_LANG_COOKIE, isLocale, localizedPath, type Locale } from '@/lib/i18n/config'
+import { CURRENCIES, money, type Currency } from '@/lib/pricing'
+import { billingCurrencyFor, convert, displayCurrency, formatMoney, LANGUAGES } from '@/lib/region'
+import { FALLBACK_FX, loadFxRates } from '@/features/fx/useFxRates'
 
 interface I18nValue {
   locale: Locale
@@ -16,6 +18,23 @@ interface I18nValue {
   fmtMoney: (amount: number, currency?: Currency, digits?: number) => string
   fmtDate: (iso: string | number | Date) => string
   fmtNumber: (n: number, digits?: number) => string
+  /** Region: gewählte Sprache (BCP-47; ohne Übersetzung englische Texte, aber Datum/Zahlen im Landesformat) */
+  regionLanguage: string
+  setRegionLanguage: (code: string) => void
+  /** Region: Anzeige-Währung (eine von 50); abgerechnet wird in `currency` (CHF/EUR/USD) */
+  displayCurrency: string
+  setDisplayCurrency: (code: string) => void
+  /** „≈ ₹1,240“ für einen Betrag in Abrechnungswährung – null, wenn Anzeige = Abrechnung */
+  fmtApprox: (amount: number, from: Currency) => string | null
+}
+
+function readCookie(name: string): string | null {
+  const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  return m ? decodeURIComponent(m[1]) : null
+}
+
+function writeCookie(name: string, value: string) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=lax`
 }
 
 const I18nContext = createContext<I18nValue | null>(null)
@@ -34,6 +53,27 @@ export function I18nProvider({
   // und ein Neuladen würde den (nur im RAM gehaltenen) Tresorschlüssel verwerfen.
   const [locale, setLocale] = useState<Locale>(initialLocale)
   const [currency, setCurrencyState] = useState<Currency>(initialCurrency)
+  const [regionLanguage, setRegionLang] = useState<string>(initialLocale)
+  const [displayCur, setDisplayCur] = useState<string>(initialCurrency)
+  const [rates, setRates] = useState<Record<string, number>>(FALLBACK_FX.rates)
+
+  // Region-Einstellungen erst nach dem Laden lesen (kein Hydration-Unterschied)
+  useEffect(() => {
+    const lang = readCookie(REGION_LANG_COOKIE)
+    if (lang && LANGUAGES.some(l => l.code === lang)) setRegionLang(lang)
+    const cur = readCookie(DISPLAY_CURRENCY_COOKIE)
+    if (cur && displayCurrency(cur)) setDisplayCur(cur)
+  }, [])
+
+  // Kurse nur laden, wenn eine Nicht-Abrechnungswährung angezeigt wird
+  useEffect(() => {
+    if ((CURRENCIES as string[]).includes(displayCur)) return
+    let alive = true
+    void loadFxRates().then(fx => alive && setRates(fx.rates))
+    return () => {
+      alive = false
+    }
+  }, [displayCur])
 
   useEffect(() => {
     setLocale(initialLocale)
@@ -46,31 +86,74 @@ export function I18nProvider({
   const setCurrency = useCallback((c: Currency) => {
     setCurrencyState(c)
     document.cookie = `${CURRENCY_COOKIE}=${c}; path=/; max-age=31536000; samesite=lax`
+    // Abrechnungswährung direkt gewählt (z. B. in „Pakete im Vergleich“): Anzeige folgt
+    setDisplayCur(d => {
+      const next = (CURRENCIES as string[]).includes(d) || billingCurrencyFor(d) !== c ? c : d
+      writeCookie(DISPLAY_CURRENCY_COOKIE, next)
+      return next
+    })
+  }, [])
+
+  const setDisplayCurrency = useCallback((code: string) => {
+    if (!displayCurrency(code)) return
+    setDisplayCur(code)
+    writeCookie(DISPLAY_CURRENCY_COOKIE, code)
+    const billing = (CURRENCIES as string[]).includes(code) ? (code as Currency) : billingCurrencyFor(code)
+    setCurrencyState(billing)
+    document.cookie = `${CURRENCY_COOKIE}=${billing}; path=/; max-age=31536000; samesite=lax`
   }, [])
 
   const value = useMemo<I18nValue>(() => {
-    const numLocale = locale === 'en' ? 'en-US' : 'de-CH'
+    // Sprache ohne eigene Übersetzung: englische Texte, aber Zahlen und Datum im Landesformat
+    const regional = !isLocale(regionLanguage) ? regionLanguage : null
+    const numLocale = regional ?? (locale === 'en' ? 'en-US' : 'de-CH')
+    const dateLocale = regional ?? (locale === 'en' ? 'en-GB' : 'de-CH')
+    const switchTo = (next: Locale) => {
+      // aktuellen öffentlichen Pfad in die andere Sprache übertragen
+      const current = window.location.pathname.replace(/^\/(de|en)(?=\/|$)/, '') || '/'
+      const internal = current
+        .replace(/^\/login(?=\/|$)/, '/anmelden')
+        .replace(/^\/register(?=\/|$)/, '/registrieren')
+        .replace(/^\/recover(?=\/|$)/, '/wiederherstellen')
+      document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`
+      setLocale(next)
+      router.replace(localizedPath(internal, next) + window.location.search + window.location.hash, { scroll: false })
+    }
     return {
       locale,
       path: p => localizedPath(p, locale),
       switchLocale: next => {
-        // aktuellen öffentlichen Pfad in die andere Sprache übertragen
-        const current = window.location.pathname.replace(/^\/(de|en)(?=\/|$)/, '') || '/'
-        const internal = current
-          .replace(/^\/login(?=\/|$)/, '/anmelden')
-          .replace(/^\/register(?=\/|$)/, '/registrieren')
-          .replace(/^\/recover(?=\/|$)/, '/wiederherstellen')
-        document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`
-        setLocale(next)
-        router.replace(localizedPath(internal, next) + window.location.search + window.location.hash, { scroll: false })
+        setRegionLang(next)
+        writeCookie(REGION_LANG_COOKIE, next)
+        switchTo(next)
       },
       currency,
       setCurrency,
       fmtMoney: (amount, cur = currency, digits = 2) => money(amount, cur, locale, digits),
-      fmtDate: d => new Date(d).toLocaleDateString(locale === 'en' ? 'en-GB' : 'de-CH'),
-      fmtNumber: (n, digits = 0) => n.toLocaleString(numLocale, { maximumFractionDigits: digits })
+      fmtDate: d => new Date(d).toLocaleDateString(dateLocale),
+      fmtNumber: (n, digits = 0) => n.toLocaleString(numLocale, { maximumFractionDigits: digits }),
+      regionLanguage,
+      setRegionLanguage: code => {
+        const lang = LANGUAGES.find(l => l.code === code)
+        if (!lang) return
+        setRegionLang(code)
+        writeCookie(REGION_LANG_COOKIE, code)
+        // ohne eigene Übersetzung: englische Texte
+        const next: Locale = isLocale(code) ? code : 'en'
+        if (next !== locale) switchTo(next)
+      },
+      displayCurrency: displayCur,
+      setDisplayCurrency,
+      fmtApprox: (amount, from) => {
+        if (displayCur === from) return null
+        const v = convert(amount, from, displayCur, rates)
+        if (!Number.isFinite(v)) return null
+        // Richtwert: bei großen Beträgen ohne Nachkommastellen
+        const digits = v >= 100 ? 0 : undefined
+        return `≈ ${formatMoney(v, displayCur, numLocale, digits)}`
+      }
     }
-  }, [locale, currency, setCurrency, router])
+  }, [locale, currency, setCurrency, router, regionLanguage, displayCur, setDisplayCurrency, rates])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }

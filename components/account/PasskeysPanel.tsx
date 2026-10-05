@@ -33,12 +33,22 @@ export default function PasskeysPanel() {
     let raw: Uint8Array | null = null
     try {
       const env = account.envelopes.find(e => e.kekType === 'passphrase')!
-      const { kek } = await deriveFromPassphrase(pass, account.kdf)
+      const { kek, authKey } = await deriveFromPassphrase(pass, account.kdf)
       raw = await unwrapMasterKeyRaw(env, kek)
+      // Anmelde-Passkeys verlangt der Server nur nach frischer Bestätigung mit der Passphrase
+      await api.reauth(authKey)
       const pk = await createPasskey({ id: account.id, name: account.label })
       try {
         const wrapped = await wrapMasterKey(raw as Uint8Array<ArrayBuffer>, await passkeyKek(pk.prf, pk.credentialId), 'passkey')
-        await api.addPasskey({ credentialId: pk.credentialId, label: label.trim() || deviceLabel(), salt: pk.salt, iv: wrapped.iv, cipher: wrapped.cipher })
+        await api.addPasskey({
+          credentialId: pk.credentialId,
+          label: label.trim() || deviceLabel(),
+          salt: pk.salt,
+          iv: wrapped.iv,
+          cipher: wrapped.cipher,
+          publicKey: pk.publicKey,
+          publicKeyAlg: pk.publicKeyAlg
+        })
       } finally {
         pk.prf.fill(0)
       }
@@ -71,7 +81,10 @@ export default function PasskeysPanel() {
               <strong>
                 <Icon name="passkey" size={15} className="inlineicon" /> {p.label}
               </strong>
-              <span className="hint">{fmt(m.since, { date: fmtDate(p.createdAt) })}</span>
+              <span className="hint">
+                {fmt(m.since, { date: fmtDate(p.createdAt) })}
+                {p.login ? ` · ${m.canLogin}` : ` · ${m.unlockOnly}`}
+              </span>
             </div>
             <button className="small danger" onClick={() => setRemove({ id: p.credentialId, label: p.label })}>
               {m.remove}

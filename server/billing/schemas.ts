@@ -27,3 +27,9 @@ export const adminAccountSchema = z.object({
   paygCapGb: z.number().int().min(1).max(1_000_000).optional(),
   status: z.enum(['active', 'readonly', 'suspended']).optional()
 })
+export const adminSuperSafeSchema = z.object({
+  enabled: z.boolean(),
+  /** Preis je TB und Intervall (Standard 0 = Kulanz) */
+  unitPrice: z.number().min(0).max(100_000).optional(),
+  note: z.string().max(200).optional()
+})

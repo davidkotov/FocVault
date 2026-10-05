@@ -9,6 +9,8 @@ import { newAccount, testDeps } from '../testing'
 import type { Deps } from '../deps'
 import type { SessionInfo } from '../auth/sessions'
 import { getPricing, setPricing } from './settings'
+import { adminSetSuperSafe, buySuperSafe, cancelSuperSafe } from './super-safe'
+import { createInvite, joinFamily } from '../family/service'
 import {
   adminGrantAddon,
   adminListAccounts,
@@ -163,5 +165,65 @@ describe('Billing v2: Jahresabo, Währungen, Planwechsel', () => {
     // PAYG-Nutzung des laufenden Monats noch nicht abgerechnet
     await deps.db.query(`INSERT INTO usage_daily (account_id, day, bytes) VALUES ($1, current_date, $2)`, [id, 1e9])
     await expect(setCurrency(deps, session, 'USD')).rejects.toMatchObject({ message: expect.stringContaining('Pay-as-you-go') })
+  })
+})
+
+describe('Super Safe (mehr Filecoin-Kopien)', () => {
+  beforeEach(() => resetRateLimits())
+
+  it('nur für Abos; Preis je TB der Gesamtquota, Menge folgt Zusatzspeicher und Planwechsel, endet mit Free', async () => {
+    const deps = await testDeps()
+    const { session } = await newAccount(deps, 'safe@example.com')
+    await expect(buySuperSafe(deps, session)).rejects.toMatchObject({ code: 'PLAN_REQUIRED' })
+    let v = await accountView(deps, session.accountId)
+    expect(v.billing.superSafe).toMatchObject({ active: false, available: false, copies: 5, baseCopies: 2, tb: 1 })
+
+    await changePlan(deps, session, { plan: 'pro', interval: 'month', currency: 'USD' })
+    const pro = { ...session, plan: 'pro' as const }
+    await buySuperSafe(deps, pro)
+    await expect(buySuperSafe(deps, pro)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    v = await accountView(deps, session.accountId)
+    expect(v.billing.superSafe).toMatchObject({ active: true, tb: 1, unitPrice: 2.99, price: 2.99, currency: 'USD', interval: 'month', source: 'dev' })
+    expect(v.billing.monthlyTotal).toBeCloseTo(14.9 + 2.99, 2)
+
+    // 1 TB + 500 GB → 2 TB
+    await buyAddon(deps, pro, 'plus-500')
+    v = await accountView(deps, session.accountId)
+    expect(v.billing.superSafe).toMatchObject({ tb: 2, price: 5.98 })
+
+    // Jahresabo in USD: Preis folgt dem Intervall (2 TB × 29.90)
+    await changePlan(deps, pro, { plan: 'family', interval: 'year', currency: 'USD' })
+    v = await accountView(deps, session.accountId)
+    expect(v.billing.superSafe).toMatchObject({ tb: 3, unitPrice: 29.9, price: 89.7, interval: 'year' })
+
+    await changePlan(deps, pro, { plan: 'free', interval: 'year', currency: 'USD' })
+    v = await accountView(deps, session.accountId)
+    expect(v.billing.superSafe.active).toBe(false)
+    const ev = await deps.db.query<{ kind: string }>(`SELECT kind FROM audit_events WHERE account_id = $1 AND kind LIKE 'billing.super_safe%' ORDER BY id`, [session.accountId])
+    expect(ev.map(e => e.kind)).toEqual(['billing.super_safe_added', 'billing.super_safe_resized', 'billing.super_safe_resized', 'billing.super_safe_cancelled'])
+  })
+
+  it('Family-Mitglieder: gesperrt, aber über den Inhaber aktiv; Kündigen und Admin-Freischaltung', async () => {
+    const deps = await testDeps()
+    const owner = await newAccount(deps, 'owner@example.com')
+    const member = await newAccount(deps, 'kind@example.com')
+    await changePlan(deps, owner.session, { plan: 'family', interval: 'month', currency: 'CHF' })
+    const fam = { ...owner.session, plan: 'family' as const }
+    const { token } = await createInvite(deps, fam)
+    await joinFamily(deps, member.session, token)
+    await expect(buySuperSafe(deps, { ...member.session, plan: 'family' })).rejects.toMatchObject({ code: 'PLAN_REQUIRED' })
+
+    await buySuperSafe(deps, fam)
+    const mv = await accountView(deps, member.session.accountId)
+    expect(mv.billing.superSafe).toMatchObject({ active: true, inherited: true, available: false })
+    expect(mv.billing.monthlyTotal).toBe(0)
+    expect((await accountView(deps, owner.session.accountId)).billing.superSafe).toMatchObject({ tb: 2, price: 5.8 })
+
+    await cancelSuperSafe(deps, fam)
+    await expect(cancelSuperSafe(deps, fam)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await adminSetSuperSafe(deps, fam, owner.session.accountId, { enabled: true, note: 'Kulanz' })
+    expect((await accountView(deps, owner.session.accountId)).billing.superSafe).toMatchObject({ active: true, source: 'admin', price: 0 })
+    await adminSetSuperSafe(deps, fam, owner.session.accountId, { enabled: false })
+    expect((await accountView(deps, owner.session.accountId)).billing.superSafe.active).toBe(false)
   })
 })

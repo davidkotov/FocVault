@@ -12,13 +12,14 @@ import { billingMessages } from '@/lib/i18n/messages/billing'
 import { commonMessages } from '@/lib/i18n/messages/common'
 import { CURRENCIES, type Currency, type Interval } from '@/lib/pricing'
 import { formatBytes } from '@/lib/vault'
+import SuperSafeCard from './SuperSafeCard'
 
 type PaidPlan = 'pro' | 'family'
 
 /** Pakete, Pay-as-you-go und Zusatzspeicher – verständlich erklärt, in der Kontowährung. */
 export default function PlansView({ initialSegment, onCredits }: { initialSegment?: 'private' | 'business'; onCredits?: () => void } = {}) {
   const { account, refreshAccount, vault } = useAccount()
-  const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber, fmtDate, path } = useI18n()
+  const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber, fmtDate, path, fmtApprox } = useI18n()
   const m = useMessages(billingMessages)
   const c = useMessages(commonMessages)
   const errText = useErrorText()
@@ -110,6 +111,11 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
   if (!account || !b || !offer || !calc) return <div className="card">…</div>
 
   const tb = (gb: number) => fmtNumber(gb / 1000, 1)
+  /** Region-Währung: umgerechneter Richtwert neben dem echten Preis */
+  const approx = (v: number, c: Currency) => {
+    const a = fmtApprox(v, c)
+    return a ? <span className="approx">{a}</span> : null
+  }
   /** 0.03 → 2 Stellen, 0.035 → 3 Stellen (keine überflüssige Null) */
   const perGbMoney = (amount: number, c: Currency) => fmtMoney(amount, c, Math.round(amount * 1000) % 10 === 0 ? 2 : 3)
   const cur = viewCurrency
@@ -118,8 +124,10 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
   const biz = b.business
   const planName = account.plan === 'business' && biz ? offer.business[biz.tier].label : account.plan === 'free' ? m.free.name : offer.plans[account.plan as PaidPlan].label
   const packs = account.plan === 'business' ? offer.businessAddons : offer.addons
-  const addInterval: Interval = isFree ? interval : b.interval
+  // Zusatzspeicher folgt dem Monatlich/Jährlich-Schalter; gebucht wird im Rhythmus des Abos.
+  const addInterval: Interval = interval
   const addCur: Currency = isFree ? cur : b.currency
+  const otherRhythm = !isFree && interval !== b.interval
   const canAddons = !isFree && !biz?.member
   const gbLabel = (gb: number) => (gb >= 1000 ? `${tb(gb)} TB` : `${fmtNumber(gb)} GB`)
   const monthPrice = (x: { monthly: Record<Currency, number>; yearly: Record<Currency, number> }) => (interval === 'year' ? x.yearly[cur] / 12 : x.monthly[cur])
@@ -128,11 +136,12 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
   const switchPlan = (plan: PaidPlan, i: Interval, cu: Currency) =>
     void run(plan + i, () => api.changePlan(plan, i, cu), fmt(m.planChanged, { plan: plan === 'pro' ? m.pro.name : m.family.name }))
 
-  const segSwitch = (
-    <div className="audienceswitch" role="tablist" aria-label={`${m.segment.private} / ${m.segment.business}`}>
-      {(['private', 'business'] as const).map(sg => (
-        <button key={sg} role="tab" aria-selected={segment === sg} className={segment === sg ? 'active' : ''} onClick={() => setSegment(sg)}>
-          {sg === 'private' ? m.segment.private : m.segment.business}
+  // Kopfzeile: Monatlich/Jährlich gilt für die ganze Seite (Pakete und Zusatzspeicher)
+  const intervalSwitch = (
+    <div className="audienceswitch" role="group" aria-label={`${m.monthly} / ${m.yearly}`}>
+      {(['month', 'year'] as const).map(i => (
+        <button key={i} aria-pressed={interval === i} className={interval === i ? 'active' : ''} onClick={() => setIntervalState(i)}>
+          {i === 'month' ? m.monthly : m.yearly}
         </button>
       ))}
     </div>
@@ -140,7 +149,7 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
 
   return (
     <>
-      {slot ? createPortal(segSwitch, slot) : segSwitch}
+      {slot ? createPortal(intervalSwitch, slot) : intervalSwitch}
       {msg && <div className={msg.ok ? 'notice' : 'errorbox'}>{msg.text}</div>}
       {b.subscription.status === 'past_due' && <div className="errorbox">{m.stripe.pastDue}</div>}
       {biz?.member && <div className="notice">{m.biz.member}</div>}
@@ -317,7 +326,7 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
       <div className="card plansection">
         <div className="plansection-head">
           <h3>{m.addons.title}</h3>
-          <span className="dim">{m.grid.rhythm}</span>
+          <span className="dim">{otherRhythm ? fmt(m.grid.rhythmOther, { rhythm: (b.interval === 'year' ? m.yearly : m.monthly).toLowerCase() }) : m.grid.rhythm}</span>
         </div>
         <div className="addongrid">
           {packs.map(a => {
@@ -327,6 +336,7 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
               <div className={`addoncard${owned ? ' owned' : ''}`} key={a.id}>
                 <span className="addon-gb">+{label}</span>
                 <b className="addon-price">{(() => { const v = (addInterval === 'year' ? a.yearly : a.monthly)[addCur]; return fmtMoney(v, addCur, Number.isInteger(v) ? 0 : 2) })()}</b>
+                {approx((addInterval === 'year' ? a.yearly : a.monthly)[addCur], addCur)}
                 <span className="dim">{addInterval === 'year' ? m.grid.perYear : m.grid.perMonth}</span>
                 <div className="addon-act">
                   {owned ? (
@@ -336,6 +346,11 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
                         {m.addons.cancel}
                       </button>
                     </>
+                  ) : canAddons && otherRhythm ? (
+                    // Abo läuft im anderen Rhythmus: erst auf dessen Preise umschalten, dann buchen
+                    <button className="small" data-tip={fmt(m.grid.rhythmOther, { rhythm: (b.interval === 'year' ? m.yearly : m.monthly).toLowerCase() })} onClick={() => setIntervalState(b.interval)}>
+                      {b.interval === 'year' ? m.grid.showYearly : m.grid.showMonthly}
+                    </button>
                   ) : canAddons ? (
                     <button className="small" disabled={!!busy || !offer.purchasesEnabled} onClick={() => void run(a.id, () => api.buyAddon(a.id), fmt(m.addons.booked, { gb: label }))}>
                       {busy === a.id ? '…' : m.addons.book}
@@ -372,15 +387,25 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
         )}
       </div>
 
+      <SuperSafeCard
+        interval={interval}
+        currency={cur}
+        offer={offer}
+        onUpgrade={() => {
+          setSegment('private')
+          document.getElementById('plancompare')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }}
+      />
+
       <div className="plangrid2">
-        <div className="card plansection">
+        <div className="card plansection" id="plancompare">
           <div className="plansection-head">
             <h3>{m.compare.title}</h3>
             <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-              <div className="segmented small" role="group" aria-label={m.yearly}>
-                {(['month', 'year'] as const).map(i => (
-                  <button key={i} className={interval === i ? 'active' : ''} aria-pressed={interval === i} onClick={() => setIntervalState(i)}>
-                    {i === 'month' ? m.monthly : m.yearly}
+              <div className="segmented small" role="tablist" aria-label={`${m.segment.private} / ${m.segment.business}`}>
+                {(['private', 'business'] as const).map(sg => (
+                  <button key={sg} role="tab" aria-selected={segment === sg} className={segment === sg ? 'active' : ''} onClick={() => setSegment(sg)}>
+                    {sg === 'private' ? m.segment.private : m.segment.business}
                   </button>
                 ))}
               </div>
@@ -400,6 +425,7 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
               </select>
             </div>
           </div>
+          <div className="tablescroll">
           <table className="plantable">
             <thead>
               <tr>
@@ -423,9 +449,9 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
                         <td>
                           <b>{name}</b> {isCur && <span className="badge dark">{m.compare.current}</span>}
                         </td>
-                        <td>{item ? `${tb(item.quotaGb)} TB` : `${offer.free.quotaGb} GB`}</td>
-                        <td>{plan === 'family' ? offer.plans.family.seats : 1}</td>
-                        <td>{item ? fmtMoney(monthPrice(item), cur) : fmtMoney(0, cur, 0)}</td>
+                        <td data-label={m.compare.storage}>{item ? `${tb(item.quotaGb)} TB` : `${offer.free.quotaGb} GB`}</td>
+                        <td data-label={m.compare.people}>{plan === 'family' ? offer.plans.family.seats : 1}</td>
+                        <td data-label={m.compare.price}>{item ? fmtMoney(monthPrice(item), cur) : fmtMoney(0, cur, 0)}{item && approx(monthPrice(item), cur)}</td>
                         <td className="act">
                           {!exact && (
                             <button
@@ -444,14 +470,15 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
                     <td>
                       <b>{m.segment.business}</b>
                     </td>
-                    <td>
+                    <td data-label={m.compare.storage}>
                       {m.compare.from} {tb(offer.business.starter.quotaGb)} TB
                     </td>
-                    <td>
+                    <td data-label={m.compare.people}>
                       {m.compare.from} {offer.business.starter.seats}
                     </td>
-                    <td>
+                    <td data-label={m.compare.price}>
                       {m.compare.from} {fmtMoney(monthPrice(offer.business.starter), cur, 0)}
+                      {approx(monthPrice(offer.business.starter), cur)}
                     </td>
                     <td className="act">
                       <button className="small" onClick={() => setSegment('business')}>
@@ -473,8 +500,8 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
                         <td>
                           <b>{t2.label}</b> {isCurTier && <span className="badge dark">{m.compare.current}</span>}
                         </td>
-                        <td>{tb(t2.quotaGb)} TB</td>
-                        <td>
+                        <td data-label={m.compare.storage}>{tb(t2.quotaGb)} TB</td>
+                        <td data-label={m.compare.people}>
                           {(() => {
                             const total = t2.seats + extra
                             const opts = [5, 10, 20, 50, 100].filter(n => n >= t2.seats)
@@ -515,7 +542,7 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
                             )
                           })()}
                         </td>
-                        <td>{fmtMoney(monthPrice(t2) + extra * unit, cur)}</td>
+                        <td data-label={m.compare.price}>{fmtMoney(monthPrice(t2) + extra * unit, cur)}{approx(monthPrice(t2) + extra * unit, cur)}</td>
                         <td className="act">
                           {!unchanged && (
                             <button
@@ -536,14 +563,15 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
                     <td>
                       <b>{offer.business.enterprise.label}</b>
                     </td>
-                    <td>
+                    <td data-label={m.compare.storage}>
                       {m.compare.from} {tb(offer.business.enterprise.quotaGb)} TB
                     </td>
-                    <td>
+                    <td data-label={m.compare.people}>
                       {m.compare.from} {offer.business.enterprise.seats}
                     </td>
-                    <td>
+                    <td data-label={m.compare.price}>
                       {m.compare.from} {fmtMoney(offer.business.enterprise.fromMonthly[cur], cur, 0)}
+                      {approx(offer.business.enterprise.fromMonthly[cur], cur)}
                     </td>
                     <td className="act">
                       <a className="button small" href={`mailto:${offer.business.enterprise.contact}?subject=FocVault%20Enterprise`}>
@@ -555,6 +583,7 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
               )}
             </tbody>
           </table>
+          </div>
           <p className="hint" style={{ padding: '10px 18px 0' }}>
             {interval === 'year' ? m.compare.hintYear : m.compare.hintMonth} · {m.vatNote} {!offer.purchasesEnabled ? m.stripeSoon : b.stripe ? m.stripe.secure : m.devNote}
           </p>

@@ -2240,23 +2240,21 @@ button.filetile:disabled { opacity: 1; cursor: default; }
 .trashcount { font-size: 11px; background: var(--border-soft); color: var(--text-dim); border-radius: 999px; padding: 0 7px; line-height: 18px; }
 .trashbtn.locked { color: var(--text-mute); border-style: dashed; }
 .trashbtn.locked:hover:not(:disabled) { color: var(--text-dim); background: var(--card); border-color: var(--text-mute); }
-[data-tip]::after {
-  content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 8px); width: max-content; max-width: 260px;
+/* Tooltips: eine fest positionierte Ebene (components/TooltipLayer.tsx) – nie abgeschnitten */
+.tiplayer {
+  position: fixed; z-index: 10000; width: max-content; max-width: min(260px, calc(100vw - 16px));
   background: var(--dk-fill, #0f1420); color: #fff; font-size: 12px; font-weight: 500; line-height: 1.4; text-align: left; white-space: normal;
   padding: 8px 10px; border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 20, 32, 0.25);
-  opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity 0.15s, transform 0.15s; z-index: 40;
+  opacity: 0; pointer-events: none; transition: opacity 0.12s;
 }
-[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translateY(0); }
+.tiplayer.on { opacity: 1; }
 .backbtn { margin-bottom: 14px; }
 .substatus { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .substatus .errorbox { margin-bottom: 8px; }
 .navlock { margin-left: auto; display: inline-flex; position: relative; color: var(--text-mute); }
 .navlock svg { stroke: currentColor; fill: none; stroke-width: 2; }
 .navitem.locked { color: var(--text-mute); }
-.navlock[data-tip]::after { right: auto; left: 50%; top: auto; bottom: calc(100% + 8px); transform: translate(-50%, 4px); }
-.navlock[data-tip]:hover::after { transform: translate(-50%, 0); }
 .navitem.disabled .navlock { pointer-events: auto; }
-.navitem.locked:hover .navlock::after, .navitem.disabled:hover .navlock::after { opacity: 1; transform: translate(-50%, 0); }
 .versionbadge { margin-left: 8px; font-size: 11px; font-weight: 700; color: var(--accent-dark); background: var(--accent-soft); border: none; border-radius: 999px; padding: 1px 8px; }
 .versionbadge:hover:not(:disabled) { background: var(--accent-soft); text-decoration: underline; }
 button.focbadge { border: none; font-family: inherit; }
@@ -2899,11 +2897,8 @@ button.kpi:hover:not(:disabled) { border-color: var(--dk-blue-line, #b9dcff); ba
 .filegrid.aslist .filemeta { grid-column: 4; margin: 0; justify-content: flex-end; white-space: nowrap; }
 .filegrid.aslist .fileactions { grid-column: 5; margin: 0; opacity: 0.65; }
 .filegrid.aslist .filecard:hover .fileactions { opacity: 1; }
-.filegrid.aslist .filecard:not(:has(.filecheck)) { grid-template-columns: 38px minmax(0, 1fr) auto auto; }
-.filegrid.aslist .filecard:not(:has(.filecheck)) .filetile { grid-column: 1; }
-.filegrid.aslist .filecard:not(:has(.filecheck)) .filename { grid-column: 2; }
-.filegrid.aslist .filecard:not(:has(.filecheck)) .filemeta { grid-column: 3; }
-.filegrid.aslist .filecard:not(:has(.filecheck)) .fileactions { grid-column: 4; }
+.filegrid.aslist:not(.withcheck) .filetile { grid-column: 1; }
+.filegrid.aslist:not(.withcheck) .filename { grid-column: 2; }
 @media (max-width: 760px) { .filegrid.aslist .filemeta { display: none; } }
 .uploadcard { padding: 0; border: 0; background: transparent; }
 .uploadcard > h3 { display: none; }
@@ -3051,8 +3046,10 @@ button.kpi { display: block; }
 @keyframes loadslide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
 @media (prefers-reduced-motion: reduce) { .loadring, .loadbar b { animation: none; } }
 /* Liste als Tabelle (1:1 Mockup) */
-.filegrid.aslist .filecard, .filelisthead { grid-template-columns: 28px 38px minmax(0, 1fr) 110px 120px 190px auto; }
-.filegrid.aslist .filecard:not(:has(.filecheck)), .filegrid.aslist:not(:has(.filecheck)) .filelisthead { grid-template-columns: 38px minmax(0, 1fr) 110px 120px 190px auto; }
+/* Kopf und Zeilen sind getrennte Grids: gleiche Spalten (inkl. fester Aktionsspalte), sonst verrutscht der Kopf */
+.filegrid.aslist { --fl-cols: 38px minmax(0, 1fr) 110px 120px 190px 112px; }
+.filegrid.aslist.withcheck { --fl-cols: 28px 38px minmax(0, 1fr) 110px 120px 190px 112px; }
+.filegrid.aslist .filecard, .filegrid.aslist .filelisthead { grid-template-columns: var(--fl-cols); }
 .filelisthead { display: grid; gap: 12px; align-items: center; padding: 10px 14px; background: var(--dk-surface, #fff); border-bottom: 1px solid var(--dk-line, #e8ebf0); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dk-fg-4, #8a93a3); }
 .filegrid.aslist .filemeta { display: contents; }
 .filegrid.aslist .fm-sep { display: none; }
@@ -3067,7 +3064,11 @@ button.kpi { display: block; }
 .filegrid.aslist .fm-copies { display: inline; }
 .fm-pending { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--dk-blue-soft, #eef6ff); color: var(--dk-blue-fg, #0070cc); }
 .filegrid.aslist .focbadge { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--dk-green-soft, #eaf8ef); color: var(--dk-green-fg, #148a52); border: 0; }
-@media (max-width: 900px) { .filegrid.aslist .filecard, .filelisthead { grid-template-columns: 28px 38px minmax(0, 1fr) auto; } .filelisthead span:nth-child(n+4):not(:last-child), .filegrid.aslist .fm-size, .filegrid.aslist .fm-date, .filegrid.aslist .focbadge, .filegrid.aslist .fm-pending { display: none; } }
+@media (max-width: 900px) {
+  .filegrid.aslist { --fl-cols: 38px minmax(0, 1fr) 112px; }
+  .filegrid.aslist.withcheck { --fl-cols: 28px 38px minmax(0, 1fr) 112px; }
+  .filelisthead .flh-meta, .filegrid.aslist .fm-size, .filegrid.aslist .fm-date, .filegrid.aslist .focbadge, .filegrid.aslist .fm-pending { display: none; }
+}
 .acclayout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
 .accnav { position: sticky; top: 76px; padding: 8px; display: flex; flex-direction: column; gap: 2px; margin: 0; }
 .accmain section { scroll-margin-top: 76px; }
@@ -3117,7 +3118,7 @@ button.kpi { display: block; }
 .addon-act { margin-top: 12px; display: flex; gap: 10px; align-items: center; }
 .addon-act .linkish { font-size: 12.5px; color: var(--dk-fg-4, #8a93a3); }
 .addoncard button.locked { color: var(--dk-fg-4, #8a93a3); border-color: var(--dk-line, #e3e7ee); display: inline-flex; gap: 6px; align-items: center; }
-.plangrid2 { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; align-items: start; }
+.plangrid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 .plangrid2 .card { margin: 0; }
 .plantable { width: 100%; border-collapse: collapse; font-size: 14px; }
 .plantable th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dk-fg-4, #8a93a3); padding: 12px 18px; border-bottom: 1px solid var(--dk-line, #eef0f4); }
@@ -3133,7 +3134,7 @@ button.kpi { display: block; }
 .invmain { display: flex; flex-direction: column; min-width: 0; }
 .invmain .dim { font-size: 12.5px; }
 .invempty { padding: 14px 18px; margin: 0; border-bottom: 1px solid var(--dk-line, #eef0f4); }
-@media (max-width: 1100px) { .plangrid2 { grid-template-columns: 1fr; } }
+@media (max-width: 1280px) { .plangrid2 { grid-template-columns: minmax(0, 1fr); } }
 .pagehead .audienceswitch button { padding: 6px 14px !important; font-size: 13px; min-width: 0; }
 .planhero-actions .linkish { font-size: 13.5px; color: var(--dk-fg-3, #5b6475); font-weight: 500; }
 .addongrid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
@@ -3374,8 +3375,7 @@ select.smallselect { width: auto; min-width: 72px; }
 .crumb.over, .folderrow.over { background: var(--dk-blue-soft, #e8f2ff) !important; box-shadow: inset 0 0 0 1.5px #0090ff !important; }
 .crumbsep { color: #c2c8d2; }
 .folderrow { display: grid; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--dk-line, #eef0f4); background: var(--dk-surface, #fff); }
-.filegrid.aslist .folderrow { grid-template-columns: 28px 38px minmax(0, 1fr) 110px 120px 190px auto; }
-.filegrid.aslist:not(:has(.filecheck)) .folderrow { grid-template-columns: 38px minmax(0, 1fr) 110px 120px 190px auto; }
+.filegrid.aslist .folderrow { grid-template-columns: var(--fl-cols); }
 .filegrid.aslist .folderrow .filemeta { display: contents; }
 .filegrid.aslist .folderrow .fm-sep { display: none; }
 .filegrid.aslist .folderrow .fm-size { grid-column: -5; color: var(--dk-fg-4, #8a93a3); font-size: 13px; }
@@ -3718,3 +3718,88 @@ select.rolepill { width: auto; height: 30px; border-radius: 999px; padding: 0 28
 .wordmark { letter-spacing: -0.02em; gap: 0; }
 .wordmark .wm-foc { color: var(--dk-fg-1, #0b1220) !important; }
 .wordmark .wm-vault, .wordmark .wm-v { color: #0090ff !important; }
+
+/* ---------- Drag & Drop: gekipptes Vorschaubild (wie Notion/Jira) ---------- */
+.dragghost { position: fixed; top: -1000px; left: -1000px; padding: 18px 26px; pointer-events: none; }
+.dragghost-card { position: relative; display: flex; align-items: center; gap: 10px; max-width: 320px; padding: 8px 14px 8px 8px; border-radius: 12px; background: var(--dk-surface, #fff); color: var(--dk-fg-1, #0b1220); border: 1px solid var(--dk-line, #e8ebf0); box-shadow: 0 14px 30px rgba(11, 18, 32, 0.22), 0 2px 6px rgba(11, 18, 32, 0.12); transform: rotate(3deg); font: 600 14px/1.3 var(--font, system-ui, sans-serif); }
+.dragghost-tile { flex: none; width: 34px !important; height: 34px !important; min-height: 0 !important; aspect-ratio: auto !important; border-radius: 9px; display: grid; place-items: center; border: 0; padding: 0; margin: 0; color: inherit; }
+.dragghost-tile .sicon, .dragghost-tile svg { width: 17px; height: 17px; }
+.dragghost-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dragghost-count { position: absolute; top: -9px; right: -9px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent, #0090ff); color: #fff; font-size: 12px; display: grid; place-items: center; }
+.filecard.dragging, .folderrow.dragging { opacity: 0.4; }
+
+/* ---------- Pakete im Vergleich: nie abgeschnitten, auf dem Handy als Karten ---------- */
+.tablescroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.plantable td:first-child b { white-space: nowrap; }
+.plantable .smallselect { width: auto; min-width: 64px; }
+.plantable .capinput { width: 76px; }
+@media (max-width: 640px) {
+  .plantable thead { display: none; }
+  .plantable, .plantable tbody { display: block; }
+  .plantable tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; padding: 12px 16px; border-bottom: 1px solid var(--dk-line, #eef0f4); }
+  .plantable tr.current { background: var(--dk-surface-2, #f2f7ff); }
+  .plantable td { display: flex; flex-direction: column; gap: 2px; padding: 0; border: 0; background: none !important; min-width: 0; }
+  .plantable td[data-label]::before { content: attr(data-label); font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dk-fg-4, #8a93a3); }
+  .plantable td:first-child { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 6px; }
+  .plantable td.act { grid-column: 1 / -1; text-align: left; margin-top: 4px; }
+  .plantable td.act:empty { display: none; }
+  .plantable td.act .small, .plantable td.act .button { width: 100%; justify-content: center; }
+  .plansection-head > .row { width: 100%; justify-content: space-between; }
+}
+
+/* ---- Super Safe (components/account/SuperSafeCard.tsx) ---- */
+.supersafe .plansection-head h3 { display: flex; align-items: center; gap: 6px; }
+.supersafe-body { display: grid; grid-template-columns: 1fr auto; gap: 16px 28px; padding: 16px 18px 18px; align-items: start; }
+.supersafe-body .hint { margin: 6px 0 0; }
+.supersafe-benefit { margin: 0; font-size: 16px; font-weight: 600; color: var(--dk-fg-1, #0b1220); }
+.supersafe-price { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; min-width: 170px; }
+.supersafe-price .dim { font-size: 12.5px; }
+.supersafe-note { margin: 0 18px 16px; }
+@media (max-width: 640px) {
+  .supersafe-body { grid-template-columns: 1fr; }
+  .supersafe-price { align-items: flex-start; text-align: left; min-width: 0; }
+}
+
+/* ---------- Region: umgerechnete Richtpreise ---------- */
+.approx { display: block; font-size: 12px; font-weight: 500; color: var(--dk-fg-4, #8a93a3); }
+.regioncard select.smallselect { max-width: 100%; }
+
+/* ---------- Handy (iPhone SE 375 px / iPhone 15 393 px) ---------- */
+@media (max-width: 900px) {
+  /* die Desktop-Sidebar (248 px, 100vh) darf auf dem Handy keinen leeren Bildschirm erzeugen */
+  .sidebar { width: 100%; height: auto; padding: 10px 16px; }
+  .sidebarbrand { margin-bottom: 0; }
+}
+@media (max-width: 640px) {
+  .filegrid.aslist { --fl-cols: 30px minmax(0, 1fr) auto; }
+  .filegrid.aslist.withcheck { --fl-cols: 22px 30px minmax(0, 1fr) auto; }
+  .filegrid.aslist .filecard, .filegrid.aslist .folderrow, .filegrid.aslist .filelisthead { gap: 8px; padding: 10px 10px; }
+  .filegrid.aslist .filetile, .filegrid.aslist .foldertile { width: 30px; height: 30px; }
+  .filegrid.aslist .fileactions { min-width: 0; gap: 2px; opacity: 1; }
+  .filegrid.aslist .fileactions .iconbtn { width: 30px; height: 30px; padding: 0; }
+  .v2four { grid-template-columns: minmax(0, 1fr); }
+  .v2card { min-width: 0; }
+  .plansection-head { padding: 14px; }
+  .addongrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px; }
+  .planhero-used b { font-size: 22px; }
+}
+@media (max-width: 400px) {
+  .navcta { gap: 6px; }
+  .navcta button { padding: 7px 10px; font-size: 13px; }
+  .addongrid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  /* Konto & Sicherheit: Bezeichnung über dem Wert, Aktion rechts daneben */
+  .pwfield, .signincard .pwfield, .pwpage .pwfield, .pwpage.card .pwfield { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 12px 14px; }
+  .pwfield > .k { grid-column: 1 / -1; }
+  .pwfield > .hint { grid-column: 1 / -1; }
+  .pwfield > b, .pwfield > span:not(.k) { min-width: 0; overflow-wrap: anywhere; }
+  .signincard .smallselect { max-width: 100%; }
+  /* Kontonavigation als waagrecht scrollbare Leiste statt langer Liste */
+  .acclayout .accnav { position: static; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 4px; padding: 6px; -webkit-overflow-scrolling: touch; }
+  .acclayout .accnav .navitem { width: auto; flex: none; white-space: nowrap; }
+  .acclayout .accnav hr, .acclayout .accnav .navsep { display: none; }
+}
+@media (max-width: 360px) {
+  .navcta button { padding: 6px 8px; font-size: 12px; }
+}

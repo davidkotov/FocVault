@@ -11,12 +11,14 @@ import { findAddon, planQuotaGb, type PlanChange } from '../billing/service'
 import { ApiError } from '../shared/errors'
 import { uuidv7 } from '../shared/ids'
 import { syncFamilyAfterPlanChange } from '../family/service'
+import { syncSuperSafe } from '../billing/super-safe'
 import { stripeTaxEnabled, type CardLite, type Cur, type InvoiceLite, type PriceData, type StripeEventLite, type StripeGateway, type SubscriptionLite } from './gateway'
 
 /**
  * Abrechnung über Stripe:
  * - Abos (Pro/Family, Monat/Jahr, CHF/EUR/USD) über Stripe Checkout; Preise aus unserem Preisbuch.
  * - Zusatzspeicher als weitere Position im selben Abo (anteilig verrechnet).
+ * - Super Safe (mehr Filecoin-Kopien) ebenso, Menge = TB der Quota.
  * - Pay-as-you-go: Karte per Checkout hinterlegen, Abrechnung monatlich nach Durchschnitt,
  *   Beträge unter dem Minimum werden übertragen.
  * - Der Abo-Zustand kommt ausschließlich aus Webhooks (signiert, genau einmal verarbeitet).
@@ -26,7 +28,7 @@ export interface StripeContext {
   locale: 'de' | 'en'
 }
 
-type ProductKey = 'pro' | 'family' | 'addon' | 'payg' | 'business_starter' | 'business' | 'seat'
+type ProductKey = 'pro' | 'family' | 'addon' | 'payg' | 'business_starter' | 'business' | 'seat' | 'super_safe'
 const PRODUCT_NAMES: Record<ProductKey, string> = {
   pro: 'FocVault Pro',
   family: 'FocVault Family',
@@ -34,7 +36,8 @@ const PRODUCT_NAMES: Record<ProductKey, string> = {
   payg: 'FocVault Pay-as-you-go',
   business_starter: 'FocVault Business Starter',
   business: 'FocVault Business',
-  seat: 'FocVault Business – zusätzlicher Nutzer'
+  seat: 'FocVault Business – zusätzlicher Nutzer',
+  super_safe: 'FocVault Super Safe (zusätzliche Filecoin-Kopien, je TB)'
 }
 
 const cur = (c: Currency) => c.toLowerCase() as Cur
@@ -152,6 +155,9 @@ export async function stripeChangePlan(
     if (hasAddons && planItem.interval !== price.interval) {
       throw new ApiError('BAD_REQUEST', 'Mit Zusatzspeicher ist ein Wechsel zwischen Monat und Jahr erst nach dem Kündigen des Zusatzspeichers möglich.')
     }
+    if (sub.items.some(i => i.product === products.super_safe) && planItem.interval !== price.interval) {
+      throw new ApiError('BAD_REQUEST', 'Mit Super Safe ist ein Wechsel zwischen Monat und Jahr erst nach dem Kündigen von Super Safe möglich.')
+    }
     let updated = await gw.changeSubscriptionPlan(sub.id, planItem.id, price)
     // Nutzerplätze als eigene Position (Menge) nachführen
     const seatItem = updated.items.find(i => i.product === products.seat)
@@ -213,6 +219,21 @@ export async function stripeBuyAddon(deps: Deps, gw: StripeGateway, session: Ses
     [id, acc.id, pack.id, pack.gb * GB, price, acc.currency, acc.billing_interval, itemId]
   )
   await audit(deps.db, acc.id, 'user', 'billing.addon_added', { pack: pack.id, gb: pack.gb, price, currency: acc.currency, via: 'stripe' })
+}
+
+/** Super Safe als Position ins laufende Abo (Menge = TB); liefert die Positions-ID. */
+export async function stripeAddSuperSafeItem(deps: Deps, gw: StripeGateway, accountId: string, superSafeId: string, unitPrice: number, tb: number): Promise<string> {
+  const acc = await loadBillingAccount(deps.db, accountId)
+  if (!acc.stripe_subscription_id || !ACTIVE.has(acc.subscription_status ?? '')) {
+    throw new ApiError('PLAN_REQUIRED', 'Super Safe gibt es für laufende Pro-, Family- und Business-Abos.')
+  }
+  const products = await productIds(deps.db, gw)
+  return gw.addItem(
+    acc.stripe_subscription_id,
+    { currency: cur(acc.currency), unitAmount: cents(unitPrice), product: products.super_safe, interval: acc.billing_interval },
+    { accountId: acc.id, superSafeId, kind: 'super_safe' },
+    tb
+  )
 }
 
 /** Stripe-Position eines Zusatzspeichers entfernen (die Quota-Prüfung macht der Aufrufer). */
@@ -290,8 +311,16 @@ export async function applySubscription(deps: Deps, gw: StripeGateway, sub: Subs
           WHERE account_id = $1 AND source = 'stripe' AND status = 'active' AND NOT (stripe_item_id = ANY($2::text[]))`,
         [accountId, itemIds]
       )
+      // Super Safe, dessen Position in Stripe nicht mehr existiert, beenden
+      await tx.query(
+        `UPDATE account_super_safe SET status = 'cancelled', cancelled_at = now()
+          WHERE account_id = $1 AND source = 'stripe' AND status = 'active' AND NOT (stripe_item_id = ANY($2::text[]))`,
+        [accountId, sub.items.filter(i => i.product === products.super_safe).map(i => i.id)]
+      )
     })
     await syncFamilyAfterPlanChange(deps.db, accountId)
+    // Menge (TB) an die evtl. neue Quota anpassen
+    await syncSuperSafe(deps, accountId)
     return
   }
 
@@ -312,8 +341,14 @@ export async function applySubscription(deps: Deps, gw: StripeGateway, sub: Subs
       `UPDATE account_addons SET status = 'cancelled', cancelled_at = now() WHERE account_id = $1 AND source = 'stripe' AND status = 'active'`,
       [accountId]
     )
+    await tx.query(
+      `UPDATE account_super_safe SET status = 'cancelled', cancelled_at = now() WHERE account_id = $1 AND source = 'stripe' AND status = 'active'`,
+      [accountId]
+    )
   })
   await syncFamilyAfterPlanChange(deps.db, accountId)
+  // übrige Super-Safe-Buchungen (Admin/Dev) enden mit Free
+  await syncSuperSafe(deps, accountId)
   await audit(deps.db, accountId, 'system', 'billing.subscription_ended', { status: sub.status })
 }
 

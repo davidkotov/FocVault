@@ -93,6 +93,8 @@ export interface PasskeyEnvelope {
   iv: string
   cipher: string
   createdAt: string
+  /** auch zum Anmelden nutzbar (öffentlicher Schlüssel hinterlegt); ältere Passkeys nur zum Entsperren */
+  login: boolean
 }
 
 export type BillingCurrency = 'CHF' | 'EUR' | 'USD'
@@ -142,6 +144,30 @@ export interface AccountBilling {
   stripe: boolean
   /** Business: Stufe und Nutzerplätze (member = Teil eines fremden Teams) */
   business: { tier: 'starter' | 'business' | 'enterprise'; seats: number; includedSeats: number; extraSeats: number; member: boolean } | null
+  /** Super Safe: mehr Filecoin-Kopien gegen Aufpreis je TB Quota */
+  superSafe: {
+    /** gebucht (bei Mitgliedern: vom Inhaber der Family bzw. des Teams) */
+    active: boolean
+    /** Mitglied einer Family bzw. eines Teams (bucht nicht selbst) */
+    member: boolean
+    /** über den Inhaber aktiv (Mitglied) */
+    inherited: boolean
+    /** selbst buchbar: Abo-Inhaber und im Preisbuch eingeschaltet */
+    available: boolean
+    /** Kopien mit Super Safe bzw. ohne */
+    copies: number
+    baseCopies: number
+    /** abgerechnete TB (Gesamtquota aufgerundet, mind. 1) */
+    tb: number
+    /** Preis je TB und Intervall (gebucht: vereinbarter Preis, sonst aktueller) */
+    unitPrice: number
+    /** Preis pro Intervall */
+    price: number
+    currency: BillingCurrency
+    interval: BillingInterval
+    source: 'stripe' | 'dev' | 'admin' | null
+    since: string | null
+  }
 }
 
 export interface RegisterInput {

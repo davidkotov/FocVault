@@ -13,18 +13,35 @@ interface MemberRow {
   copies: PackCopy[]
 }
 
-async function member(db: Db, key: string): Promise<MemberRow | null> {
-  const rows = await db.query<MemberRow>(
+/** Alle lebenden Pakete eines Keys – Basis-Paket zuerst, danach Super-Safe-Zusatzpakete. */
+async function members(db: Db, key: string): Promise<MemberRow[]> {
+  return db.query<MemberRow>(
     `SELECT m.byte_offset::float8 AS byte_offset, m.byte_length::float8 AS byte_length, m.evicted_at, p.piece_cid, p.copies
        FROM foc_members m JOIN foc_packs p ON p.id = m.pack_id
-      WHERE m.storage_key = $1 AND m.deleted_at IS NULL AND p.state = 'stored'`,
+      WHERE m.storage_key = $1 AND m.deleted_at IS NULL AND p.state = 'stored'
+      ORDER BY (p.kind = 'base') DESC, p.created_at`,
     [key]
   )
-  return rows[0] ?? null
 }
 
-/** Byte-Bereich eines Pakets bei einem der Anbieter holen (HTTP Range, sonst ganzes Piece). */
-async function fetchRange(db: Db, m: MemberRow): Promise<Uint8Array> {
+async function member(db: Db, key: string): Promise<MemberRow | null> {
+  return (await members(db, key))[0] ?? null
+}
+
+/** Byte-Bereich bei einem der Anbieter holen (HTTP Range, sonst ganzes Piece) – alle Pakete, alle Kopien. */
+async function fetchRange(db: Db, all: MemberRow[]): Promise<Uint8Array> {
+  for (const m of all) {
+    const got = await fetchFromCopies(m)
+    if (got) return got
+  }
+  const m = all[0]
+  const start = Number(m.byte_offset)
+  const synapse = await serverSynapse(db, await getFocSettings(db))
+  const piece = await synapse.storage.download({ pieceCid: m.piece_cid })
+  return piece.slice(start, start + Number(m.byte_length))
+}
+
+async function fetchFromCopies(m: MemberRow): Promise<Uint8Array | null> {
   const start = Number(m.byte_offset)
   const len = Number(m.byte_length)
   for (const copy of m.copies) {
@@ -41,9 +58,7 @@ async function fetchRange(db: Db, m: MemberRow): Promise<Uint8Array> {
       // nächster Anbieter
     }
   }
-  const synapse = await serverSynapse(db, await getFocSettings(db))
-  const all = await synapse.storage.download({ pieceCid: m.piece_cid })
-  return all.slice(start, start + len)
+  return null
 }
 
 function toStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
@@ -106,8 +121,8 @@ export class FocBackedProvider implements StorageProvider {
     const b = await this.base.getSmall(key)
     if (b) return b
     const db = await this.db()
-    const m = await member(db, key)
-    return m ? fetchRange(db, m) : null
+    const all = await members(db, key)
+    return all.length ? fetchRange(db, all) : null
   }
 
   writeStream(key: string, body: ReadableStream<Uint8Array>, size: number): Promise<void> {
@@ -118,9 +133,9 @@ export class FocBackedProvider implements StorageProvider {
     const r = await this.base.readStream(key)
     if (r) return r
     const db = await this.db()
-    const m = await member(db, key)
-    if (!m) return null
-    const bytes = await fetchRange(db, m)
+    const all = await members(db, key)
+    if (!all.length) return null
+    const bytes = await fetchRange(db, all)
     return { body: toStream(bytes), size: bytes.byteLength }
   }
 }

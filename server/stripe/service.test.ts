@@ -6,6 +6,7 @@ import { newAccount, testDeps } from '../testing'
 import { LiveStripeGateway, setStripeGatewayForTests, type PriceData, type StripeGateway, type SubscriptionLite } from './gateway'
 import { closePaygMonth, handleStripeEvent, stripeDepositUrl } from './service'
 import { addCredit, consumeCredit, creditBalance, depositSchema } from '../credits/service'
+import { buySuperSafe, cancelSuperSafe } from '../billing/super-safe'
 
 const CTX = { origin: 'https://focvault.test', locale: 'de' as const }
 
@@ -147,6 +148,41 @@ describe('Stripe-Abrechnung', () => {
       plan: 'free',
       stripe_subscription_id: null
     })
+  })
+
+  it('Super Safe als Abo-Position (Menge = TB): folgt der Quota, sperrt Intervallwechsel, endet mit dem Abo', async () => {
+    const deps = await testDeps()
+    const s = fakeStripe()
+    setStripeGatewayForTests(s.gw)
+    const { session } = await newAccount(deps, 'safe@example.com')
+    await expect(buySuperSafe(deps, session)).rejects.toMatchObject({ code: 'PLAN_REQUIRED' })
+    const r = await changePlan(deps, session, { plan: 'pro', interval: 'month', currency: 'EUR' }, CTX)
+    const subId = r.redirectUrl!.split('/').pop()!
+    await handleStripeEvent(deps, s.gw, event('customer.subscription.created', { id: subId }))
+
+    await buySuperSafe(deps, session)
+    const sub = s.subs.get(subId)!
+    const item = () => sub.items.find(i => i.product === 'prod_super_safe')
+    expect(item()).toMatchObject({ unitAmount: 299, quantity: 1, interval: 'month', currency: 'eur' })
+    const row = (await deps.db.query(`SELECT source, stripe_item_id, tb FROM account_super_safe WHERE account_id = $1`, [session.accountId]))[0]
+    expect(row).toMatchObject({ source: 'stripe', stripe_item_id: item()!.id, tb: 1 })
+
+    // Zusatzspeicher → 2 TB, Wechsel zu Family (2 TB + 500 GB) → 3 TB
+    await buyAddon(deps, session, 'plus-500')
+    expect(item()!.quantity).toBe(2)
+    await changePlan(deps, session, { plan: 'family', interval: 'month', currency: 'EUR' }, CTX)
+    expect(item()!.quantity).toBe(3)
+    await expect(changePlan(deps, session, { plan: 'family', interval: 'year', currency: 'EUR' }, CTX)).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+
+    // Kündigen entfernt die Position; erneut buchen, dann endet es mit dem Abo
+    await cancelSuperSafe(deps, session)
+    expect(item()).toBeUndefined()
+    await buySuperSafe(deps, session)
+    expect(item()!.quantity).toBe(3)
+    sub.status = 'canceled'
+    await handleStripeEvent(deps, s.gw, event('customer.subscription.deleted', { id: subId }))
+    const left = await deps.db.query(`SELECT status FROM account_super_safe WHERE account_id = $1 ORDER BY created_at`, [session.accountId])
+    expect(left.map(x => x.status)).toEqual(['cancelled', 'cancelled'])
   })
 
   it('Zusatzspeicher als Abo-Position; in Stripe entfernt → bei uns beendet', async () => {

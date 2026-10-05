@@ -6,7 +6,8 @@ import type { VaultContainer } from '@/lib/vault'
 import { mergeContainers } from '@/lib/merge'
 import { api, errorMessage } from '@/features/api/client'
 import { deriveFromPassphrase, unwrapMasterKey } from '@/features/keys/kdf'
-import { passkeyKek, passkeyPrf } from '@/features/keys/passkey'
+import { passkeyKek, passkeyLogin, passkeyPrf, passkeyPrfSalt } from '@/features/keys/passkey'
+import { toB64Url } from '@/lib/crypto'
 import { loadIndex, saveIndex, type IndexState } from '@/features/vault/sync'
 
 export type AccountStatus = 'loading' | 'signedOut' | 'locked' | 'ready'
@@ -29,8 +30,10 @@ interface AccountContextValue {
   /** Session besteht (z. B. nach Reown-Login), Tresor noch gesperrt. */
   signIn: (view: AccountView) => void
   unlock: (passphrase: string) => Promise<void>
-  /** Mit einem hinterlegten Passkey entsperren (Pro/Family) */
+  /** Mit einem hinterlegten Passkey entsperren */
   unlockWithPasskey: () => Promise<void>
+  /** Anmelden per Passkey ohne E-Mail; true = Tresor gleich mit entsperrt, false = Session, Tresor gesperrt */
+  signInWithPasskey: () => Promise<boolean>
   lock: () => void
   /** Automatisch sperren nach … Minuten (dieses Gerät; bei Teams höchstens die Richtlinie) */
   autoLockMinutes: number
@@ -145,6 +148,29 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   }, [enter])
 
+  const signInWithPasskey = useCallback(async () => {
+    const { challenge } = await api.passkeyOptions()
+    const { assertion, prf } = await passkeyLogin(challenge)
+    try {
+      const view = await api.passkeyVerify(assertion)
+      const pk = view.passkeys.find(p => p.credentialId === assertion.credentialId)
+      // Ein Aufruf liefert Signatur + PRF-Wert – aber nur für Passkeys mit dem festen Salt
+      if (prf && pk && pk.salt === toB64Url(await passkeyPrfSalt())) {
+        try {
+          const kek = await passkeyKek(prf, pk.credentialId)
+          await enter(view, await unwrapMasterKey({ kekType: 'passkey', iv: pk.iv, cipher: pk.cipher }, kek))
+          return true
+        } catch {
+          /* Hülle passt nicht (mehr) – dann mit Passphrase entsperren */
+        }
+      }
+      signIn(view)
+      return false
+    } finally {
+      prf?.fill(0)
+    }
+  }, [enter, signIn])
+
   const lock = useCallback(() => {
     keyRef.current = null
     baseRef.current = { version: 0, container: empty() }
@@ -251,6 +277,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       signIn,
       unlock,
       unlockWithPasskey,
+      signInWithPasskey,
       lock,
       autoLockMinutes,
       autoLockMax,
@@ -260,7 +287,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       mutate,
       retrySync: () => void flush()
     }),
-    [status, account, masterKey, vault, syncing, syncError, bootError, enter, signIn, unlock, unlockWithPasskey, lock, autoLockMinutes, autoLockMax, setAutoLockMinutes, logout, refreshAccount, mutate, flush]
+    [status, account, masterKey, vault, syncing, syncError, bootError, enter, signIn, unlock, unlockWithPasskey, signInWithPasskey, lock, autoLockMinutes, autoLockMax, setAutoLockMinutes, logout, refreshAccount, mutate, flush]
   )
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>

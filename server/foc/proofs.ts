@@ -3,7 +3,7 @@ import { getFocSettings } from './config'
 
 export interface FilecoinFileStatus {
   network: 'mainnet' | 'calibration' | null
-  /** objectId → Anzahl bestätigter Kopien (nur vollständig gesicherte Dateien) */
+  /** objectId → bestätigte Kopien (Basis + Super Safe; kleinster Wert über alle Teile, nur vollständig gesicherte Dateien) */
   objects: Record<string, { copies: number; since: string }>
 }
 
@@ -11,12 +11,15 @@ export interface FilecoinFileStatus {
 export async function filecoinStatus(db: Db, accountId: string): Promise<FilecoinFileStatus> {
   const s = await getFocSettings(db)
   const rows = await db.query<{ id: string; pieces: number; secured: number; copies: number | null; since: string | null }>(
-    `SELECT o.id, count(*)::float8 AS pieces, count(p.id)::float8 AS secured,
-            min(jsonb_array_length(p.copies))::float8 AS copies, max(p.created_at)::text AS since
+    `SELECT o.id, count(*)::float8 AS pieces, count(*) FILTER (WHERE k.based)::float8 AS secured,
+            min(k.copies)::float8 AS copies, max(k.since)::text AS since
        FROM objects o
        JOIN object_pieces op ON op.object_id = o.id
-       LEFT JOIN foc_members m ON m.storage_key = op.storage_key AND m.deleted_at IS NULL
-       LEFT JOIN foc_packs p ON p.id = m.pack_id AND p.state = 'stored'
+       LEFT JOIN LATERAL (
+         SELECT sum(jsonb_array_length(p.copies)) AS copies, max(p.created_at) AS since, bool_or(p.kind = 'base') AS based
+           FROM foc_members m JOIN foc_packs p ON p.id = m.pack_id AND p.state = 'stored'
+          WHERE m.storage_key = op.storage_key AND m.deleted_at IS NULL
+       ) k ON true
       WHERE o.owner_account_id = $1 AND o.state = 'stored'
       GROUP BY o.id`,
     [accountId]
@@ -28,6 +31,9 @@ export async function filecoinStatus(db: Db, accountId: string): Promise<Filecoi
   return { network: Object.keys(objects).length || s.enabled ? s.network : null, objects }
 }
 
+type ProofPack = { pieceCid: string; offset: number; length: number; storedAt: string; explorer: string }
+type ProofCopy = { providerId: string; dataSetId: string; pieceId: string; role: string; retrievalUrl: string; explorer: string }
+
 export interface ProofCertificate {
   kind: 'focvault.proof/v1'
   network: 'mainnet' | 'calibration'
@@ -38,8 +44,10 @@ export interface ProofCertificate {
     index: number
     bytes: number
     sha256: string | null
-    pack: { pieceCid: string; offset: number; length: number; storedAt: string; explorer: string }
-    copies: Array<{ providerId: string; dataSetId: string; pieceId: string; role: string; retrievalUrl: string; explorer: string }>
+    pack: ProofPack
+    copies: ProofCopy[]
+    /** Super Safe: weitere Pakete mit zusätzlichen Kopien desselben Teils */
+    extra?: Array<{ pack: ProofPack; copies: ProofCopy[] }>
   }>
   howToVerify: string[]
 }
@@ -66,39 +74,47 @@ export async function proofCertificate(db: Db, accountId: string, objectId: stri
     created_at: string
     network: 'mainnet' | 'calibration'
     copies: Array<{ providerId: string; dataSetId: string; pieceId: string; role: string; retrievalUrl: string }>
+    kind: 'base' | 'extra'
   }>(
     `SELECT op.piece_index, op.cipher_bytes::float8 AS cipher_bytes, m.sha256, p.piece_cid, m.byte_offset::float8 AS byte_offset,
-            m.byte_length::float8 AS byte_length, p.created_at, p.network, p.copies
+            m.byte_length::float8 AS byte_length, p.created_at, p.network, p.copies, p.kind
        FROM objects o
        JOIN object_pieces op ON op.object_id = o.id
        JOIN foc_members m ON m.storage_key = op.storage_key AND m.deleted_at IS NULL
        JOIN foc_packs p ON p.id = m.pack_id AND p.state = 'stored'
       WHERE o.id = $1 AND o.owner_account_id = $2 AND o.state IN ('stored', 'version', 'trashed')
-      ORDER BY op.piece_index`,
+      ORDER BY op.piece_index, (p.kind = 'base') DESC, p.created_at`,
     [objectId, accountId]
   )
   const total = await db.query<{ n: number }>('SELECT count(*)::float8 AS n FROM object_pieces WHERE object_id = $1', [objectId])
-  if (!rows.length || rows.length !== Number(total[0]?.n ?? -1)) return null
+  const based = rows.filter(r => r.kind === 'base')
+  if (!based.length || based.length !== Number(total[0]?.n ?? -1)) return null
   const network = rows[0].network
+  const packOf = (r: (typeof rows)[number]): ProofPack => ({
+    pieceCid: r.piece_cid,
+    offset: Number(r.byte_offset),
+    length: Number(r.byte_length),
+    storedAt: new Date(r.created_at).toISOString(),
+    explorer: explorerUrl(network, 'piece', r.piece_cid)
+  })
+  const copiesOf = (r: (typeof rows)[number]): ProofCopy[] => r.copies.map(c => ({ ...c, explorer: explorerUrl(network, 'dataset', c.dataSetId) }))
   return {
     kind: 'focvault.proof/v1',
     network,
     objectId,
     issuedAt: new Date().toISOString(),
     explorer: `${PDP_EXPLORER}/${network}`,
-    pieces: rows.map(r => ({
-      index: Number(r.piece_index),
-      bytes: Number(r.cipher_bytes),
-      sha256: r.sha256 ? Buffer.from(r.sha256).toString('hex') : null,
-      pack: {
-        pieceCid: r.piece_cid,
-        offset: Number(r.byte_offset),
-        length: Number(r.byte_length),
-        storedAt: new Date(r.created_at).toISOString(),
-        explorer: explorerUrl(network, 'piece', r.piece_cid)
-      },
-      copies: r.copies.map(c => ({ ...c, explorer: explorerUrl(network, 'dataset', c.dataSetId) }))
-    })),
+    pieces: based.map(r => {
+      const extra = rows.filter(x => x.kind === 'extra' && Number(x.piece_index) === Number(r.piece_index))
+      return {
+        index: Number(r.piece_index),
+        bytes: Number(r.cipher_bytes),
+        sha256: r.sha256 ? Buffer.from(r.sha256).toString('hex') : null,
+        pack: packOf(r),
+        copies: copiesOf(r),
+        ...(extra.length ? { extra: extra.map(x => ({ pack: packOf(x), copies: copiesOf(x) })) } : {})
+      }
+    }),
     howToVerify: [
       'Jede Kopie im PDP-Explorer öffnen: Der Datensatz zeigt die laufenden Speicherbeweise (Proof of Data Possession).',
       'Das Piece beim Anbieter abrufen (retrievalUrl) und den Bereich offset…offset+length herausschneiden.',

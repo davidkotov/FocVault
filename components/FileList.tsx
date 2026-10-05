@@ -39,11 +39,45 @@ interface Props {
   dirs?: string[]
   /** Dateien in einen Ordner verschieben (Ziel mit „/“ am Ende, „“ = oberste Ebene) */
   onMoveTo?: (ids: string[], dir: string) => void
+  /** Ordner verschieben (Quelle und Ziel mit „/“ am Ende, Ziel „“ = oberste Ebene) */
+  onMoveDir?: (src: string, dir: string) => void
   onDeleteDir?: (dir: string) => void
 }
 
 /** Datentyp für gezogene Dateien (IDs als JSON) */
 export const DRAG_MIME = 'application/x-focvault-files'
+/** Datentyp für einen gezogenen Ordner (Pfad mit „/“ am Ende) */
+const DIR_MIME = 'application/x-focvault-dir'
+
+/**
+ * Gekipptes Vorschaubild beim Ziehen (wie Karten in Notion/Jira): Kopie von Symbol und Name,
+ * leicht gedreht, bei mehreren Dateien mit Anzahl. Wird nur für den Schnappschuss eingehängt.
+ */
+function setTiltedDragImage(ev: React.DragEvent, tile: HTMLElement | null, label: string, count: number) {
+  const wrap = document.createElement('div')
+  wrap.className = 'dragghost'
+  const card = document.createElement('div')
+  card.className = 'dragghost-card'
+  if (tile) {
+    const icon = tile.cloneNode(true) as HTMLElement
+    icon.className = 'dragghost-tile'
+    card.appendChild(icon)
+  }
+  const name = document.createElement('span')
+  name.className = 'dragghost-name'
+  name.textContent = label
+  card.appendChild(name)
+  if (count > 1) {
+    const badge = document.createElement('span')
+    badge.className = 'dragghost-count'
+    badge.textContent = String(count)
+    card.appendChild(badge)
+  }
+  wrap.appendChild(card)
+  document.body.appendChild(wrap)
+  ev.dataTransfer.setDragImage(wrap, 28, 26)
+  setTimeout(() => wrap.remove(), 0)
+}
 
 const FOLDER_ICON: Record<string, IconName> = { all: 'cloud', documents: 'file', photos: 'image', videos: 'video', backups: 'archive' }
 
@@ -64,7 +98,7 @@ function tileColor(folder: string): string {
   }
 }
 
-export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote, selected, onToggleSelect, onSelectAll, dragIds, cwd = '', onCwd, dirs = [], onMoveTo, onDeleteDir }: Props) {
+export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote, selected, onToggleSelect, onSelectAll, dragIds, cwd = '', onCwd, dirs = [], onMoveTo, onMoveDir, onDeleteDir }: Props) {
   const [active, setActive] = useState<string>('all')
   const [layout, setLayout] = useState<'list' | 'grid'>(() =>
     typeof window !== 'undefined' && window.localStorage.getItem('fv_fileview') === 'grid' ? 'grid' : 'list'
@@ -85,6 +119,11 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
   const { fmtDate } = useI18n()
 
   const [overDir, setOverDir] = useState<string | null>(null)
+  const [dragging, setDragging] = useState<string | null>(null)
+  const endDrag = () => {
+    setDragging(null)
+    document.body.classList.remove('fv-dragging')
+  }
   const folderMode = !!onCwd && !searchQuery
   const bySearch = searchQuery
     ? entries.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -116,7 +155,10 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
     onMoveTo
       ? {
           onDragOver: (ev: React.DragEvent) => {
-            if (!ev.dataTransfer.types.includes(DRAG_MIME)) return
+            const types = ev.dataTransfer.types
+            if (!types.includes(DRAG_MIME) && !(onMoveDir && types.includes(DIR_MIME))) return
+            // Ordner nicht in sich selbst ablegen
+            if (dragging?.endsWith('/') && dir.startsWith(dragging)) return
             ev.preventDefault()
             ev.stopPropagation()
             ev.dataTransfer.dropEffect = 'move'
@@ -127,7 +169,12 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
             ev.preventDefault()
             ev.stopPropagation()
             setOverDir(null)
-            document.body.classList.remove('fv-dragging')
+            endDrag()
+            const src = ev.dataTransfer.getData(DIR_MIME)
+            if (src) {
+              if (onMoveDir && src.endsWith('/') && !dir.startsWith(src)) onMoveDir(src, dir)
+              return
+            }
             try {
               const ids = JSON.parse(ev.dataTransfer.getData(DRAG_MIME)) as string[]
               if (Array.isArray(ids) && ids.length) onMoveTo(ids, dir)
@@ -215,22 +262,37 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
       {entries.length > 0 && filtered.length === 0 && subdirs.length === 0 && <p className="dim">{cwd ? t.files.emptyFolder : t.files.noMatch}</p>}
 
       {(filtered.length > 0 || subdirs.length > 0) && (
-        <div className={`filegrid${layout === 'list' ? ' aslist' : ''}`}>
+        <div className={`filegrid${layout === 'list' ? ' aslist' : ''}${onToggleSelect ? ' withcheck' : ''}`}>
           {layout === 'list' && (
             <div className="filelisthead" aria-hidden="true">
               {onToggleSelect && <span />}
               <span />
               <span>{t.files.colName}</span>
-              <span>{t.files.colSize}</span>
-              <span>{t.files.colDate}</span>
-              <span>{t.files.colBackup}</span>
+              <span className="flh-meta">{t.files.colSize}</span>
+              <span className="flh-meta">{t.files.colDate}</span>
+              <span className="flh-meta">{t.files.colBackup}</span>
               <span />
             </div>
           )}
           {subdirs.map(([d, info]) => {
             const path = cwd + d + '/'
             return (
-              <div className={`folderrow${overDir === path ? ' over' : ''}`} key={'d' + path} {...dropDir(path)}>
+              <div
+                className={`folderrow${overDir === path ? ' over' : ''}${dragging === path ? ' dragging' : ''}`}
+                key={'d' + path}
+                {...dropDir(path)}
+                draggable={!!onMoveDir}
+                onDragStart={ev => {
+                  if (!onMoveDir) return
+                  ev.dataTransfer.setData(DIR_MIME, path)
+                  ev.dataTransfer.setData('text/plain', d)
+                  ev.dataTransfer.effectAllowed = 'move'
+                  setTiltedDragImage(ev, ev.currentTarget.querySelector('.foldertile'), d, 1)
+                  setDragging(path)
+                  document.body.classList.add('fv-dragging')
+                }}
+                onDragEnd={endDrag}
+              >
                 {onToggleSelect && <span />}
                 <button type="button" className="filetile foldertile" aria-label={`${t.files.openFolder}: ${d}`} onClick={() => onCwd?.(path)}>
                   <Icon name="folder" size={26} />
@@ -259,18 +321,21 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
           })}
           {filtered.map(e => (
             <div
-              className={`filecard ${selected?.has(e.id) ? 'selected' : ''}`}
+              className={`filecard ${selected?.has(e.id) ? 'selected' : ''}${dragging && (dragging === e.id || (selected?.has(dragging) && selected.has(e.id))) ? ' dragging' : ''}`}
               key={e.id}
               draggable={!!dragIds}
               onDragStart={ev => {
                 if (!dragIds) return
                 const ids = dragIds(e.id)
+                const label = ids.length > 1 ? fmt(t.bulk.selected, { n: ids.length }) : shownName(e)
                 ev.dataTransfer.setData(DRAG_MIME, JSON.stringify(ids))
-                ev.dataTransfer.setData('text/plain', ids.length > 1 ? fmt(t.bulk.selected, { n: ids.length }) : e.name)
+                ev.dataTransfer.setData('text/plain', label)
                 ev.dataTransfer.effectAllowed = 'move'
+                setTiltedDragImage(ev, ev.currentTarget.querySelector('.filetile'), label, ids.length)
+                setDragging(e.id)
                 document.body.classList.add('fv-dragging')
               }}
-              onDragEnd={() => document.body.classList.remove('fv-dragging')}
+              onDragEnd={endDrag}
             >
               {onToggleSelect && (
                 <label className="filecheck" title={t.bulk.select}>

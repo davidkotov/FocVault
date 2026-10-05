@@ -22,7 +22,7 @@ export const focSettingsSchema = z.object({
   network: z.enum(['mainnet', 'calibration']),
   /** Öffentliche Adresse der zahlenden Wallet – nie ein privater Schlüssel. */
   payer: address.or(z.literal('')),
-  copies: z.number().int().min(1).max(3),
+  copies: z.number().int().min(1).max(10),
   /** Pakete ab dieser Größe hochladen … */
   packMinMb: z.number().int().min(1).max(1000),
   /** … höchstens so groß (FOC-Maximum ≈ 1016 MiB) … */

@@ -22,7 +22,7 @@ async function register(page: Page, email: string) {
   await expect(page).toHaveURL(/\/app/, { timeout: 60_000 })
 }
 
-test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async ({ page }) => {
+test('Passkey (alle Pakete): einrichten, mit Passkey entsperren und ohne E-Mail anmelden', async ({ page }) => {
   test.setTimeout(180_000)
   // Virtueller Authenticator mit PRF (hmac-secret) – wie Touch ID / Windows Hello
   const cdp = await page.context().newCDPSession(page)
@@ -35,33 +35,27 @@ test('Passkey (Pro): einrichten, Tresor sperren, mit Passkey entsperren', async 
   await page.goto('/registrieren')
   await register(page, email)
 
-  // Free: Schloss, Upgrade-Hinweis
+  // Free: Passkeys ohne Upgrade
   await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
-  await page.locator('.accnav').getByRole('button', { name: 'Passkeys' }).click()
-  await expect(page.locator('.lockedcard')).toContainText('Passkeys')
-  await expect(page.getByRole('button', { name: '+ Passkey hinzufügen' })).toHaveCount(0)
-
-  // Pro schalten (lokal über den Admin)
-  await page.goto('/admin')
-  await page.getByRole('tab', { name: 'Konten' }).click()
-  await page.getByPlaceholder(/Suchen/).fill(email)
-  await page.getByLabel(`Paket für ${email}`).selectOption('pro')
-  await expect(page.locator('tr', { hasText: email })).toContainText('monatlich')
-
-  await page.goto('/app')
-  await unlockVault(page, PASS)
-  await page.getByRole('button', { name: /Konto & Sicherheit/ }).click()
+  await expect(page.locator('.secchecks')).toContainText('Passkey fehlt')
   await page.locator('.accnav').getByRole('button', { name: 'Passkeys' }).click()
   await page.getByRole('button', { name: '+ Passkey hinzufügen' }).click()
   await page.getByLabel('Zur Bestätigung deine Passphrase').fill(PASS)
   await page.getByRole('button', { name: 'Einrichten' }).click()
   await expect(page.locator('.notice', { hasText: /Passkey eingerichtet/ })).toBeVisible()
-  await expect(page.locator('.trashrow').filter({ has: page.locator('.sicon') })).toHaveCount(1)
+  await expect(page.locator('.secchecks')).toContainText('Passkey eingerichtet')
 
   // Sperren → mit Passkey entsperren (ohne Passphrase)
   await page.getByRole('button', { name: 'Sperren' }).click()
   await expect(page.getByRole('heading', { name: 'Tresor entsperren' })).toBeVisible()
   await page.getByRole('button', { name: /Mit Passkey entsperren/ }).click()
+  await expect(page.getByRole('heading', { name: 'Tresor entsperren' })).toHaveCount(0)
+
+  // Abmelden → mit Passkey anmelden, ohne E-Mail: Tresor ist direkt offen
+  await page.context().clearCookies()
+  await page.goto('/anmelden')
+  await page.getByRole('button', { name: /Mit Passkey anmelden/ }).click()
+  await expect(page).toHaveURL(/\/app/, { timeout: 60_000 })
   await expect(page.getByRole('heading', { name: 'Tresor entsperren' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Meine Cloud', exact: true }).click()
   await expect(page.getByText('Dateien hierher ziehen')).toBeVisible()

@@ -125,6 +125,16 @@ export default function AccountsPanel({ pricing, onChanged }: { pricing: Pricing
                         +100 GB
                       </button>
                     )}
+                    {r.plan !== 'free' && (
+                      <button
+                        className="small"
+                        style={{ marginLeft: 8 }}
+                        title={r.superSafe ? 'Super Safe beenden (zusätzliche Filecoin-Kopien werden entfernt)' : 'Kulanz: Super Safe gratis freischalten'}
+                        onClick={() => void act(() => api.adminSetSuperSafe(r.id, { enabled: !r.superSafe, note: 'Kulanz (Admin)' }))}
+                      >
+                        {r.superSafe ? 'Super Safe aus' : 'Super Safe'}
+                      </button>
+                    )}
                   </td>
                   <td className="dim">{r.lastLoginAt ? new Date(r.lastLoginAt).toLocaleDateString('de-CH') : 'nie'}</td>
                 </tr>
