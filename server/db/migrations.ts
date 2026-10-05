@@ -725,6 +725,50 @@ const MIGRATIONS: Array<{ version: number; name: string; sql: string }> = [
       -- Login-CSRF: State ist an den Browser gebunden (Hash des Cookie-Werts)
       ALTER TABLE sso_states ADD COLUMN browser_hash bytea;
     `
+  },
+  {
+    version: 26,
+    name: 'passkey_login',
+    sql: `
+      -- Anmelden per Passkey: öffentlicher Schlüssel (SPKI) + Algorithmus (COSE) + Signaturzähler.
+      -- Ältere Passkeys ohne public_key bleiben reine Entsperr-Passkeys.
+      ALTER TABLE account_keys ADD COLUMN public_key bytea;
+      ALTER TABLE account_keys ADD COLUMN public_key_alg integer;
+      ALTER TABLE account_keys ADD COLUMN sign_count bigint NOT NULL DEFAULT 0;
+      -- Credential-ID kontoübergreifend eindeutig (Lookup beim Login ohne E-Mail)
+      CREATE UNIQUE INDEX account_keys_passkey_login ON account_keys (kek_id)
+        WHERE kek_type = 'passkey' AND revoked_at IS NULL AND public_key IS NOT NULL;
+    `
+  },
+  {
+    version: 27,
+    name: 'super_safe',
+    sql: `
+      -- Super Safe: mehr Filecoin-Kopien für ein Abo-Konto (gilt auch für Family-/Team-Mitglieder).
+      -- Preis je TB der Gesamtquota; Menge (tb) folgt der Quota, unit_price bleibt wie gebucht.
+      CREATE TABLE account_super_safe (
+        id uuid PRIMARY KEY,
+        account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled')),
+        source text NOT NULL CHECK (source IN ('admin', 'stripe', 'dev')),
+        tb integer NOT NULL CHECK (tb >= 1),
+        unit_price numeric(12, 2) NOT NULL CHECK (unit_price >= 0),
+        currency text NOT NULL CHECK (currency IN ('CHF', 'EUR', 'USD')),
+        billing_interval text NOT NULL CHECK (billing_interval IN ('month', 'year')),
+        stripe_item_id text,
+        note text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        cancelled_at timestamptz
+      );
+      CREATE UNIQUE INDEX account_super_safe_active ON account_super_safe (account_id) WHERE status = 'active';
+
+      -- FOC: ein Key darf in mehreren Paketen liegen – Basis-Paket (Standard-Kopien) plus
+      -- Zusatz-Pakete (kind = 'extra') mit den fehlenden Kopien für Super Safe.
+      ALTER TABLE foc_packs ADD COLUMN kind text NOT NULL DEFAULT 'base' CHECK (kind IN ('base', 'extra'));
+      ALTER TABLE foc_members DROP CONSTRAINT foc_members_pkey;
+      ALTER TABLE foc_members ADD PRIMARY KEY (storage_key, pack_id);
+      CREATE INDEX foc_members_key ON foc_members (storage_key);
+    `
   }
 ]
 

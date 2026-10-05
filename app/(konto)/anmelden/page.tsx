@@ -85,7 +85,7 @@ export default function LoginPage() {
     <AuthShell kind="login">
       <h2>{m.title}</h2>
       <p className="lead">{m.lead}</p>
-      <SocialEntry onNew={r => setSetup({ kind: 'wallet', registrationToken: r.registrationToken, address: r.address, label: r.label })} />
+      <SocialEntry passkey onNew={r => setSetup({ kind: 'wallet', registrationToken: r.registrationToken, address: r.address, label: r.label })} />
       <form
         onSubmit={e => {
           e.preventDefault()

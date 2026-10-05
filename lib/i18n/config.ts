@@ -4,6 +4,9 @@ export const LOCALES: Locale[] = ['de', 'en']
 export const DEFAULT_LOCALE: Locale = 'de'
 export const LOCALE_COOKIE = 'fv_locale'
 export const CURRENCY_COOKIE = 'fv_currency'
+/** Region: gewählte Sprache (auch ohne Übersetzung) und Anzeige-Währung (eine von 50) */
+export const REGION_LANG_COOKIE = 'fv_region_lang'
+export const DISPLAY_CURRENCY_COOKIE = 'fv_display_currency'
 
 /** Interner (deutscher) Pfad → englischer Pfad. */
 const EN_SLUGS: Record<string, string> = {

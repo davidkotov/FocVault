@@ -297,7 +297,7 @@ export async function accountView(deps: Deps, accountId: string, extraKeks: KekT
     recoveryCheckedAt: a.recovery_checked_at ? new Date(a.recovery_checked_at).toISOString() : null,
     kdf: pass.kdf_params,
     envelopes,
-    passkeys: await passkeyEnvelopes(deps.db, a.id, a.plan),
+    passkeys: await passkeyEnvelopes(deps.db, a.id),
     isAdmin: isAdminIdentity(a.email, wallets),
     team: await teamInfo(deps.db, a.id)
   }

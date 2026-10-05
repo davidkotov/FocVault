@@ -52,6 +52,12 @@ export const pricingSchema = z.object({
     focUsdPerTibMonthPerCopy: amount,
     focCopies: z.number().int().min(1).max(5)
   }),
+  superSafe: z.object({
+    enabled: z.boolean(),
+    /** Kopien insgesamt mit Super Safe (mehr als die Standard-Kopien der FOC-Einstellungen) */
+    copies: z.number().int().min(2).max(10),
+    perTb: z.object(priced)
+  }),
   api: z.object({
     perGbMonth: z.object({ CHF: z.number().min(0).max(10), EUR: z.number().min(0).max(10), USD: z.number().min(0).max(10) }),
     egressPerGb: z.object({ CHF: z.number().min(0).max(10), EUR: z.number().min(0).max(10), USD: z.number().min(0).max(10) }),

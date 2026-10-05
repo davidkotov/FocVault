@@ -16,11 +16,17 @@ const de = {
   mismatch: 'Stimmt nicht überein.',
   social: {
     button: 'Mit Google, Apple, E-Mail oder Wallet',
-    hint: 'über Reown · keine Transaktion, keine Kosten',
     confirm: 'Bitte die Anmeldung in deiner Wallet bestätigen …',
     rejected: 'Signatur abgelehnt.',
     divider: 'oder mit E-Mail und Passphrase',
     statement: 'Bei FocVault anmelden. Diese Signatur ist keine Transaktion und kostet nichts.'
+  },
+  passkey: {
+    button: 'Mit Passkey anmelden',
+    title: 'Face ID, Touch ID, Windows Hello oder Sicherheitsschlüssel – ohne E-Mail',
+    working: 'Bitte mit deinem Passkey bestätigen …',
+    cancelled: 'Anmeldung mit Passkey abgebrochen.',
+    unknown: 'Dieser Passkey ist nicht (mehr) zum Anmelden hinterlegt. Bitte mit E-Mail und Passphrase anmelden und den Passkey unter „Konto → Passkeys“ neu einrichten.'
   },
   login: {
     title: 'Anmelden',
@@ -103,11 +109,17 @@ const en: typeof de = {
   mismatch: 'Does not match.',
   social: {
     button: 'Continue with Google, Apple, email or wallet',
-    hint: 'via Reown · no transaction, no cost',
     confirm: 'Please confirm the sign-in in your wallet …',
     rejected: 'Signature rejected.',
     divider: 'or with email and passphrase',
     statement: 'Sign in to FocVault. This signature is not a transaction and costs nothing.'
+  },
+  passkey: {
+    button: 'Sign in with a passkey',
+    title: 'Face ID, Touch ID, Windows Hello or a security key – no email needed',
+    working: 'Please confirm with your passkey …',
+    cancelled: 'Passkey sign-in cancelled.',
+    unknown: 'This passkey is not (or no longer) set up for sign-in. Please sign in with email and passphrase and set the passkey up again under “Account → Passkeys”.'
   },
   login: {
     title: 'Sign in',

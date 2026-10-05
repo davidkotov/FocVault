@@ -10,6 +10,7 @@ import type { AppKitNetwork } from '@reown/appkit/networks'
 import { filecoin, filecoinCalibration } from '@/lib/chains'
 import { reownEnabled, reownProjectId } from '@/lib/reown'
 import { I18nProvider } from '@/features/i18n/I18nProvider'
+import TooltipLayer from '@/components/TooltipLayer'
 import type { Locale } from '@/lib/i18n/config'
 import type { Currency } from '@/lib/pricing'
 
@@ -60,7 +61,10 @@ export function Providers({ children, locale, currency }: { children: ReactNode;
   return (
     <I18nProvider locale={locale} initialCurrency={currency}>
       <WagmiProvider config={config}>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          {children}
+          <TooltipLayer />
+        </QueryClientProvider>
       </WagmiProvider>
     </I18nProvider>
   )

@@ -49,10 +49,30 @@ export async function passkeyKek(prf: Bytes, credentialId: string): Promise<Cryp
   )
 }
 
+/**
+ * App-weiter PRF-Salt (statt zufällig je Passkey): Bei der Anmeldung ohne E-Mail ist der Passkey vorher
+ * unbekannt – mit festem Salt liefert ein einziger WebAuthn-Aufruf Signatur und PRF-Wert. Geheim ist der
+ * Salt nicht; der PRF-Wert bleibt an das Credential gebunden. Wird weiter in kdf_params.salt gespeichert.
+ */
+let fixedSalt: Promise<Bytes> | null = null
+export function passkeyPrfSalt(): Promise<Bytes> {
+  fixedSalt ??= crypto.subtle.digest('SHA-256', te.encode('focvault/passkey-prf/v1')).then(b => new Uint8Array(b) as Bytes)
+  return fixedSalt
+}
+
+export interface NewPasskey {
+  credentialId: string
+  salt: string
+  prf: Bytes
+  /** SPKI (base64url) + COSE-Algorithmus – fehlt, wenn der Browser ihn nicht liefert (dann nur Entsperren) */
+  publicKey?: string
+  publicKeyAlg?: number
+}
+
 /** Passkey auf diesem Gerät anlegen und sofort den PRF-Wert holen. */
-export async function createPasskey(user: { id: string; name: string }): Promise<{ credentialId: string; salt: string; prf: Bytes }> {
+export async function createPasskey(user: { id: string; name: string }): Promise<NewPasskey> {
   if (!passkeySupported()) throw new PasskeyError('UNSUPPORTED', 'Dieser Browser unterstützt keine Passkeys.')
-  const salt = crypto.getRandomValues(new Uint8Array(32)) as Bytes
+  const salt = await passkeyPrfSalt()
   let cred: PublicKeyCredential
   try {
     cred = (await navigator.credentials.create({
@@ -62,11 +82,13 @@ export async function createPasskey(user: { id: string; name: string }): Promise
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         pubKeyCredParams: [
           { type: 'public-key', alg: -7 },
+          { type: 'public-key', alg: -8 },
           { type: 'public-key', alg: -257 }
         ],
+        // auffindbar (resident), damit die Anmeldung ohne E-Mail funktioniert
         authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
         timeout: 120_000,
-        extensions: { prf: { eval: { first: salt } } } as AuthenticationExtensionsClientInputs
+        extensions: { credProps: true, prf: { eval: { first: salt } } } as AuthenticationExtensionsClientInputs
       }
     })) as PublicKeyCredential
   } catch (e) {
@@ -74,11 +96,60 @@ export async function createPasskey(user: { id: string; name: string }): Promise
     throw e
   }
   const credentialId = toB64Url(new Uint8Array(cred.rawId) as Bytes)
-  const ext = (cred.getClientExtensionResults() as { prf?: PrfResults }).prf
-  if (ext && ext.enabled === false) throw new PasskeyError('NO_PRF', 'Dieser Passkey kann nicht zum Entsperren verwendet werden (keine PRF-Unterstützung).')
+  const results = cred.getClientExtensionResults() as { prf?: PrfResults; credProps?: { rk?: boolean } }
+  if (results.prf && results.prf.enabled === false) throw new PasskeyError('NO_PRF', 'Dieser Passkey kann nicht zum Entsperren verwendet werden (keine PRF-Unterstützung).')
   // Manche Authenticatoren liefern den Wert erst bei der ersten Anmeldung
   const prf = prfOf(cred) ?? (await passkeyPrf([{ credentialId, salt: toB64Url(salt) }])).prf
-  return { credentialId, salt: toB64Url(salt), prf }
+  // Öffentlicher Schlüssel für die Anmeldung – nur bei auffindbaren Passkeys sinnvoll
+  const res = cred.response as AuthenticatorAttestationResponse
+  const spki = results.credProps?.rk === false ? null : res.getPublicKey?.()
+  const alg = res.getPublicKeyAlgorithm?.()
+  const login = spki && [-7, -8, -257].includes(alg) ? { publicKey: toB64Url(new Uint8Array(spki) as Bytes), publicKeyAlg: alg } : {}
+  return { credentialId, salt: toB64Url(salt), prf, ...login }
+}
+
+export interface PasskeyAssertion {
+  credentialId: string
+  clientDataJSON: string
+  authenticatorData: string
+  signature: string
+  userHandle?: string
+}
+
+/**
+ * Anmelden ohne E-Mail: Der Browser zeigt die Passkeys dieser Website (Face ID, Touch ID …). Liefert die
+ * Assertion für den Server und – falls unterstützt – den PRF-Wert zum Entsperren des Tresors.
+ */
+export async function passkeyLogin(challenge: string): Promise<{ assertion: PasskeyAssertion; prf: Bytes | null }> {
+  if (!passkeySupported()) throw new PasskeyError('UNSUPPORTED', 'Dieser Browser unterstützt keine Passkeys.')
+  let cred: PublicKeyCredential
+  try {
+    cred = (await navigator.credentials.get({
+      publicKey: {
+        challenge: fromB64Url(challenge),
+        rpId: window.location.hostname,
+        allowCredentials: [],
+        userVerification: 'required',
+        timeout: 120_000,
+        extensions: { prf: { eval: { first: await passkeyPrfSalt() } } } as AuthenticationExtensionsClientInputs
+      }
+    })) as PublicKeyCredential
+  } catch (e) {
+    if (cancelled(e)) throw new PasskeyError('CANCELLED', 'Abgebrochen.')
+    throw e
+  }
+  const res = cred.response as AuthenticatorAssertionResponse
+  const b = (buf: ArrayBuffer) => toB64Url(new Uint8Array(buf) as Bytes)
+  return {
+    assertion: {
+      credentialId: b(cred.rawId),
+      clientDataJSON: b(res.clientDataJSON),
+      authenticatorData: b(res.authenticatorData),
+      signature: b(res.signature),
+      userHandle: res.userHandle && res.userHandle.byteLength ? b(res.userHandle) : undefined
+    },
+    prf: prfOf(cred)
+  }
 }
 
 /** Mit einem der hinterlegten Passkeys den PRF-Wert holen. */

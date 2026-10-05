@@ -134,6 +134,7 @@ export default function FocPanel() {
             <span className="v">{formatBytes(st.stats.liveBytes)}</span>
             <span className="hint">
               {st.stats.liveKeys} Teile · wartet {formatBytes(st.stats.backlog.bytes)}
+              {st.stats.superSafe.keys > 0 && ` · Super Safe (${st.stats.superSafe.target} Kopien) wartet ${formatBytes(st.stats.superSafe.bytes)}`}
             </span>
           </div>
         </div>
@@ -146,7 +147,7 @@ export default function FocPanel() {
             Aktualisieren
           </button>
           {st.lastRun && (
-            <span className="hint">
+            <span className="hint" style={st.lastRun.ok ? undefined : { color: 'var(--red)' }}>
               Letzter Lauf {new Date(st.lastRun.at).toLocaleString('de-CH')}: {st.lastRun.message}
             </span>
           )}
@@ -305,7 +306,7 @@ export default function FocPanel() {
         <div className="formgrid">
           <label className="field">
             <span>Kopien bei unabhängigen Anbietern</span>
-            <input type="number" min={1} max={3} value={form.copies} onChange={e => setForm({ ...form, copies: Number(e.target.value) })} />
+            <input type="number" min={1} max={10} value={form.copies} onChange={e => setForm({ ...form, copies: Number(e.target.value) })} />
           </label>
           <label className="field">
             <span>Paket hochladen ab (MiB)</span>

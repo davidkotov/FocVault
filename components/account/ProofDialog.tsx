@@ -24,11 +24,11 @@ export default function ProofDialog({ entry, onClose }: { entry: VaultEntry; onC
     return () => document.removeEventListener('keydown', onKey)
   }, [entry.objectId, errText, onClose])
 
-  // Kopien über alle Teile zusammenfassen (alle Teile liegen in denselben Datensätzen)
+  // Kopien über alle Teile zusammenfassen (alle Teile liegen in denselben Datensätzen; Super Safe: plus Zusatzpakete)
   const copies = cert
-    ? [...new Map(cert.pieces.flatMap(p => p.copies).map(c => [`${c.providerId}:${c.dataSetId}`, c])).values()]
+    ? [...new Map(cert.pieces.flatMap(p => [...p.copies, ...(p.extra ?? []).flatMap(x => x.copies)]).map(c => [`${c.providerId}:${c.dataSetId}`, c])).values()]
     : []
-  const packs = cert ? [...new Map(cert.pieces.map(p => [p.pack.pieceCid, p.pack])).values()] : []
+  const packs = cert ? [...new Map(cert.pieces.flatMap(p => [p.pack, ...(p.extra ?? []).map(x => x.pack)]).map(pk => [pk.pieceCid, pk])).values()] : []
 
   const download = () => {
     if (!cert) return

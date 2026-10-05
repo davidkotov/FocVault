@@ -10,6 +10,8 @@ import {
   monthlyEquivalent,
   paygEstimate,
   scenario,
+  superSafePrice,
+  superSafeTb,
   toChf,
   yearlySavingsPct
 } from './pricing'
@@ -95,5 +97,22 @@ describe('Speicherkosten je Anbieter und API-Preis', () => {
       expect(markupOf(P, P.payg.perGbMonth[c], c, 'both').markupPct).toBeGreaterThan(200)
       expect(markupOf(P, P.api.perGbMonth[c], c, 'foc').markupPct).toBeGreaterThan(100)
     }
+  })
+})
+
+describe('Super Safe', () => {
+  it('Preis je angefangenem TB der Gesamtquota, mindestens 1 TB, Jahr = 10 Monate', () => {
+    expect(superSafeTb(5)).toBe(1)
+    expect(superSafeTb(1000)).toBe(1)
+    expect(superSafeTb(1200)).toBe(2)
+    expect(superSafeTb(3000)).toBe(3)
+    expect(superSafePrice(P, 1000, 'month', 'USD')).toBe(2.99)
+    expect(superSafePrice(P, 1500, 'month', 'EUR')).toBe(5.98)
+    expect(superSafePrice(P, 2000, 'month', 'CHF')).toBe(5.8)
+    expect(superSafePrice(P, 2000, 'year', 'CHF')).toBe(58)
+    for (const c of ['CHF', 'EUR', 'USD'] as const) {
+      expect(P.superSafe.perTb.yearly[c]).toBeCloseTo(P.superSafe.perTb.monthly[c] * 10, 5)
+    }
+    expect(P.superSafe.copies).toBe(5)
   })
 })

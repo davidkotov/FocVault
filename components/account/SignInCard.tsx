@@ -11,7 +11,7 @@ const PLAN_LABEL = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Busi
 const PRESETS = [5, 15, 30, 60, 240, 480]
 
 /** „Anmeldung“: Konto, Paket, Speicher, Passphrase, Passkeys und Auto-Sperre auf einen Blick. */
-export default function SignInCard({ onTab, onPlans, isPro }: { onTab: (tab: 'passphrase' | 'passkeys') => void; onPlans: () => void; isPro: boolean }) {
+export default function SignInCard({ onTab, onPlans }: { onTab: (tab: 'passphrase' | 'passkeys') => void; onPlans: () => void }) {
   const m = useMessages(appMessages).signin
   const { account, vault, autoLockMinutes, autoLockMax, setAutoLockMinutes } = useAccount()
   const { fmtDate, fmtNumber } = useI18n()
@@ -82,7 +82,7 @@ export default function SignInCard({ onTab, onPlans, isPro }: { onTab: (tab: 'pa
           )}
         </span>
         <button className="small" onClick={() => onTab('passkeys')}>
-          {isPro ? m.manageShort : m.unlock}
+          {m.manageShort}
         </button>
       </div>
       <div className="pwfield">

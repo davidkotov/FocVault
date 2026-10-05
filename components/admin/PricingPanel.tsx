@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api, errorMessage } from '@/features/api/client'
+import { BIG_MAC_EDITION, suggestBillingPrices } from '@/lib/bigmac'
 import {
   CURRENCIES,
   chf,
@@ -107,6 +108,18 @@ export default function PricingPanel({ onSaved }: { onSaved: () => void }) {
         <h3>
           Pakete <span>Preise je Währung – feste Preispunkte, nicht umgerechnet</span>
         </h3>
+        <div className="row">
+          <button
+            className="small"
+            onClick={() => {
+              setP(suggestBillingPrices(p))
+              setMsg({ ok: true, text: `CHF/EUR aus USD per Big-Mac-Index (${BIG_MAC_EDITION}) abgeleitet – nur Vorschlag: prüfen und „Preisbuch speichern“.` })
+            }}
+          >
+            CHF/EUR per Big-Mac-Index aus USD ableiten
+          </button>
+          <span className="hint">Pakete, Zusatzspeicher, Business-Stufen und Nutzerplätze; Schwellenpreise (.49/.99). PAYG und API bleiben.</span>
+        </div>
         <div className="formgrid">
           <Num label="Free-Speicher" unit="GB" step={1} value={p.free.quotaGb} onChange={v => set(d => void (d.free.quotaGb = v))} />
           <Num label="Pro Speicher" unit="GB" step={100} value={p.plans.pro.quotaGb} onChange={v => set(d => void (d.plans.pro.quotaGb = v))} />
@@ -196,6 +209,36 @@ export default function PricingPanel({ onSaved }: { onSaved: () => void }) {
             </button>
           )}
         </div>
+      </div>
+
+      <div className="card">
+        <h3>
+          Super Safe <span>mehr Filecoin-Kopien gegen Aufpreis je TB Quota (aufgerundet) – nur für Abo-Inhaber</span>
+        </h3>
+        <div className="formgrid">
+          <label className="field">
+            <span>Buchbar</span>
+            <select value={p.superSafe.enabled ? '1' : '0'} onChange={e => set(d => void (d.superSafe.enabled = e.target.value === '1'))}>
+              <option value="1">Ja</option>
+              <option value="0">Nein (laufende Buchungen bleiben)</option>
+            </select>
+          </label>
+          <Num label="Kopien mit Super Safe" step={1} value={p.superSafe.copies} onChange={v => set(d => void (d.superSafe.copies = v))} />
+        </div>
+        <MoneyRow label="pro TB / Monat" value={p.superSafe.perTb.monthly} step={0.01} onChange={(c, v) => set(d => void (d.superSafe.perTb.monthly[c] = v))} />
+        <MoneyRow label="pro TB / Jahr" value={p.superSafe.perTb.yearly} step={0.1} onChange={(c, v) => set(d => void (d.superSafe.perTb.yearly[c] = v))} />
+        {(() => {
+          // Mehrkosten je TB (voll genutzt): zusätzliche Kopien × FOC-Preis, TB → TiB
+          const extra = Math.max(0, p.superSafe.copies - p.storage.focCopies)
+          const costChf = ((extra * p.storage.focUsdPerTibMonthPerCopy * 1000) / (2 ** 40 / 1e9)) * p.fx.usdToChf
+          const worst = Math.min(...CURRENCIES.map(c => toChf(p, p.superSafe.perTb.monthly[c], c)))
+          return (
+            <span className="hint" style={{ color: worst < costChf ? 'var(--red)' : undefined }}>
+              {extra} zusätzliche Kopien kosten uns ≈ {chf(costChf)} pro TB und Monat (voll genutzt) · Marge in der schlechtesten Währung{' '}
+              {worst > 0 ? (((worst - costChf) / worst) * 100).toFixed(0) : 0} % · Jahresrabatt {yearlySavingsPct(p.superSafe.perTb, 'CHF')} %.
+            </span>
+          )
+        })()}
       </div>
 
       <div className="card">

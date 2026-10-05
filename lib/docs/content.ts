@@ -31,7 +31,7 @@ const de: DocArticle[] = [
       { t: 'ol', x: ['Konto erstellen – mit E-Mail oder per Google, Apple bzw. Wallet.', 'Passphrase wählen und Recovery-Kit (24 Wörter) sicher aufbewahren.', 'Dateien hochladen, Passwörter anlegen, per Secure Send teilen.'] },
       { t: 'note', x: 'Wir können deine Daten nicht lesen und deine Passphrase nicht zurücksetzen. Bewahre das Recovery-Kit deshalb offline auf, z. B. ausgedruckt.' },
       { t: 'h', x: 'Pakete' },
-      { t: 'ul', x: ['Free: 5 GB, danach Pay-as-you-go pro GB und Monat.', 'Pro und Family: mehr Speicher, Passwörter, Notizen, 2FA, Papierkorb, Versionen, Passkeys, Notfallzugang.', 'Business: Teams, geteilte Tresore, Admin-Konsole, Speicher-API, SSO ab Enterprise.'] }
+      { t: 'ul', x: ['Free: 5 GB, danach Pay-as-you-go pro GB und Monat.', 'Pro und Family: mehr Speicher, Passwörter, Notizen, 2FA, Papierkorb, Versionen, Notfallzugang.', 'Business: Teams, geteilte Tresore, Admin-Konsole, Speicher-API, SSO ab Enterprise.'] }
     ]
   },
   {
@@ -41,8 +41,8 @@ const de: DocArticle[] = [
     summary: 'E-Mail, Google/Apple/Wallet, Passphrase, Passkeys und automatische Sperre.',
     blocks: [
       { t: 'p', x: 'Die Anmeldung weist nach, wer du bist. Die Passphrase entsperrt zusätzlich deinen Tresor auf dem Gerät. Beides ist getrennt: Auch bei Anmeldung per Google, Apple oder Wallet bleibt dein Tresor mit deiner Passphrase verschlüsselt.' },
-      { t: 'h', x: 'Passkeys (Pro, Family, Business)' },
-      { t: 'p', x: 'Unter „Konto & Sicherheit → Passkeys“ kannst du Face ID, Touch ID, Windows Hello oder einen Sicherheitsschlüssel einrichten. Der Tresor lässt sich dann ohne Passphrase entsperren. Die Passphrase und das Recovery-Kit gelten weiter.' },
+      { t: 'h', x: 'Passkeys (alle Pakete)' },
+      { t: 'p', x: 'Unter „Konto & Sicherheit → Passkeys“ kannst du Face ID, Touch ID, Windows Hello oder einen Sicherheitsschlüssel einrichten. Danach meldest du dich mit „Mit Passkey anmelden“ ohne E-Mail an, und der Tresor lässt sich ohne Passphrase entsperren. Die Passphrase und das Recovery-Kit gelten weiter.' },
       { t: 'h', x: 'Automatische Sperre' },
       { t: 'p', x: 'Nach 30 Minuten ohne Aktivität sperrt sich der Tresor. In Business-Teams legt der Admin die Zeit fest.' }
     ]
@@ -202,7 +202,7 @@ const en: DocArticle[] = [
       { t: 'ol', x: ['Create an account – with email or via Google, Apple or a wallet.', 'Choose a passphrase and keep the recovery kit (24 words) safe.', 'Upload files, add passwords, share via Secure Send.'] },
       { t: 'note', x: 'We cannot read your data or reset your passphrase. Keep the recovery kit offline, e.g. printed.' },
       { t: 'h', x: 'Plans' },
-      { t: 'ul', x: ['Free: 5 GB, then pay-as-you-go per GB and month.', 'Pro and Family: more storage, passwords, notes, 2FA, trash, versions, passkeys, emergency access.', 'Business: teams, shared vaults, admin console, storage API, SSO from Enterprise.'] }
+      { t: 'ul', x: ['Free: 5 GB, then pay-as-you-go per GB and month.', 'Pro and Family: more storage, passwords, notes, 2FA, trash, versions, emergency access.', 'Business: teams, shared vaults, admin console, storage API, SSO from Enterprise.'] }
     ]
   },
   {
@@ -212,8 +212,8 @@ const en: DocArticle[] = [
     summary: 'Email, Google/Apple/wallet, passphrase, passkeys and auto-lock.',
     blocks: [
       { t: 'p', x: 'Signing in proves who you are. The passphrase additionally unlocks your vault on the device. Both are separate: even with Google, Apple or wallet sign-in, your vault stays encrypted with your passphrase.' },
-      { t: 'h', x: 'Passkeys (Pro, Family, Business)' },
-      { t: 'p', x: 'Under “Account & security → Passkeys” you can set up Face ID, Touch ID, Windows Hello or a security key and unlock without your passphrase. The passphrase and recovery kit keep working.' },
+      { t: 'h', x: 'Passkeys (all plans)' },
+      { t: 'p', x: 'Under “Account & security → Passkeys” you can set up Face ID, Touch ID, Windows Hello or a security key. You can then use “Sign in with a passkey” without an email and unlock without your passphrase. The passphrase and recovery kit keep working.' },
       { t: 'h', x: 'Auto-lock' },
       { t: 'p', x: 'The vault locks after 30 minutes of inactivity. In Business teams the admin sets the time.' }
     ]

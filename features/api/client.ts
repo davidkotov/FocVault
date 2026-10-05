@@ -129,6 +129,11 @@ export const api = {
   recoveryWithSession: (recoveryAuthKey: string, recoveryLookup?: string) =>
     call<AccountView>('POST', '/account/recovery', { recoveryAuthKey, recoveryLookup }),
 
+  /** Anmelden per Passkey: Einmal-Challenge holen, signierte Assertion prüfen lassen (setzt die Session) */
+  passkeyOptions: () => call<{ challenge: string }>('POST', '/auth/passkey/options'),
+  passkeyVerify: (input: { credentialId: string; clientDataJSON: string; authenticatorData: string; signature: string; userHandle?: string }) =>
+    call<AccountView>('POST', '/auth/passkey/verify', input),
+
   async account(): Promise<AccountView | null> {
     const res = await send('/account?optional=1', { method: 'GET' })
     if (res.status === 204) return null
@@ -262,6 +267,8 @@ export const api = {
   adminGrantAddon: (id: string, input: { gb: number; price: number; note?: string }) =>
     call<{ ok: true }>('POST', `/admin/accounts/${encodeURIComponent(id)}/addons`, input),
   adminRevokeAddon: (addonId: string) => call<{ ok: true }>('DELETE', `/admin/addons/${encodeURIComponent(addonId)}`),
+  adminSetSuperSafe: (id: string, input: { enabled: boolean; unitPrice?: number; note?: string }) =>
+    call<{ ok: true }>('PUT', `/admin/accounts/${encodeURIComponent(id)}/super-safe`, input),
   adminEconomics: () => call<EconomicsReport>('GET', '/admin/economics'),
   adminPricing: () => call<PricingConfig>('GET', '/admin/pricing'),
   adminSavePricing: (p: PricingConfig) => call<PricingConfig>('PUT', '/admin/pricing', p),
@@ -286,7 +293,7 @@ export const api = {
   familyJoin: (token: string) => call<AccountView>('POST', '/family/join', { token }),
   familyRemove: (accountId: string) => call<{ ok: true }>('DELETE', `/family/members/${encodeURIComponent(accountId)}`),
   proof: (objectId: string) => call<ProofCertificate>('GET', `/objects/${encodeURIComponent(objectId)}/proof`),
-  addPasskey: (input: { credentialId: string; label: string; salt: string; iv: string; cipher: string }) =>
+  addPasskey: (input: { credentialId: string; label: string; salt: string; iv: string; cipher: string; publicKey?: string; publicKeyAlg?: number }) =>
     call<AccountView>('POST', '/account/passkeys', input),
   removePasskey: (credentialId: string) => call<AccountView>('DELETE', `/account/passkeys/${encodeURIComponent(credentialId)}`),
   s3Overview: () => call<S3Overview>('GET', '/s3'),
@@ -309,6 +316,8 @@ export const api = {
   offer: () => call<PublicOffer>('GET', '/billing/offer'),
   buyAddon: (packId: string) => call<AccountView>('POST', '/billing/addons', { packId }),
   cancelAddon: (id: string) => call<AccountView>('DELETE', `/billing/addons/${encodeURIComponent(id)}`),
+  buySuperSafe: () => call<AccountView>('POST', '/billing/super-safe'),
+  cancelSuperSafe: () => call<AccountView>('DELETE', '/billing/super-safe'),
   setPayg: (enabled: boolean, capGb?: number) => call<AccountView | Redirect>('PUT', '/billing/payg', { enabled, capGb }),
   changePlan: (
     plan: 'free' | 'pro' | 'family' | 'business',
@@ -335,6 +344,7 @@ export interface AdminAccountListRow {
   addonsMonthly: number
   paygEnabled: boolean
   paygCapGb: number | null
+  superSafe: boolean
   lastLoginAt: string | null
   createdAt: string
 }
@@ -366,6 +376,7 @@ export interface PublicOffer {
   trashDays: number
   versions: PricingConfig['versions']
   business: PricingConfig['business']
+  superSafe: PricingConfig['superSafe']
   purchasesEnabled: boolean
 }
 

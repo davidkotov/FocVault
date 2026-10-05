@@ -104,9 +104,6 @@ export default function WalletLogin({ onResult }: { onResult: (r: WalletLoginRes
           {m.button}
         </button>
       )}
-      <p className="hint" style={{ marginTop: 8, textAlign: 'center' }}>
-        {m.hint}
-      </p>
     </div>
   )
 }

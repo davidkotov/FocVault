@@ -7,26 +7,56 @@ import { api } from '@/features/api/client'
 import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 
-/** Sicherheitsstatus: Ring mit erfüllten Punkten und der wichtigsten Empfehlung. */
-export default function SecurityStatus({ onAction }: { onAction: (target: 'passkeys' | 'emergency' | 'plans') => void }) {
+type Target = 'passkeys' | 'emergency' | 'plans' | 'overview'
+
+/** Auto-Sperre gilt als sicher bis zu einer Stunde Inaktivität. */
+const SAFE_AUTOLOCK_MIN = 60
+
+/**
+ * Sicherheitsstatus: Ring mit erfüllten Punkten und der wichtigsten Empfehlung.
+ * Jeder Punkt sagt, was erledigt ist – oder was fehlt („Passkey fehlt“ statt „Passkey eingerichtet“).
+ */
+export default function SecurityStatus({ onAction }: { onAction: (target: Target) => void }) {
   const m = useMessages(appMessages).secstatus
   const { account, autoLockMinutes } = useAccount()
-  const [emergency, setEmergency] = useState<boolean | null>(null)
+  const [emergency, setEmergency] = useState<'none' | 'pending' | 'confirmed' | null>(null)
   useEffect(() => {
     api
       .emergency()
-      .then(o => setEmergency(o.asGrantor.some(c => c.status === 'confirmed' || c.status === 'requested')))
-      .catch(() => setEmergency(false))
+      .then(o =>
+        setEmergency(
+          o.asGrantor.some(c => c.status === 'confirmed' || c.status === 'requested') ? 'confirmed' : o.asGrantor.length ? 'pending' : 'none'
+        )
+      )
+      .catch(() => setEmergency('none'))
   }, [])
   if (!account) return null
   const paid = account.plan !== 'free'
-  const checks: Array<{ ok: boolean; label: string; fix?: { t: string; go: 'passkeys' | 'emergency' | 'plans' } }> = [
-    { ok: true, label: m.recovery },
-    { ok: true, label: fmt(m.autolock, { n: autoLockMinutes }) },
-    { ok: account.passkeys.length > 0, label: m.passkey, fix: { t: paid ? m.addPasskey : m.upgradePasskey, go: paid ? 'passkeys' : 'plans' } },
-    { ok: !!emergency, label: m.emergency, fix: { t: paid ? m.addEmergency : m.upgradeEmergency, go: paid ? 'emergency' : 'plans' } }
+  const hours = autoLockMinutes % 60 === 0 && autoLockMinutes >= 60
+  const autolockOk = autoLockMinutes <= SAFE_AUTOLOCK_MIN
+  const checks: Array<{ ok: boolean; label: string; fix?: { t: string; go: Target } }> = [
+    account.recoveryCheckedAt
+      ? { ok: true, label: m.recovery }
+      : { ok: false, label: m.recoveryUnchecked, fix: { t: m.checkRecovery, go: 'overview' } },
+    autolockOk
+      ? { ok: true, label: fmt(m.autolock, { n: autoLockMinutes }) }
+      : {
+          ok: false,
+          label: hours ? fmt(m.autolockLateH, { n: autoLockMinutes / 60 }) : fmt(m.autolockLate, { n: autoLockMinutes }),
+          fix: { t: m.shortenAutolock, go: 'overview' }
+        },
+    account.passkeys.length > 0
+      ? { ok: true, label: m.passkey }
+      : { ok: false, label: m.passkeyMissing, fix: { t: m.addPasskey, go: 'passkeys' } },
+    emergency === 'confirmed'
+      ? { ok: true, label: m.emergency }
+      : {
+          ok: false,
+          label: emergency === 'pending' ? m.emergencyPending : m.emergencyMissing,
+          fix: { t: paid ? m.addEmergency : m.upgradeEmergency, go: paid ? 'emergency' : 'plans' }
+        }
   ]
-  if (account.team?.recovery) checks.push({ ok: account.team.recovery.escrowed, label: m.escrow })
+  if (account.team?.recovery) checks.push({ ok: account.team.recovery.escrowed, label: account.team.recovery.escrowed ? m.escrow : m.escrowMissing })
   const done = checks.filter(c => c.ok).length
   const pct = done / checks.length
   const next = checks.find(c => !c.ok && c.fix)

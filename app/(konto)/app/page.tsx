@@ -25,6 +25,7 @@ import { teamAdminMessages } from '@/lib/i18n/messages/team-admin'
 import TeamAdminView from '@/components/account/TeamAdminView'
 import SecurityStatus from '@/components/account/SecurityStatus'
 import SignInCard from '@/components/account/SignInCard'
+import RegionCard from '@/components/account/RegionCard'
 import DeleteAccountCard from '@/components/account/DeleteAccountCard'
 import { SafetyCards, SessionsCard } from '@/components/account/AccountSummary'
 import CreditsCard from '@/components/account/CreditsCard'
@@ -1085,6 +1086,19 @@ export default function AppPage() {
                   setSelected(new Set())
                   setNotice(fmt(t.files.moved, { n: ids.length, dir: dir ? dir.slice(0, -1) : t.files.root }))
                 }}
+                onMoveDir={(src, dir) => {
+                  // src „a/b/“ → Ziel „dir + b/“; Dateien und leere Unterordner mitnehmen
+                  const dest = dir + src.slice(0, -1).split('/').pop() + '/'
+                  if (dest === src || dir.startsWith(src)) return
+                  const moveDir = (d: string) => (d === src.slice(0, -1) || d.startsWith(src) ? dest.slice(0, -1) + d.slice(src.length - 1) : d)
+                  mutate(c => ({
+                    ...c,
+                    files: c.files.map(f => (f.name.startsWith(src) ? { ...f, name: dest + f.name.slice(src.length) } : f)),
+                    dirs: c.dirs ? [...new Set(c.dirs.map(moveDir))] : c.dirs
+                  }))
+                  setSelected(new Set())
+                  setNotice(fmt(t.files.movedDir, { name: dest.slice(0, -1).split('/').pop()!, dir: dir ? dir.slice(0, -1) : t.files.root }))
+                }}
                 onDeleteDir={d => mutate(c => ({ ...c, dirs: (c.dirs ?? []).filter(x => x !== d && !x.startsWith(d + '/')) }))}
                 headerAction={
                   <>
@@ -1399,7 +1413,7 @@ export default function AppPage() {
             <SecurityStatus
               onAction={target => {
                 if (target === 'plans') return setView('plans')
-                setAccTab(target === 'passkeys' ? 'passkeys' : 'emergency')
+                setAccTab(target)
               }}
             />
             <div className="acclayout">
@@ -1420,34 +1434,15 @@ export default function AppPage() {
               <div className="accmain">
               {accTab === 'overview' && (
                 <>
-                  <SignInCard isPro={isPro} onTab={setAccTab} onPlans={() => setView('plans')} />
+                  <SignInCard onTab={setAccTab} onPlans={() => setView('plans')} />
+                  <RegionCard />
                   <SafetyCards isPro={isPro} onEmergency={() => (isPro ? setAccTab('emergency') : setView('plans'))} />
                   <SessionsCard onCount={setSessionCount} limit={4} onMore={() => setAccTab('sessions')} />
                 </>
               )}
               {accTab === 'credits' && <CreditsCard onChanged={() => void refreshAccount()} />}
               {accTab === 'passphrase' && <ChangePassphraseCard />}
-              {accTab === 'passkeys' && (
-                <>
-              {isPro ? (
-                <PasskeysPanel />
-              ) : (
-                <div className="card lockedcard">
-                  <h3>
-                    {t.passkeys.title}
-                    <span className="navlock" data-tip={t.nav.proOnly} aria-label={t.nav.proOnly}>
-                      <LockIcon />
-                    </span>
-                  </h3>
-                  <p className="dim">{t.passkeys.lead}</p>
-                  <button className="small trashbtn locked" data-tip={t.nav.proOnly} onClick={() => setView('plans')}>
-                    <LockIcon />
-                    {t.passkeys.add}
-                  </button>
-                </div>
-              )}
-                </>
-              )}
+              {accTab === 'passkeys' && <PasskeysPanel />}
               {accTab === 'emergency' && (
                 <>
               <TeamEscrowCard />

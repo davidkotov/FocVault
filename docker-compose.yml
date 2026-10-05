@@ -32,22 +32,16 @@ services:
       - "${APP_PORT:-3000}:3000"
       - "${S3_HOST_PORT:-9100}:9000"
     env_file:
-      - .env.local
+      - path: .env.local
+        required: true
+      # optional: eigene Werte nur für Docker
+      - path: .env.docker
+        required: false
     # Container-spezifisch, überschreibt .env.local
     environment:
       DATABASE_URL: postgres://focvault:focvault@db:5432/focvault
       S3_API_PORT: "9000"
       S3_PUBLIC_URL: http://localhost:${S3_HOST_PORT:-9100}
-      - path: .env.docker
-        required: false
-    environment:
-      DATABASE_URL: postgres://focvault:focvault@db:5432/focvault
-      SERVER_SECRET: ${SERVER_SECRET:?SERVER_SECRET setzen (openssl rand -hex 32), z. B. in .env}
-      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
-      # Ohne Fil One: Dateien lokal im Volume
-      ALLOW_LOCAL_STORAGE: "1"
-      S3_API_PORT: "9000"
-      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     volumes:
       - appdata:/data
 
