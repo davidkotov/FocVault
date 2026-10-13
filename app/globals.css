@@ -2020,7 +2020,7 @@ select {
 .envbadges { display: flex; gap: 8px; flex-wrap: wrap; }
 .ordivider { display: flex; align-items: center; gap: 12px; color: var(--text-mute); font-size: 12px; margin: 20px 0; text-transform: uppercase; letter-spacing: 0.06em; }
 .ordivider::before, .ordivider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.reownbtn { padding: 12px 16px; font-size: 15px; }
+.reownbtn { padding: 12px 16px; font-size: 15px; border-radius: 999px; }
 .admintabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
 .admintabs button { border-radius: 999px; padding: 7px 14px; font-size: 13px; }
 .admintabs button.active { background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-dark); font-weight: 600; }
