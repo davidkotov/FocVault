@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { Icon } from '@/components/site/Icons'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
 import { formatBytes, type FileVersion, type VaultEntry } from '@/lib/vault'
@@ -41,8 +42,8 @@ export default function VersionsDialog({
           <h3 id="versions-title">
             {m.title} · {entry.name}
           </h3>
-          <button className="small" onClick={onClose}>
-            {m.close}
+          <button type="button" className="modalclose" onClick={onClose} aria-label={m.close}>
+            <Icon name="x" size={16} />
           </button>
         </div>
         <p className="lead">{fmt(m.lead, { days, max })}</p>

@@ -106,7 +106,7 @@ export default function QrScanModal({ onDetected, onClose }: Props) {
       <div className="qrmodal" onClick={e => e.stopPropagation()}>
         <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
           <h4>{m.title}</h4>
-          <button className="iconbtn" title={c.close} onClick={onClose}>
+          <button type="button" className="modalclose" title={c.close} aria-label={c.close} onClick={onClose}>
             <svg className="icon" width="16" height="16" viewBox="0 0 24 24">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>

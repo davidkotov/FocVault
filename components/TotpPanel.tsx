@@ -9,6 +9,7 @@ import { generateTotp, generateBase32Secret, totpRemaining, parseOtpauth } from 
 import QrScanModal from '@/components/QrScanModal'
 import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { secretsMessages } from '@/lib/i18n/messages/secrets'
+import { secretDragProps } from '@/lib/dnd'
 
 interface Props {
   entries: SecretEntry[]
@@ -256,7 +257,7 @@ export default function TotpPanel({ entries, onSave, onDelete, readOnly = false,
             const rem = live.remaining[s.id] ?? period
             const pct = Math.max(0, Math.min(100, (rem / period) * 100))
             return (
-              <div className={`secrow totpcard${copied === s.id ? ' copied' : ''}`} key={s.id}>
+              <div className={`secrow totpcard${copied === s.id ? ' copied' : ''}`} key={s.id} {...secretDragProps([s.id], s.title || s.issuer || '')}>
                 <SiteAvatar title={s.issuer || s.title} icon={s.icon} host={hostFromName(s.issuer || s.title)} size={40} />
                 <div className="secmain">
                   <div className="sectitle">{s.issuer || s.title}</div>

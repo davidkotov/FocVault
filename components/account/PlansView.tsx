@@ -10,7 +10,7 @@ import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { useErrorText } from '@/features/i18n/errors'
 import { billingMessages } from '@/lib/i18n/messages/billing'
 import { commonMessages } from '@/lib/i18n/messages/common'
-import { CURRENCIES, type Currency, type Interval } from '@/lib/pricing'
+import { yearlySavingsPct, type Currency, type Interval } from '@/lib/pricing'
 import { formatBytes } from '@/lib/vault'
 import SuperSafeCard from './SuperSafeCard'
 
@@ -19,15 +19,14 @@ type PaidPlan = 'pro' | 'family'
 /** Pakete, Pay-as-you-go und Zusatzspeicher – verständlich erklärt, in der Kontowährung. */
 export default function PlansView({ initialSegment, onCredits }: { initialSegment?: 'private' | 'business'; onCredits?: () => void } = {}) {
   const { account, refreshAccount, vault } = useAccount()
-  const { currency: prefCurrency, setCurrency, fmtMoney, fmtNumber, fmtDate, path, fmtApprox } = useI18n()
+  const { currency: prefCurrency, fmtMoney, fmtNumber, fmtDate, path, fmtApprox } = useI18n()
   const m = useMessages(billingMessages)
   const c = useMessages(commonMessages)
   const errText = useErrorText()
   const [offer, setOffer] = useState<PublicOffer | null>(null)
   const [interval, setIntervalState] = useState<Interval>(account?.billing.interval ?? 'year')
-  const [viewCurrency, setViewCurrency] = useState<Currency>(
-    account && account.plan !== 'free' ? account.billing.currency : prefCurrency
-  )
+  // Die Währung wählt man nur unter „Konto & Sicherheit“; Abos rechnen in ihrer Abo-Währung.
+  const viewCurrency: Currency = account && account.plan !== 'free' ? account.billing.currency : prefCurrency
   const [calcGb, setCalcGb] = useState(100)
   const [capGb, setCapGb] = useState(100)
   const [busy, setBusy] = useState<string | null>(null)
@@ -332,12 +331,25 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
           {packs.map(a => {
             const label = gbLabel(a.gb)
             const owned = b.addons.find(x => x.gb === a.gb && x.source !== 'admin')
+            const price = (addInterval === 'year' ? a.yearly : a.monthly)[addCur]
+            const twelve = a.monthly[addCur] * 12
+            // Jahresabo = 2 Monate geschenkt; das steht sonst nirgends auf der Karte
+            const savePct = addInterval === 'year' ? yearlySavingsPct(a, addCur) : 0
             return (
               <div className={`addoncard${owned ? ' owned' : ''}`} key={a.id}>
-                <span className="addon-gb">+{label}</span>
-                <b className="addon-price">{(() => { const v = (addInterval === 'year' ? a.yearly : a.monthly)[addCur]; return fmtMoney(v, addCur, Number.isInteger(v) ? 0 : 2) })()}</b>
-                {approx((addInterval === 'year' ? a.yearly : a.monthly)[addCur], addCur)}
+                <span className="addon-gb">
+                  +{label}
+                  {savePct > 0 && <em className="addon-save">{fmt(m.savePct, { pct: savePct })}</em>}
+                </span>
+                <b className="addon-price">{fmtMoney(price, addCur, Number.isInteger(price) ? 0 : 2)}</b>
+                {approx(price, addCur)}
                 <span className="dim">{addInterval === 'year' ? m.grid.perYear : m.grid.perMonth}</span>
+                {savePct > 0 && (
+                  <span className="addon-year">
+                    <s>{fmt(m.grid.insteadOf, { amount: fmtMoney(twelve, addCur, Number.isInteger(twelve) ? 0 : 2) })}</s>
+                    <span>{fmt(m.grid.perMonthEq, { amount: fmtMoney(price / 12, addCur, 2) })}</span>
+                  </span>
+                )}
                 <div className="addon-act">
                   {owned ? (
                     <>
@@ -409,20 +421,6 @@ export default function PlansView({ initialSegment, onCredits }: { initialSegmen
                   </button>
                 ))}
               </div>
-              <select
-                aria-label={m.currency}
-                className="smallselect"
-                value={cur}
-                onChange={e => {
-                  const c2 = e.target.value as Currency
-                  setViewCurrency(c2)
-                  setCurrency(c2)
-                }}
-              >
-                {CURRENCIES.map(c2 => (
-                  <option key={c2}>{c2}</option>
-                ))}
-              </select>
             </div>
           </div>
           <div className="tablescroll">

@@ -4,6 +4,7 @@ import { Icon, type IconName } from '@/components/site/Icons'
 import { useState, type ReactNode } from 'react'
 import { fmt, useI18n, useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
+import { DIR_MIME, DRAG_MIME } from '@/lib/dnd'
 import { FOLDERS, formatBytes, type VaultEntry } from '@/lib/vault'
 
 interface Props {
@@ -42,12 +43,13 @@ interface Props {
   /** Ordner verschieben (Quelle und Ziel mit „/“ am Ende, Ziel „“ = oberste Ebene) */
   onMoveDir?: (src: string, dir: string) => void
   onDeleteDir?: (dir: string) => void
+  /** Bereich zwischen Kopfzeile und Filtern – hier steht das Hochladen-Feld („hierher ziehen“) */
+  beforeFilters?: ReactNode
+  /** meldet, ob gerade etwas aus der Liste gezogen wird (für die Auswahlleiste) */
+  onDragActive?: (active: boolean) => void
 }
 
-/** Datentyp für gezogene Dateien (IDs als JSON) */
-export const DRAG_MIME = 'application/x-focvault-files'
-/** Datentyp für einen gezogenen Ordner (Pfad mit „/“ am Ende) */
-const DIR_MIME = 'application/x-focvault-dir'
+export { DRAG_MIME } from '@/lib/dnd'
 
 /**
  * Gekipptes Vorschaubild beim Ziehen (wie Karten in Notion/Jira): Kopie von Symbol und Name,
@@ -98,7 +100,7 @@ function tileColor(folder: string): string {
   }
 }
 
-export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote, selected, onToggleSelect, onSelectAll, dragIds, cwd = '', onCwd, dirs = [], onMoveTo, onMoveDir, onDeleteDir }: Props) {
+export default function FileList({ entries, busyId, canDecrypt, searchQuery, onDownload, onDelete, onShare, onPreview, onVersions, onProof, onFilecoin, headerAction, deleteNote, selected, onToggleSelect, onSelectAll, dragIds, cwd = '', onCwd, dirs = [], onMoveTo, onMoveDir, onDeleteDir, beforeFilters, onDragActive }: Props) {
   const [active, setActive] = useState<string>('all')
   const [layout, setLayout] = useState<'list' | 'grid'>(() =>
     typeof window !== 'undefined' && window.localStorage.getItem('fv_fileview') === 'grid' ? 'grid' : 'list'
@@ -122,7 +124,13 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
   const [dragging, setDragging] = useState<string | null>(null)
   const endDrag = () => {
     setDragging(null)
+    onDragActive?.(false)
     document.body.classList.remove('fv-dragging')
+  }
+  const startDrag = (id: string) => {
+    setDragging(id)
+    onDragActive?.(true)
+    document.body.classList.add('fv-dragging')
   }
   const folderMode = !!onCwd && !searchQuery
   const bySearch = searchQuery
@@ -224,6 +232,8 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
         </nav>
       )}
 
+      {beforeFilters}
+
       {entries.length > 0 && (
         <div className="chipsrow">
           {FOLDERS.map(f => {
@@ -288,8 +298,7 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                   ev.dataTransfer.setData('text/plain', d)
                   ev.dataTransfer.effectAllowed = 'move'
                   setTiltedDragImage(ev, ev.currentTarget.querySelector('.foldertile'), d, 1)
-                  setDragging(path)
-                  document.body.classList.add('fv-dragging')
+                  startDrag(path)
                 }}
                 onDragEnd={endDrag}
               >
@@ -332,8 +341,7 @@ export default function FileList({ entries, busyId, canDecrypt, searchQuery, onD
                 ev.dataTransfer.setData('text/plain', label)
                 ev.dataTransfer.effectAllowed = 'move'
                 setTiltedDragImage(ev, ev.currentTarget.querySelector('.filetile'), label, ids.length)
-                setDragging(e.id)
-                document.body.classList.add('fv-dragging')
+                startDrag(e.id)
               }}
               onDragEnd={endDrag}
             >

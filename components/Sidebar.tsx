@@ -2,19 +2,21 @@
 
 import Wordmark from '@/components/Wordmark'
 import { useState } from 'react'
-import { fmt, useMessages } from '@/features/i18n/I18nProvider'
+import StatusDock, { type StatusDockProps } from '@/components/StatusDock'
+import { useMessages } from '@/features/i18n/I18nProvider'
 import { appMessages } from '@/lib/i18n/messages/app'
-import { formatBytes, type TierName } from '@/lib/vault'
+import type { TierName } from '@/lib/vault'
 
 export type ViewId = 'cloud' | 'send' | 'trash' | 'plans' | 'account' | 'passwords' | 'notes' | '2fa' | 'passkeys' | 'familyFolder' | 'storageApi' | 'sharedVaults' | 'emergency' | 'teamAdmin'
 
 interface Props {
   view: ViewId
   onNavigate: (v: ViewId) => void
-  usedBytes: number
-  quotaBytes: number
-  tierLabel: string
   tier: TierName
+  /** Status-Block am Fuss: Speicher, Filecoin, Links, Papierkorb */
+  dock: Omit<StatusDockProps, 'onNavigate' | 'tier'>
+  /** Suche als Modal öffnen (nur auf schmalen Bildschirmen sichtbar) */
+  onSearch?: () => void
   /** Menüpunkt „Pakete & Speicher" (Konto-Modus) */
   showPlans?: boolean
   /** Pro-Module freigeschaltet (sonst Schloss + Hinweis) */
@@ -120,10 +122,10 @@ const ICONS: Record<ViewId, JSX.Element> = {
 }
 
 /** Seitenleiste; auf dem Handy als ausklappbares Menü (Burger-Button in der Topbar-Zeile). */
-export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierLabel, tier, showPlans = false, pro = true, storageApi = false, storageApiLabel = 'Speicher-API', apiSection = 'API-Module', apiLockTip = 'Upgrade nötig – ab Business Starter', sharedVaultsLabel = 'Geteilte Tresore', businessSection = 'Business', teamAdminLabel = 'Admin-Konsole' }: Props) {
-  const m = useMessages(appMessages).nav
+export default function Sidebar({ view, onNavigate, tier, dock, onSearch, showPlans = false, pro = true, storageApi = false, storageApiLabel = 'Speicher-API', apiSection = 'API-Module', apiLockTip = 'Upgrade nötig – ab Business Starter', sharedVaultsLabel = 'Geteilte Tresore', businessSection = 'Business', teamAdminLabel = 'Admin-Konsole' }: Props) {
+  const t = useMessages(appMessages)
+  const m = t.nav
   const [open, setOpen] = useState(false)
-  const pct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0
   const go = (v: ViewId) => {
     onNavigate(v)
     setOpen(false)
@@ -156,6 +158,15 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
           <path d="M17 17v-2a3 3 0 0 1 6 0v2" stroke="#fff" strokeWidth="2.4" fill="none" />
         </svg>
         <Wordmark />
+        {onSearch && (
+          <button className="navsearchbtn" aria-label={t.searchOpen} onClick={onSearch}>
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <span>{t.searchOpen}</span>
+          </button>
+        )}
         <button className="navtoggle" aria-label={m.menu} aria-expanded={open} onClick={() => setOpen(o => !o)}>
           <svg viewBox="0 0 24 24" width="22" height="22">
             {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
@@ -183,21 +194,7 @@ export default function Sidebar({ view, onNavigate, usedBytes, quotaBytes, tierL
         <div className="spacer" />
 
         <div className="quotawidget">
-          <div className="lbl">
-            <span>{m.storage}</span>
-            <span>
-              {formatBytes(usedBytes)} / {formatBytes(quotaBytes)}
-            </span>
-          </div>
-          <div className="quotabar">
-            <div className={pct >= 100 ? 'full' : ''} style={{ width: `${pct}%` }} />
-          </div>
-          <div className="lbl" style={{ marginTop: 8, marginBottom: 0 }}>
-            <span>{tier === 'FREE' ? 'Free' : fmt(m.active, { plan: tierLabel })}</span>
-            <button className="linkish quotalink" onClick={() => go(showPlans ? 'plans' : 'account')}>
-              {tier === 'FREE' ? m.upgrade : m.manage}
-            </button>
-          </div>
+          <StatusDock {...dock} tier={tier} onNavigate={() => setOpen(false)} />
         </div>
       </nav>
     </aside>

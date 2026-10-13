@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Icon } from '@/components/site/Icons'
 import { fmt, useMessages } from '@/features/i18n/I18nProvider'
 import { useErrorText } from '@/features/i18n/errors'
 import { decryptToBlob } from '@/features/objects/transfer'
@@ -102,8 +103,8 @@ export default function PreviewModal({
             <button className="small" onClick={() => onDownload(entry)}>
               {m.download}
             </button>
-            <button className="small" onClick={onClose}>
-              {m.close}
+            <button type="button" className="modalclose" onClick={onClose} aria-label={m.close}>
+              <Icon name="x" size={16} />
             </button>
           </div>
         </div>
