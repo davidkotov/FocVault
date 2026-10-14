@@ -24,7 +24,9 @@ describe('Preisbuch v2: Währungen, Jahresabos, Pay-as-you-go', () => {
     for (const c of ['CHF', 'EUR', 'USD'] as const) {
       expect(yearlySavingsPct(P.plans.pro, c)).toBeGreaterThanOrEqual(16)
       expect(yearlySavingsPct(P.plans.family, c)).toBeGreaterThanOrEqual(16)
-      for (const a of P.addons) expect(yearlySavingsPct(a, c)).toBeGreaterThanOrEqual(15)
+      // Zusatzspeicher bekommt denselben Jahresrabatt wie die Pakete (2 Monate geschenkt)
+      for (const a of [...P.addons, ...P.businessAddons]) expect(yearlySavingsPct(a, c)).toBeGreaterThanOrEqual(16)
+      expect(yearlySavingsPct(P.superSafe.perTb, c)).toBeGreaterThanOrEqual(16)
     }
     expect(monthlyEquivalent(P.plans.pro, 'year', 'CHF')).toBeCloseTo(139 / 12, 5)
   })

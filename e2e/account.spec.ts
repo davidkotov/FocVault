@@ -171,7 +171,7 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await expectFileListed(page, fileName)
   await fileCard().locator('button[title="Löschen"]').click()
   await expect(fileCard()).toHaveCount(0)
-  await page.getByRole('button', { name: /Papierkorb/ }).first().click()
+  await page.locator('.h3right').getByRole('button', { name: /Papierkorb/ }).first().click()
   await expect(page.locator('.trashrow', { hasText: fileName })).toContainText('noch 29 Tage')
   await page.locator('.trashrow', { hasText: fileName }).getByRole('button', { name: 'Wiederherstellen' }).click()
   await expect(page.getByText(`„${fileName}" ist wiederhergestellt.`)).toBeVisible()
@@ -214,7 +214,7 @@ test('Konto: Registrieren → Upload → Sperren → Anmelden → Recovery → D
   await guest2.close()
 
   await page.locator('.bulkbar').getByRole('button', { name: 'Auswahl aufheben' }).click()
-  await page.locator('.filecard', { hasText: 'zweite.txt' }).dragTo(page.locator('.h3right .droptarget', { hasText: 'Papierkorb' }))
+  await page.locator('.filecard', { hasText: 'zweite.txt' }).dragTo(page.locator('.h3right').getByRole('button', { name: 'Papierkorb', exact: true }))
   await expect(page.locator('.filecard', { hasText: 'zweite.txt' })).toHaveCount(0)
   await expect(page.getByText('„zweite.txt" liegt im Papierkorb.')).toBeVisible()
 })

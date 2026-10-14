@@ -14,6 +14,7 @@ import ConfirmDialog from './ConfirmDialog'
 import { Icon as SiteIcon } from '@/components/site/Icons'
 import NoteBody, { checklistProgress, toggleCheckLine } from './NoteBody'
 import NoteFields from './NoteFields'
+import { secretDragProps } from '@/lib/dnd'
 
 interface Props {
   entries: SecretEntry[]
@@ -340,7 +341,7 @@ export default function NotesPanel({ entries, onSave, onDelete, masterKey, onSha
               <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={m.search} aria-label={m.search} />
             </div>
             {shown.map(s => (
-              <div className={`secrow noterow${sel?.id === s.id ? ' selected' : ''}`} key={s.id} onClick={() => { setForm(null); setSelId(s.id) }}>
+              <div className={`secrow noterow${sel?.id === s.id ? ' selected' : ''}`} key={s.id} onClick={() => { setForm(null); setSelId(s.id) }} {...secretDragProps([s.id], s.title || '')}>
                 <div className="secmain">
                   <div className="sectitle">
                     {s.pinned && <Icon d={PIN} />}

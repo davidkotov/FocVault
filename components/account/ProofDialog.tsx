@@ -48,8 +48,8 @@ export default function ProofDialog({ entry, onClose }: { entry: VaultEntry; onC
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="proof-title" onMouseDown={e => e.target === e.currentTarget && onClose()}>
       <div className="sharemodal sm2 proofmodal">
         <div className="proofhero">
-          <button className="linkish sm2-close proofclose" onClick={onClose} aria-label={m.close}>
-            {m.close}
+          <button type="button" className="modalclose sm2-close proofclose" onClick={onClose} aria-label={m.close}>
+            <Icon name="x" size={16} />
           </button>
           <span className="proofseal">
             <Icon name="proof" size={26} />

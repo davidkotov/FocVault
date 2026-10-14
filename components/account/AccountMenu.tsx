@@ -55,8 +55,11 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: (view: 'accou
           {m.retry}
         </button>
       )}
-      <button className="ghostbtn" onClick={lock} title={m.lockTitle}>
-        {m.lock}
+      <button className="ghostbtn lockbtn" onClick={lock} title={m.lockTitle} aria-label={m.lock}>
+        <span className="lockbtn-text">{m.lock}</span>
+        <span className="lockbtn-icon" aria-hidden="true">
+          <Icon name="lock" size={15} />
+        </span>
       </button>
       <button type="button" className="avatarbtn" aria-haspopup="menu" aria-expanded={open} aria-label={m.open} title={syncTitle} onClick={() => setOpen(o => !o)}>
         {initials(account.label)}

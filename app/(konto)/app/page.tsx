@@ -39,6 +39,7 @@ import PreviewModal from '@/components/account/PreviewModal'
 import VersionsDialog from '@/components/account/VersionsDialog'
 import FamilyPanel from '@/components/account/FamilyPanel'
 import ProofDialog from '@/components/account/ProofDialog'
+import ProofsDialog from '@/components/account/ProofsDialog'
 import PasskeysPanel from '@/components/account/PasskeysPanel'
 import FamilyFolderView from '@/components/account/FamilyFolderView'
 import StorageApiView from '@/components/account/StorageApiView'
@@ -60,20 +61,65 @@ import { formatBytes, type FileVersion, type SecretEntry, type TierName, type Tr
 
 const TIER: Record<string, TierName> = { free: 'FREE', pro: 'PRO', family: 'FAMILY', business: 'BUSINESS' }
 const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', family: 'Family', business: 'Business' }
+/** So lange nach dem Hochladen gilt eine offene Filecoin-Sicherung als „läuft gerade“. */
+const SECURING_WINDOW_MS = 24 * 60 * 60 * 1000
 
 type AccTab = 'overview' | 'credits' | 'passphrase' | 'passkeys' | 'emergency' | 'sessions' | 'team' | 'delete'
 
-/** Untermenü für Konto & Sicherheit: jeder Reiter zeigt seinen eigenen Bereich. */
+/**
+ * Untermenü für Konto & Sicherheit: jeder Reiter zeigt seinen eigenen Bereich.
+ * Auf schmalen Bildschirmen eine waagrecht scrollbare Leiste über die volle Gerätebreite;
+ * weiche Kanten links und rechts zeigen, dass es seitlich weitergeht.
+ */
 function AccountNav({ items, active, onPick }: { items: Array<[AccTab, string, number?]>; active: AccTab; onPick: (t: AccTab) => void }) {
+  const ref = useRef<HTMLElement>(null)
+  const [edge, setEdge] = useState<'none' | 'start' | 'middle' | 'end'>('none')
+  const measure = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const max = el.scrollWidth - el.clientWidth
+    setEdge(max <= 2 ? 'none' : el.scrollLeft <= 2 ? 'start' : el.scrollLeft >= max - 2 ? 'end' : 'middle')
+  }, [])
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    measure()
+    el.addEventListener('scroll', measure, { passive: true })
+    // ResizeObserver statt window.resize: greift auch, wenn sich nur die Breite der Leiste ändert
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    for (const child of Array.from(el.children)) ro.observe(child)
+    return () => {
+      el.removeEventListener('scroll', measure)
+      ro.disconnect()
+    }
+  }, [measure, items.length])
+  // aktiven Reiter nach einem Wechsel in den sichtbaren Bereich holen
+  useEffect(() => {
+    ref.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [active])
+  const nudge = (dir: -1 | 1) => ref.current?.scrollBy({ left: dir * Math.max(160, (ref.current.clientWidth || 320) * 0.7), behavior: 'smooth' })
   return (
-    <nav className="accnav card pwfolders" aria-label="Konto">
-      {items.map(([id, label, n]) => (
-        <button key={id} className={`pwnav${active === id ? ' active' : ''}${id === 'delete' ? ' dangernav' : ''}`} aria-current={active === id ? 'page' : undefined} onClick={() => onPick(id)}>
-          <span>{label}</span>
-          {!!n && <em>{n}</em>}
-        </button>
-      ))}
-    </nav>
+    <div className="accnavwrap" data-edge={edge}>
+      <button type="button" className="accnavarrow prev" aria-hidden="true" tabIndex={-1} onClick={() => nudge(-1)}>
+        <svg viewBox="0 0 24 24" width="16" height="16">
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
+      </button>
+      <button type="button" className="accnavarrow next" aria-hidden="true" tabIndex={-1} onClick={() => nudge(1)}>
+        <svg viewBox="0 0 24 24" width="16" height="16">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+      <nav className="accnav card pwfolders" aria-label="Konto" ref={ref}>
+        {items.map(([id, label, n]) => (
+          <button key={id} className={`pwnav${active === id ? ' active' : ''}${id === 'delete' ? ' dangernav' : ''}`} aria-current={active === id ? 'page' : undefined} onClick={() => onPick(id)}>
+            <span>{label}</span>
+            {!!n && <em>{n}</em>}
+          </button>
+        ))}
+      </nav>
+    </div>
   )
 }
 
@@ -270,7 +316,7 @@ function ChangePassphraseCard() {
 
 export default function AppPage() {
   const router = useRouter()
-  const { path, fmtDate, fmtNumber, locale } = useI18n()
+  const { path, fmtDate, locale } = useI18n()
   const t = useMessages(appMessages)
   const errText = useErrorText()
   const { status, account, masterKey, vault, mutate, refreshAccount, syncError, bootError } = useAccount()
@@ -352,11 +398,15 @@ export default function AppPage() {
   const [dropOver, setDropOver] = useState<string | null>(null)
   const [confirmBulk, setConfirmBulk] = useState<VaultEntry[] | null>(null)
   const [planSegment, setPlanSegment] = useState<'private' | 'business' | undefined>(undefined)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [proofsOpen, setProofsOpen] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
+  const [confirmSecrets, setConfirmSecrets] = useState<string[] | null>(null)
   const space = useFamilySpace(false)
-  const [onFilecoin, setOnFilecoin] = useState<Record<string, { copies: number }>>({})
+  const [onFilecoin, setOnFilecoin] = useState<Record<string, { copies: number; since?: string }>>({})
   const [activeLinks, setActiveLinks] = useState<number | null>(null)
   useEffect(() => {
-    if (status !== 'ready' || view !== 'cloud') return
+    if (status !== 'ready') return
     api
       .listShares()
       .then(r => setActiveLinks(r.shares.filter(x => x.active).length))
@@ -770,6 +820,11 @@ export default function AppPage() {
   const tier = TIER[account.plan]
   const isPro = account.plan !== 'free' || devPro
   const freeBytes = Math.max(0, account.quotaBytes - account.usedBytes)
+  const trashBytes = (vault.trash ?? []).reduce((n, f) => n + f.size, 0)
+  const withObj = vault.files.filter(f => f.objectId)
+  const securedCount = withObj.filter(f => (onFilecoin[f.objectId!]?.copies ?? 0) > 0).length
+  // „wird gerade gesichert“ = noch offen und erst kürzlich hochgeladen; danach gilt die Sicherung als hängend
+  const securingCount = withObj.filter(f => (onFilecoin[f.objectId!]?.copies ?? 0) === 0 && Date.now() - f.storedAt < SECURING_WINDOW_MS).length
   const titles: Record<ViewId, string> = {
     cloud: t.nav.cloud,
     send: t.nav.send,
@@ -830,10 +885,27 @@ export default function AppPage() {
           if (v === 'plans') setPlanSegment(undefined)
           setView(v)
         }}
-        usedBytes={account.usedBytes}
-        quotaBytes={account.quotaBytes}
-        tierLabel={PLAN_LABEL[account.plan]}
         tier={tier}
+        onSearch={() => setSearchOpen(true)}
+        dock={{
+          usedBytes: account.usedBytes,
+          quotaBytes: account.quotaBytes,
+          tierLabel: PLAN_LABEL[account.plan],
+          securedCount,
+          objectCount: withObj.length,
+          securingCount,
+          activeLinks,
+          trashCount: (vault.trash ?? []).length,
+          trashBytes,
+          trashEnabled: paidPlan,
+          trashPlan: PLAN_LABEL.pro,
+          onPlans: () => setView('plans'),
+          onLinks: () => setView('send'),
+          onTrash: () => setView('trash'),
+          onProofs: () => setProofsOpen(true),
+          onDropFiles: ids => void bulkDelete(ids),
+          onDropSecrets: ids => setConfirmSecrets(ids)
+        }}
         showPlans
         pro={isPro}
         storageApi={account.plan === 'business'}
@@ -845,7 +917,15 @@ export default function AppPage() {
         teamAdminLabel={ta.nav}
       />
       <div className="main">
-        <Topbar title={titles[view]} search={search} onSearchChange={setSearch} hits={searchHits} right={<AccountMenu onNavigate={setView} />} />
+        <Topbar
+          title={titles[view]}
+          search={search}
+          onSearchChange={setSearch}
+          hits={searchHits}
+          searchOpen={searchOpen}
+          onSearchOpen={setSearchOpen}
+          right={<AccountMenu onNavigate={setView} />}
+        />
         <div
           className={`content${pageDrag ? ' pagedrag' : ''}`}
           onDragOver={e => {
@@ -886,9 +966,6 @@ export default function AppPage() {
             {view !== 'cloud' && <div className="pageactions" id="pageactions-slot" />}
             {view === 'cloud' && (
               <div className="pageactions">
-                <button className="small" onClick={() => setNewDir('')}>
-                  <Icon name="folder" size={16} className="inlineicon" /> {t.files.newFolder}
-                </button>
                 <button className="primary" onClick={() => (document.querySelector('[data-testid="upload-input"]') as HTMLInputElement | null)?.click()}>
                   <Icon name="cloud" size={16} className="inlineicon" /> {t.upload.button}
                 </button>
@@ -944,76 +1021,6 @@ export default function AppPage() {
                   </div>
                 )
               })()}
-              {(() => {
-                const trashBytes = (vault.trash ?? []).reduce((n, f) => n + f.size, 0)
-                const verBytes = vault.files.reduce((n, f) => n + (f.versions ?? []).reduce((m, v) => m + (v.size ?? 0), 0), 0)
-                const pct = (b: number) => (account.quotaBytes > 0 ? Math.min(100, (b / account.quotaBytes) * 100) : 0)
-                const withObj = vault.files.filter(f => f.objectId)
-                const secured = withObj.filter(f => (onFilecoin[f.objectId!]?.copies ?? 0) > 0).length
-                return (
-                  <div className="kpis">
-                    <div className="kpi">
-                      <div className="k">
-                        <Icon name="cloud" size={14} /> {t.kpi.used}
-                      </div>
-                      <div className="v">{formatBytes(account.usedBytes)}</div>
-                      <div className="kbar">
-                        <b style={{ width: `${pct(Math.max(0, account.usedBytes - trashBytes - verBytes))}%`, background: 'var(--dk-bar-1, #0b1220)' }} />
-                        <b style={{ width: `${pct(verBytes)}%`, background: 'var(--dk-bar-2, #8a93a3)' }} />
-                        <b style={{ width: `${pct(trashBytes)}%`, background: 'var(--dk-bar-3, #cfd6e0)' }} />
-                      </div>
-                      <div className="s">{fmt(t.kpi.usedOf, { quota: formatBytes(account.quotaBytes) })}</div>
-                    </div>
-                    <div className="kpi">
-                      <div className="k">
-                        <Icon name="proof" size={14} /> {t.kpi.filecoin}
-                      </div>
-                      <div className="v">
-                        {fmtNumber(secured)} / {fmtNumber(withObj.length)}
-                      </div>
-                      <div className="s">{withObj.length - secured > 0 ? fmt(t.kpi.securing, { n: withObj.length - secured }) : t.kpi.allSecured}</div>
-                    </div>
-                    <button className="kpi" onClick={() => setView('send')}>
-                      <div className="k">
-                        <Icon name="send" size={14} /> {t.kpi.links}
-                      </div>
-                      <div className="v">{activeLinks ?? '–'}</div>
-                      <div className="s">{t.kpi.linksSub}</div>
-                    </button>
-                    <button className="kpi" onClick={() => setView(paidPlan ? 'trash' : 'plans')}>
-                      <div className="k">
-                        <Icon name="trash" size={14} /> {t.kpi.trash}
-                      </div>
-                      <div className="v">{fmtNumber((vault.trash ?? []).length)}</div>
-                      <div className="s">{formatBytes(trashBytes)}</div>
-                    </button>
-                  </div>
-                )
-              })()}
-              <AccountUpload masterKey={masterKey} freeBytes={freeBytes} prefix={cwd} onStored={e => void onStored(e)} onError={msg => setError(msg)} />
-              {newDir !== null && (
-                <form
-                  className="card row newdirform"
-                  onSubmit={e => {
-                    e.preventDefault()
-                    const n = newDir.trim()
-                    if (!n || n.includes('/')) return setError(t.files.badName)
-                    const full = cwd + n
-                    mutate(c => ({ ...c, dirs: [...new Set([...(c.dirs ?? []), full])] }))
-                    setNewDir(null)
-                    setCwd(full + '/')
-                  }}
-                >
-                  <Icon name="folder" size={18} />
-                  <input autoFocus aria-label={t.files.newFolderName} placeholder={t.files.newFolderName} value={newDir} onChange={e => setNewDir(e.target.value)} maxLength={80} />
-                  <button className="primary small" type="submit" disabled={!newDir.trim()}>
-                    {t.files.create}
-                  </button>
-                  <button className="small" type="button" onClick={() => setNewDir(null)}>
-                    {t.passkeys.cancel}
-                  </button>
-                </form>
-              )}
               {dl && (
                 <div className="dlbar">
                   <span className="dlbar-name" title={dl.name}>
@@ -1028,30 +1035,28 @@ export default function AppPage() {
                   </button>
                 </div>
               )}
-              {selected.size > 0 ? (
-                <div className="bulkbar" role="toolbar" aria-label={fmt(t.bulk.selected, { n: selected.size })}>
-                  <strong>{fmt(t.bulk.selected, { n: selected.size })}</strong>
+              {(selected.size > 0 || dragActive) && (
+                <div className="bulkbar" role="toolbar" aria-label={selected.size > 0 ? fmt(t.bulk.selected, { n: selected.size }) : t.bulk.drop}>
+                  <strong>{selected.size > 0 ? fmt(t.bulk.selected, { n: selected.size }) : t.bulk.drop}</strong>
                   <div className="row">
-                    <button className="small" onClick={() => setSharing(entriesOf([...selected]))}>
+                    <button className="small droptarget" onClick={() => setSharing(entriesOf([...selected]))} {...dropProps('bulkSend', ids => setSharing(entriesOf(ids)))}>
                       <SendIcon /> {t.bulk.share}
                     </button>
                     {groupPlan && (
-                      <button className="small" onClick={() => void bulkMoveToGroup([...selected])}>
+                      <button className="small droptarget" onClick={() => void bulkMoveToGroup([...selected])} {...dropProps('bulkGroup', ids => void bulkMoveToGroup(ids))}>
                         <FamilyIcon /> {fmt(t.bulk.move, { folder: groupFolderName })}
                       </button>
                     )}
-                    <button className="small danger" onClick={() => void bulkDelete([...selected])}>
+                    <button className="small danger droptarget" onClick={() => void bulkDelete([...selected])} {...dropProps('bulkTrash', ids => void bulkDelete(ids))}>
                       <TrashIcon /> {t.bulk.trash}
                     </button>
-                    <button className="small" onClick={() => setSelected(new Set())}>
-                      {t.bulk.clear}
-                    </button>
+                    {selected.size > 0 && (
+                      <button className="small" onClick={() => setSelected(new Set())}>
+                        {t.bulk.clear}
+                      </button>
+                    )}
                   </div>
                 </div>
-              ) : (
-                vault.files.length > 1 && (
-                  <p className="hint dragtip">{groupPlan ? fmt(t.bulk.dragTip, { folder: groupFolderName }) : t.bulk.dragTipNoFolder}</p>
-                )
               )}
               <FileList
                 entries={vault.files}
@@ -1100,30 +1105,70 @@ export default function AppPage() {
                   setNotice(fmt(t.files.movedDir, { name: dest.slice(0, -1).split('/').pop()!, dir: dir ? dir.slice(0, -1) : t.files.root }))
                 }}
                 onDeleteDir={d => mutate(c => ({ ...c, dirs: (c.dirs ?? []).filter(x => x !== d && !x.startsWith(d + '/')) }))}
+                beforeFilters={
+                  <>
+                    {newDir !== null && (
+                      <form
+                        className="card row newdirform"
+                        onSubmit={e => {
+                          e.preventDefault()
+                          const n = newDir.trim()
+                          if (!n || n.includes('/')) return setError(t.files.badName)
+                          const full = cwd + n
+                          mutate(c => ({ ...c, dirs: [...new Set([...(c.dirs ?? []), full])] }))
+                          setNewDir(null)
+                          setCwd(full + '/')
+                        }}
+                      >
+                        <Icon name="folder" size={18} />
+                        <input autoFocus aria-label={t.files.newFolderName} placeholder={t.files.newFolderName} value={newDir} onChange={e => setNewDir(e.target.value)} maxLength={80} />
+                        <button className="primary small" type="submit" disabled={!newDir.trim()}>
+                          {t.files.create}
+                        </button>
+                        <button className="small" type="button" onClick={() => setNewDir(null)}>
+                          {t.passkeys.cancel}
+                        </button>
+                      </form>
+                    )}
+                    <AccountUpload masterKey={masterKey} freeBytes={freeBytes} prefix={cwd} onStored={e => void onStored(e)} onError={msg => setError(msg)} />
+                    {vault.files.length > 1 && <p className="hint dragtip">{groupPlan ? fmt(t.bulk.dragTip, { folder: groupFolderName }) : t.bulk.dragTipNoFolder}</p>}
+                  </>
+                }
+                onDragActive={setDragActive}
                 headerAction={
                   <>
-                  <button className="small trashbtn droptarget" onClick={() => setView('send')} {...dropProps('send', ids => setSharing(entriesOf(ids)))}>
+                  <button className="small trashbtn iconish droptarget" data-tip={t.nav.send} aria-label={t.nav.send} onClick={() => setView('send')} {...dropProps('send', ids => setSharing(entriesOf(ids)))}>
                     <SendIcon />
-                    {t.nav.send}
+                    <span className="dragonly">{t.nav.send}</span>
                   </button>
                   {(account.plan === 'family' || account.plan === 'business') && (
-                    <button className="small trashbtn familybtn droptarget" onClick={() => setView('familyFolder')} {...dropProps('group', ids => void bulkMoveToGroup(ids))}>
+                    <button
+                      className="small trashbtn familybtn iconish droptarget"
+                      data-tip={account.plan === 'business' ? t.team.folder : t.nav.familyFolder}
+                      aria-label={account.plan === 'business' ? t.team.folder : t.nav.familyFolder}
+                      onClick={() => setView('familyFolder')}
+                      {...dropProps('group', ids => void bulkMoveToGroup(ids))}
+                    >
                       <FamilyIcon />
-                      {account.plan === 'business' ? t.team.folder : t.nav.familyFolder}
+                      <span className="dragonly">{account.plan === 'business' ? t.team.folderShort : t.nav.familyFolder}</span>
                     </button>
                   )}
                   {paidPlan || (vault.trash?.length ?? 0) > 0 ? (
-                    <button className="small trashbtn droptarget" onClick={() => setView('trash')} {...dropProps('trash', ids => void bulkDelete(ids))}>
+                    <button className="small trashbtn iconish droptarget" data-tip={t.trash.button} aria-label={t.trash.button} onClick={() => setView('trash')} {...dropProps('trash', ids => void bulkDelete(ids))}>
                       <TrashIcon />
-                      {t.trash.button}
+                      <span className="dragonly">{t.trash.button}</span>
                       {(vault.trash?.length ?? 0) > 0 && <b className="trashcount">{vault.trash!.length}</b>}
                     </button>
                   ) : (
-                    <button className="small trashbtn locked droptarget" data-tip={t.trash.lockedTip} aria-label={`${t.trash.button} – ${t.trash.lockedTip}`} onClick={() => setView('plans')} {...dropProps('trash', ids => void bulkDelete(ids))}>
+                    <button className="small trashbtn iconish locked droptarget" data-tip={t.trash.lockedTip} aria-label={`${t.trash.button} – ${t.trash.lockedTip}`} onClick={() => setView('plans')} {...dropProps('trash', ids => void bulkDelete(ids))}>
                       <LockIcon />
-                      {t.trash.button}
+                      <span className="dragonly">{t.trash.button}</span>
                     </button>
                   )}
+                  <button className="small trashbtn iconish newdirbtn" data-tip={t.files.newFolder} aria-label={t.files.newFolder} onClick={() => setNewDir('')}>
+                    <Icon name="folder" size={14} />
+                    <span className="dragonly">{t.files.newFolder}</span>
+                  </button>
                   </>
                 }
                 deleteNote={fmt(paidPlan ? t.files.deleteNote : t.files.deleteNoteFree, { days: trashDays })}
@@ -1408,6 +1453,32 @@ export default function AppPage() {
               }}
             />
           )}
+          {proofsOpen && (
+            <ProofsDialog
+              files={vault.files}
+              onFilecoin={onFilecoin}
+              onOpen={e => {
+                setProofsOpen(false)
+                setProofId(e.id)
+              }}
+              onClose={() => setProofsOpen(false)}
+            />
+          )}
+          {confirmSecrets && (
+            <ConfirmDialog
+              title={confirmSecrets.length === 1 ? t.dock.confirmSecretsOne : fmt(t.dock.confirmSecrets, { n: confirmSecrets.length })}
+              body={t.dock.confirmSecretsBody}
+              confirmLabel={t.confirm.delete}
+              cancelLabel={t.confirm.cancel}
+              onCancel={() => setConfirmSecrets(null)}
+              onConfirm={() => {
+                const ids = new Set(confirmSecrets)
+                setConfirmSecrets(null)
+                mutate(c => ({ ...c, secrets: c.secrets.filter(x => !ids.has(x.id)) }))
+              }}
+            />
+          )}
+
           {view === 'account' && (
             <>
             <SecurityStatus

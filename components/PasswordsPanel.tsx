@@ -15,6 +15,7 @@ import { secretsMessages } from '@/lib/i18n/messages/secrets'
 import { reusedPasswords, strength } from '@/lib/password-health'
 import { checkBreaches } from '@/features/passwords/breach'
 import { useErrorText } from '@/features/i18n/errors'
+import { secretDragProps } from '@/lib/dnd'
 
 interface Props {
   entries: SecretEntry[]
@@ -427,7 +428,7 @@ export default function PasswordsPanel({ entries, onSave, onSaveMany, onDelete, 
             <input className="searchinput" value={search} onChange={e => setSearch(e.target.value)} placeholder={m.filter} aria-label={m.filter} />
           </div>
           {filtered.map(s => (
-            <div className={`secrow${sel?.id === s.id ? ' selected' : ''}`} key={s.id} onClick={() => setSelId(s.id)}>
+            <div className={`secrow${sel?.id === s.id ? ' selected' : ''}`} key={s.id} onClick={() => setSelId(s.id)} {...secretDragProps([s.id], s.title || s.username || '')}>
               <SiteAvatar title={s.title} icon={s.icon} host={hostFromUrl(s.url) || knownHost(s.title)} />
               <div className="secmain">
                 <div className="sectitle">

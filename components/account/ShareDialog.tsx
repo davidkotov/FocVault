@@ -149,8 +149,8 @@ export default function ShareDialog({
             <h3 id="share-title">{m.title}</h3>
             <span className="dim">{m.subtitle}</span>
           </div>
-          <button className="linkish sm2-close" onClick={onClose} aria-label={m.close}>
-            {m.close}
+          <button type="button" className="modalclose sm2-close" onClick={onClose} aria-label={m.close}>
+            <Icon name="x" size={16} />
           </button>
         </div>
 
